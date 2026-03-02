@@ -1,0 +1,20 @@
+default: &default
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  <<: *default
+  adapter: sqlite3
+  database: db/development.sqlite3
+
+test:
+  <<: *default
+  adapter: sqlite3
+  database: db/test.sqlite3
+
+production:
+  adapter: postgresql
+  encoding: unicode
+  host: localhost
+  database: techneuber_production
+  username: ethanfree23
+  password: <%= ENV['TECHNEUBER_DATABASE_PASSWORD'] %>

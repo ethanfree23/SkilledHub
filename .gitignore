@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Rails
+skilled_hub_api/log/*
+skilled_hub_api/tmp/*
+skilled_hub_api/storage/*
+skilled_hub_api/.bundle
+skilled_hub_api/.env*
+!skilled_hub_api/.env*.erb
+skilled_hub_api/config/master.key
+
+# SQLite databases (optional - remove if you want to commit dev DB)
+# skilled_hub_api/db/*.sqlite3
+# skilled_hub_api/db/*.sqlite3-*
+
+# Editor
+.vscode/*
+.idea
+.DS_Store
+*.sw?

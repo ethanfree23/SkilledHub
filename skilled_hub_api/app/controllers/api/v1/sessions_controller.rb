@@ -1,0 +1,25 @@
+module Api
+  module V1
+    class SessionsController < ApplicationController
+      skip_before_action :transform_json_params, only: [:create]
+
+      def create
+        user = User.find_by(email: params[:email])
+        if user&.authenticate(params[:password])
+          token = JWT.encode({ user_id: user.id }, Rails.application.secret_key_base)
+          user_json = UserSerializer.new(user).as_json
+          render json: { token: token, user: user_json }, status: :ok
+        else
+          render json: { error: "Invalid email or password" }, status: :unauthorized
+        end
+      rescue => e
+        Rails.logger.error "Login error: #{e.class} - #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+        render json: {
+          error: "Login failed",
+          message: (Rails.env.development? ? e.message : nil)
+        }, status: :internal_server_error
+      end
+    end
+  end
+end
+  

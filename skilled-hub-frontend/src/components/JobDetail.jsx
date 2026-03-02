@@ -1,0 +1,454 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { jobsAPI, jobApplicationsAPI, profilesAPI, ratingsAPI } from '../api/api';
+import { auth } from '../auth';
+import Modal from 'react-modal';
+
+const JobDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [job, setJob] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [claiming, setClaiming] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showClaimedModal, setShowClaimedModal] = useState(false);
+  const [editData, setEditData] = useState({ description: '', location: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [claimedBy, setClaimedBy] = useState(null);
+  const [loadingClaimed, setLoadingClaimed] = useState(false);
+  const [technicianProfileId, setTechnicianProfileId] = useState(null);
+  const [companyProfileId, setCompanyProfileId] = useState(null);
+  const [ratings, setRatings] = useState([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewData, setReviewData] = useState({ score: 5, comment: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    // Read user from localStorage on mount
+    const storedUser = localStorage.getItem('user');
+    if (storedUser && storedUser !== 'undefined') {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (id) {
+      fetchJobDetails();
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (user?.role === 'technician') {
+      profilesAPI.getTechnicianProfile()
+        .then(p => setTechnicianProfileId(p?.id))
+        .catch(() => setTechnicianProfileId(null));
+    } else {
+      setTechnicianProfileId(null);
+    }
+    if (user?.role === 'company') {
+      profilesAPI.getCompanyProfile()
+        .then(p => setCompanyProfileId(p?.id))
+        .catch(() => setCompanyProfileId(null));
+    } else {
+      setCompanyProfileId(null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (job?.status === 'finished' && id) {
+      ratingsAPI.getByJob(id)
+        .then(setRatings)
+        .catch(() => setRatings([]));
+    } else {
+      setRatings([]);
+    }
+  }, [job?.status, id]);
+
+  const fetchJobDetails = async () => {
+    try {
+      setLoading(true);
+      const data = await jobsAPI.getById(id);
+      setJob(data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load job details');
+      console.error('Error fetching job details:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClaimJob = async () => {
+    if (!user || user.role !== 'technician') return;
+    try {
+      setClaiming(true);
+      await jobsAPI.claim(id);
+      await fetchJobDetails();
+    } catch (err) {
+      alert(err.message || 'Failed to claim job');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const isJobClaimedByMe = () => {
+    if (!technicianProfileId || !job?.job_applications) return false;
+    return job.job_applications.some(
+      app => app.technician_profile_id === technicianProfileId && app.status === 'accepted'
+    );
+  };
+
+  const handleBackToList = () => {
+    navigate('/jobs');
+  };
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'open': { label: 'Open', className: 'bg-green-100 text-green-800' },
+      'reserved': { label: 'Claimed', className: 'bg-yellow-100 text-yellow-800' },
+      'finished': { label: 'Complete', className: 'bg-blue-100 text-blue-800' },
+      'filled': { label: 'Filled', className: 'bg-gray-100 text-gray-800' }
+    };
+    
+    const statusInfo = statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-800' };
+    return (
+      <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusInfo.className}`}>
+        {statusInfo.label}
+      </span>
+    );
+  };
+
+  const openEditModal = () => {
+    setEditData({ description: job.description, location: job.location });
+    setShowEditModal(true);
+  };
+  const closeEditModal = () => setShowEditModal(false);
+
+  const openClaimedModal = async () => {
+    setShowClaimedModal(true);
+    setLoadingClaimed(true);
+    try {
+      const apps = await jobApplicationsAPI.getAll();
+      const accepted = apps.find(app => app.job_id === parseInt(id, 10) && app.status === 'accepted');
+      setClaimedBy(accepted?.technician_profile || null);
+    } catch {
+      setClaimedBy(null);
+    } finally {
+      setLoadingClaimed(false);
+    }
+  };
+  const closeClaimedModal = () => setShowClaimedModal(false);
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSavingEdit(true);
+    try {
+      await jobsAPI.update(job.id, editData);
+      await fetchJobDetails();
+      closeEditModal();
+    } catch {
+      alert('Failed to update job');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleMarkComplete = async () => {
+    await jobsAPI.finish(job.id);
+    await fetchJobDetails();
+  };
+
+  const canLeaveReview = () => {
+    if (!user || job?.status !== 'finished') return false;
+    if (user.role === 'company' && job.company_profile_id === companyProfileId) return true;
+    if (user.role === 'technician' && isJobClaimedByMe()) return true;
+    return false;
+  };
+
+  const hasAlreadyReviewed = () => {
+    if (!ratings.length) return false;
+    const reviewerType = user?.role === 'company' ? 'CompanyProfile' : 'TechnicianProfile';
+    const reviewerId = user?.role === 'company' ? companyProfileId : technicianProfileId;
+    return ratings.some(r =>
+      r.reviewer_type === reviewerType &&
+      String(r.reviewer_id) === String(reviewerId)
+    );
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setSubmittingReview(true);
+      await ratingsAPI.create(job.id, { score: reviewData.score, comment: reviewData.comment });
+      const updated = await ratingsAPI.getByJob(job.id);
+      setRatings(updated);
+      setShowReviewForm(false);
+      setReviewData({ score: 5, comment: '' });
+    } catch (err) {
+      alert(err.message || 'Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading job details...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-red-600">{error}</div>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-red-600">Job not found</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="mb-6">
+        <button 
+          onClick={handleBackToList} 
+          className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Jobs
+        </button>
+        
+        <div className="flex justify-between items-start mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
+          {getStatusBadge(job.status)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-500">Location</p>
+                  <p className="font-medium">{job.location}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-500">Company</p>
+                  <p className="font-medium">{job.company_profile?.company_name || 'Company'}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-500">Industry</p>
+                  <p className="font-medium">{job.company_profile?.industry || 'N/A'}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-500">Posted</p>
+                  <p className="font-medium">
+                    {new Date(job.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Job Description</h3>
+              <p className="text-gray-700 leading-relaxed">{job.description}</p>
+            </div>
+
+            {job.required_documents && (
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Required Documents</h3>
+                <p className="text-gray-700">{job.required_documents}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-1">
+          {user && user.role === 'technician' && job.status === 'open' && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Claim this Job</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                First come, first served. Click below to claim this job—it will be yours immediately.
+              </p>
+              <button
+                onClick={handleClaimJob}
+                disabled={claiming}
+                className="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
+              >
+                {claiming ? 'Claiming...' : 'Claim Job'}
+              </button>
+            </div>
+          )}
+
+          {user && user.role === 'technician' && job.status === 'reserved' && isJobClaimedByMe() && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Your Job</h3>
+              <p className="text-sm text-gray-600">
+                You claimed this job. Complete the work and the company will mark it as finished.
+              </p>
+            </div>
+          )}
+
+          {user && user.role === 'company' && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Company Actions</h3>
+              <div className="space-y-3">
+                <button onClick={openEditModal} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                  Edit Job
+                </button>
+                {job.status === 'reserved' && (
+                  <>
+                    <button onClick={openClaimedModal} className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                      View Claimed By
+                    </button>
+                    <button onClick={handleMarkComplete} className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                      Mark Job Complete
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {job.status === 'finished' && canLeaveReview() && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Leave a Review</h3>
+              {hasAlreadyReviewed() ? (
+                <p className="text-sm text-gray-600">You have already reviewed for this job.</p>
+              ) : showReviewForm ? (
+                <form onSubmit={handleReviewSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rating (1-5 stars)</label>
+                    <select
+                      value={reviewData.score}
+                      onChange={e => setReviewData(prev => ({ ...prev, score: parseInt(e.target.value, 10) }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      required
+                    >
+                      {[1, 2, 3, 4, 5].map(n => (
+                        <option key={n} value={n}>{n} star{n > 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Comment (optional)</label>
+                    <textarea
+                      value={reviewData.comment}
+                      onChange={e => setReviewData(prev => ({ ...prev, comment: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      rows={3}
+                      placeholder="How did the job go?"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <button type="button" onClick={() => setShowReviewForm(false)} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                    <button type="submit" disabled={submittingReview} className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
+                      {submittingReview ? 'Submitting...' : 'Submit Review'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Rate your experience with {user?.role === 'company' ? 'the technician' : 'the company'}.
+                  </p>
+                  <button onClick={() => setShowReviewForm(true)} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                    Leave Review
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Edit Job Modal */}
+      <Modal isOpen={showEditModal} onRequestClose={closeEditModal} ariaHideApp={false} className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded shadow-lg w-full max-w-md">
+          <h2 className="text-xl font-bold mb-4">Edit Job</h2>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <textarea name="description" value={editData.description} onChange={handleEditChange} className="w-full border rounded p-2" rows={4} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Location</label>
+              <input name="location" value={editData.location} onChange={handleEditChange} className="w-full border rounded p-2" required />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button type="button" onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</button>
+            </div>
+          </form>
+        </div>
+      </Modal>
+      {/* View Claimed By Modal */}
+      <Modal isOpen={showClaimedModal} onRequestClose={closeClaimedModal} ariaHideApp={false} className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded shadow-lg w-full max-w-lg">
+          <h2 className="text-xl font-bold mb-4">Claimed By</h2>
+          {loadingClaimed ? <div>Loading...</div> : (
+            <div className="space-y-4">
+              {claimedBy ? (
+                <div className="border rounded p-4">
+                  <div className="font-semibold">{claimedBy.user?.email || 'Technician'}</div>
+                  <div className="text-sm text-gray-600 mt-1">{claimedBy.trade_type || '—'} • {claimedBy.experience_years ?? '—'} years experience</div>
+                </div>
+              ) : (
+                <p className="text-gray-500">No one has claimed this job yet.</p>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end mt-4">
+            <button onClick={closeClaimedModal} className="px-4 py-2 bg-gray-200 rounded">Close</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default JobDetail; 
