@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import LoginPage from './pages/LoginPage';
 import JobsPage from './pages/JobsPage';
 import JobDetail from './components/JobDetail';
-import CompanyDashboard from './pages/CompanyDashboard';
+import Dashboard from './pages/Dashboard';
 import CreateJob from './pages/CreateJob';
 import EditJob from './pages/EditJob';
 import { auth } from './auth';
@@ -13,16 +13,10 @@ const ProtectedRoute = ({ children, isAuthenticated }) => {
   return isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
-// Public Route component (redirects based on user role if already authenticated)
-const PublicRoute = ({ children, isAuthenticated, user }) => {
+// Public Route component (redirects to dashboard if already authenticated)
+const PublicRoute = ({ children, isAuthenticated }) => {
   if (!isAuthenticated) return children;
-  
-  // Redirect based on user role
-  if (user?.role === 'company') {
-    return <Navigate to="/dashboard" replace />;
-  } else {
-    return <Navigate to="/jobs" replace />;
-  }
+  return <Navigate to="/dashboard" replace />;
 };
 
 function App() {
@@ -80,18 +74,18 @@ function App() {
           <Route 
             path="/" 
             element={
-              <PublicRoute isAuthenticated={isAuthenticated} user={user}>
+              <PublicRoute isAuthenticated={isAuthenticated}>
                 <LoginPage onLoginSuccess={handleLoginSuccess} />
               </PublicRoute>
             } 
           />
           
-          {/* Protected dashboard route for company users */}
+          {/* Dashboard - both company and technician */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated && user?.role === 'company'}>
-                <CompanyDashboard user={user} onLogout={handleLogout} />
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <Dashboard user={user} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />

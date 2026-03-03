@@ -4,5 +4,9 @@ class CompanyProfile < ApplicationRecord
   has_many :conversations, dependent: :destroy
   has_many :messages, through: :conversations
   has_many :documents, as: :uploadable, dependent: :destroy
-  
+  has_many :ratings_received, class_name: 'Rating', as: :reviewee, dependent: :destroy
+
+  def average_rating
+    Rating.average_for(self)
+  end
 end

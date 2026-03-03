@@ -95,6 +95,12 @@ export const jobsAPI = {
     apiRequest(`/jobs/${id}/finish`, {
       method: 'PATCH',
     }),
+
+  getDashboard: () =>
+    apiRequest('/dashboard/jobs'),
+
+  getTechnicianDashboard: () =>
+    apiRequest('/dashboard/technician_jobs'),
 };
 
 // Job Applications endpoints
@@ -179,10 +185,17 @@ export const ratingsAPI = {
   getByJob: (jobId) =>
     apiRequest(`/ratings?job_id=${jobId}`),
 
+  getReviewCategories: (as) =>
+    apiRequest(`/ratings/review_categories?as=${as || 'company'}`),
+
   create: (jobId, data) =>
     apiRequest('/ratings', {
       method: 'POST',
-      body: JSON.stringify({ job_id: jobId, score: data.score, comment: data.comment }),
+      body: JSON.stringify({
+        job_id: jobId,
+        score: data.score,
+        comment: data.comment || '',
+      }),
     }),
 };
 

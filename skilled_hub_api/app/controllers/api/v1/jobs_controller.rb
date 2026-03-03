@@ -106,6 +106,28 @@ module Api
         render json: { error: 'Job not found' }, status: :not_found
       end
 
+      def technician_dashboard_jobs
+        unless @current_user&.technician?
+          return render json: { error: 'Access denied. Technician role required.' }, status: :forbidden
+        end
+
+        technician_profile = @current_user.technician_profile
+        return render json: { in_progress: [], completed: [] }, status: :ok unless technician_profile
+
+        base = Job.joins(:job_applications)
+          .where(job_applications: { technician_profile_id: technician_profile.id, status: :accepted })
+          .distinct
+          .includes(:company_profile, :job_applications)
+
+        in_progress = base.where(status: :reserved)
+        completed = base.where(status: [:finished, :filled])
+
+        render json: {
+          in_progress: ActiveModel::Serializer::CollectionSerializer.new(in_progress, serializer: JobSerializer),
+          completed: ActiveModel::Serializer::CollectionSerializer.new(completed, serializer: JobSerializer)
+        }, status: :ok
+      end
+
       # Technician claims a job (first-come-first-served, like Uber driver accepting a ride)
       def claim
         job = Job.find(params[:id])

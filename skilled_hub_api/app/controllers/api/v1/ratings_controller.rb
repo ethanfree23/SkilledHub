@@ -1,8 +1,14 @@
 module Api
   module V1
     class RatingsController < ApplicationController
-      before_action :authenticate_user, only: [:index, :show, :create]
-      
+      before_action :authenticate_user
+
+      def review_categories
+        type = params[:as] == 'technician' ? 'TechnicianProfile' : 'CompanyProfile'
+        categories = Rating.categories_for(type)
+        render json: { categories: categories }
+      end
+
       def index
         ratings = Rating.all
         ratings = ratings.where(job_id: params[:job_id]) if params[:job_id].present?
@@ -46,13 +52,15 @@ module Api
           return render json: { error: "You have already reviewed for this job" }, status: :unprocessable_entity
         end
 
-        rating = Rating.new(
-          job: job,
-          reviewer: reviewer,
-          reviewee: reviewee,
-          score: params[:score],
-          comment: params[:comment]
-        )
+        score = rating_params[:score]&.to_i
+        category_scores = rating_params[:category_scores]
+        unless score.present? && score.between?(1, 5)
+          return render json: { error: "score (1-5) is required" }, status: :unprocessable_entity
+        end
+
+        attrs = { job: job, reviewer: reviewer, reviewee: reviewee, score: score, comment: rating_params[:comment] }
+        attrs[:category_scores] = category_scores.transform_keys(&:to_s) if category_scores.present? && category_scores.is_a?(Hash)
+        rating = Rating.new(attrs)
 
         if rating.save
           render json: rating, serializer: RatingSerializer, status: :created
@@ -61,6 +69,12 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Job not found" }, status: :not_found
+      end
+
+      private
+
+      def rating_params
+        params.permit(:job_id, :score, :comment, category_scores: {})
       end
     end
   end

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { jobsAPI, jobApplicationsAPI, profilesAPI, ratingsAPI } from '../api/api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { jobsAPI, profilesAPI, ratingsAPI } from '../api/api';
 import { auth } from '../auth';
 import Modal from 'react-modal';
+import StarRating from './StarRating';
 
 const JobDetail = () => {
   const { id } = useParams();
@@ -136,8 +137,8 @@ const JobDetail = () => {
     setShowClaimedModal(true);
     setLoadingClaimed(true);
     try {
-      const apps = await jobApplicationsAPI.getAll();
-      const accepted = apps.find(app => app.job_id === parseInt(id, 10) && app.status === 'accepted');
+      const apps = job?.job_applications || [];
+      const accepted = apps.find(app => app.status === 'accepted');
       setClaimedBy(accepted?.technician_profile || null);
     } catch {
       setClaimedBy(null);
@@ -190,9 +191,14 @@ const JobDetail = () => {
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
+    const score = reviewData.score;
+    if (!score || score < 1 || score > 5) {
+      alert('Please select a rating (1-5 stars).');
+      return;
+    }
     try {
       setSubmittingReview(true);
-      await ratingsAPI.create(job.id, { score: reviewData.score, comment: reviewData.comment });
+      await ratingsAPI.create(job.id, { score, comment: reviewData.comment });
       const updated = await ratingsAPI.getByJob(job.id);
       setRatings(updated);
       setShowReviewForm(false);
@@ -231,15 +237,19 @@ const JobDetail = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <button 
-          onClick={handleBackToList} 
-          className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Jobs
-        </button>
+        <div className="flex items-center gap-4 mb-4">
+          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 text-sm">Dashboard</Link>
+          <span className="text-gray-400">|</span>
+          <button 
+            onClick={handleBackToList} 
+            className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Jobs
+          </button>
+        </div>
         
         <div className="flex justify-between items-start mb-6">
           <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
@@ -267,7 +277,14 @@ const JobDetail = () => {
                 </svg>
                 <div>
                   <p className="text-sm text-gray-500">Company</p>
-                  <p className="font-medium">{job.company_profile?.company_name || 'Company'}</p>
+                  <p className="font-medium flex items-center gap-2">
+                    {job.company_profile?.company_name || 'Company'}
+                    {job.company_profile?.average_rating != null && (
+                      <span className="inline-flex items-center text-amber-600 text-sm">
+                        ★ {Number(job.company_profile.average_rating).toFixed(1)}
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
               
@@ -303,6 +320,37 @@ const JobDetail = () => {
               <div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">Required Documents</h3>
                 <p className="text-gray-700">{job.required_documents}</p>
+              </div>
+            )}
+
+            {job.status === 'finished' && ratings?.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Reviews</h3>
+                <div className="space-y-4">
+                  {ratings.map((r) => (
+                    <div key={r.id} className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500">
+                          {r.reviewer_type === 'CompanyProfile' ? 'Company' : 'Technician'} review
+                        </span>
+                        <span className="inline-flex items-center text-amber-600 font-medium">
+                          ★ {r.score != null ? Number(r.score).toFixed(1) : '—'}
+                        </span>
+                      </div>
+                      {r.category_scores && Object.keys(r.category_scores).length > 0 && r.category_labels && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2 text-sm">
+                          {Object.entries(r.category_scores).map(([k, v]) => (
+                            <div key={k} className="flex justify-between items-center">
+                              <span className="text-gray-600">{r.category_labels[k] || k}</span>
+                              <span className="text-amber-600 font-medium">{v}/5 ★</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {r.comment && <p className="text-gray-700 text-sm">{r.comment}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -364,16 +412,10 @@ const JobDetail = () => {
                 <form onSubmit={handleReviewSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Rating (1-5 stars)</label>
-                    <select
+                    <StarRating
                       value={reviewData.score}
-                      onChange={e => setReviewData(prev => ({ ...prev, score: parseInt(e.target.value, 10) }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      required
-                    >
-                      {[1, 2, 3, 4, 5].map(n => (
-                        <option key={n} value={n}>{n} star{n > 1 ? 's' : ''}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setReviewData(prev => ({ ...prev, score: v }))}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Comment (optional)</label>
@@ -434,7 +476,12 @@ const JobDetail = () => {
             <div className="space-y-4">
               {claimedBy ? (
                 <div className="border rounded p-4">
-                  <div className="font-semibold">{claimedBy.user?.email || 'Technician'}</div>
+                  <div className="font-semibold flex items-center gap-2">
+                    {claimedBy.user?.email || 'Technician'}
+                    {claimedBy.average_rating != null && (
+                      <span className="text-amber-600 text-sm">★ {Number(claimedBy.average_rating).toFixed(1)}</span>
+                    )}
+                  </div>
                   <div className="text-sm text-gray-600 mt-1">{claimedBy.trade_type || '—'} • {claimedBy.experience_years ?? '—'} years experience</div>
                 </div>
               ) : (

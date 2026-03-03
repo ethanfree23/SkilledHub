@@ -19,6 +19,8 @@ const JobList = () => {
 
   const [technicianProfile, setTechnicianProfile] = useState(null);
   const [claimingJobId, setClaimingJobId] = useState(null);
+  const [completedJobs, setCompletedJobs] = useState([]);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
 
   const user = auth.getUser();
 
@@ -28,6 +30,16 @@ const JobList = () => {
       fetchTechnicianProfile();
     }
   }, [filters]);
+
+  useEffect(() => {
+    if (auth.isTechnician()) {
+      setLoadingCompleted(true);
+      jobsAPI.getTechnicianDashboard()
+        .then(res => setCompletedJobs(res.completed || []))
+        .catch(() => setCompletedJobs([]))
+        .finally(() => setLoadingCompleted(false));
+    }
+  }, []);
 
   const fetchJobs = async () => {
     try {
@@ -180,6 +192,46 @@ const JobList = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
+      {auth.isTechnician() && (
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Completed Jobs</h2>
+          <p className="text-gray-600 mb-4">Jobs you've completed. Leave a review for the company.</p>
+          {loadingCompleted ? (
+            <div className="text-gray-500 py-4">Loading completed jobs...</div>
+          ) : completedJobs.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-gray-600">
+              No completed jobs yet. Complete a job and the company will mark it as finished.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+              {completedJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white border-2 border-gray-200 rounded-xl shadow p-6 flex flex-col"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      Complete
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm line-clamp-2 mb-2">{job.description || '—'}</p>
+                  <div className="text-xs text-gray-500 mb-4">
+                    {job.company_profile?.company_name || 'Company'} • {job.location}
+                  </div>
+                  <Link
+                    to={`/jobs/${job.id}`}
+                    className="mt-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center text-sm font-medium"
+                  >
+                    View & Leave Review
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mb-12">
         <h2 className="text-3xl font-bold text-gray-900 mb-10">Available Jobs</h2>
 

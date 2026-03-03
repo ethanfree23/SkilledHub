@@ -111,10 +111,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.integer "reviewer_id", null: false
     t.string "reviewee_type", null: false
     t.integer "reviewee_id", null: false
-    t.integer "score"
+    t.decimal "score", precision: 3, scale: 2
     t.text "comment"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "category_scores", default: {}
     t.index ["job_id"], name: "index_ratings_on_job_id"
     t.index ["reviewee_type", "reviewee_id"], name: "index_ratings_on_reviewee"
     t.index ["reviewer_type", "reviewer_id"], name: "index_ratings_on_reviewer"

@@ -27,12 +27,17 @@ Rails.application.routes.draw do
       resources :conversations
       resources :messages
       resources :documents
-      resources :ratings
+      resources :ratings do
+        collection do
+          get :review_categories
+        end
+      end
       resources :company_profiles
       resources :technicians
       resources :job_seekers
       resources :auth, only: [:index]
       get 'dashboard/jobs', to: 'jobs#dashboard_jobs'
+      get 'dashboard/technician_jobs', to: 'jobs#technician_dashboard_jobs'
     end
   end
 end

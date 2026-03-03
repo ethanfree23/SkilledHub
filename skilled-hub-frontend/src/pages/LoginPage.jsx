@@ -37,15 +37,7 @@ const LoginPage = ({ onLoginSuccess }) => {
       console.log('User role type:', typeof response.user.role);
       console.log('Role comparison result:', response.user.role === 'company');
       
-      setTimeout(() => {
-        if (response.user.role === 'company') {
-          console.log('Redirecting to dashboard');
-          navigate('/dashboard');
-        } else {
-          console.log('Redirecting to jobs');
-          navigate('/jobs');
-        }
-      }, 100);
+      setTimeout(() => navigate('/dashboard'), 100);
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed');
@@ -81,15 +73,7 @@ const LoginPage = ({ onLoginSuccess }) => {
       console.log('User role type:', typeof response.user.role);
       console.log('Role comparison result:', response.user.role === 'company');
       
-      setTimeout(() => {
-        if (response.user.role === 'company') {
-          console.log('Redirecting to dashboard');
-          navigate('/dashboard');
-        } else {
-          console.log('Redirecting to jobs');
-          navigate('/jobs');
-        }
-      }, 100);
+      setTimeout(() => navigate('/dashboard'), 100);
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.message || 'Registration failed');

@@ -55,11 +55,14 @@ doc = Document.create!(
   doc_type: "License"
 )
 
-# Rating
-rating = Rating.create!(
-  job: job,
-  reviewer: company_user,
-  reviewee: tech_user,
-  score: 5,
-  comment: "Excellent work!"
-)
+# Rating (only for finished jobs - seed job is open, so skip or create a finished job for demo)
+# Uncomment below if you add a finished job for testing reviews:
+# finished_job = Job.create!(company_profile: cp, title: "Done Job", description: "Done", location: "Austin", status: :finished)
+# JobApplication.create!(job: finished_job, technician_profile: tp, status: :accepted)
+# Rating.create!(
+#   job: finished_job,
+#   reviewer: cp,
+#   reviewee: tp,
+#   category_scores: { punctuality: 5, attention_to_detail: 5, teamwork: 5, job_satisfaction: 5, communication: 5 },
+#   comment: "Excellent work!"
+# )
