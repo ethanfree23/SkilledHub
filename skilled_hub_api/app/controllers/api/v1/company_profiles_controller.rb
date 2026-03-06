@@ -11,7 +11,7 @@ module Api
       
       def show
         company_profile = CompanyProfile.find(params[:id])
-        render json: company_profile, serializer: CompanyProfileSerializer, status: :ok
+        render json: company_profile, serializer: CompanyProfileDetailSerializer, status: :ok
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Company profile not found" }, status: :not_found
       end

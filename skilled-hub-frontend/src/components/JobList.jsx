@@ -217,14 +217,28 @@ const JobList = () => {
                   </div>
                   <p className="text-gray-600 text-sm line-clamp-2 mb-2">{job.description || '—'}</p>
                   <div className="text-xs text-gray-500 mb-4">
-                    {job.company_profile?.company_name || 'Company'} • {job.location}
+                    <Link
+                      to={`/companies/${job.company_profile_id}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {job.company_profile?.company_name || 'Company'}
+                    </Link>
+                    {' • '}{job.location}
                   </div>
-                  <Link
-                    to={`/jobs/${job.id}`}
-                    className="mt-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center text-sm font-medium"
-                  >
-                    View & Leave Review
-                  </Link>
+                  <div className="flex flex-col gap-2 mt-auto">
+                    <Link
+                      to={`/companies/${job.company_profile_id}`}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm font-medium border border-gray-200"
+                    >
+                      View Company Profile
+                    </Link>
+                    <Link
+                      to={`/jobs/${job.id}`}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center text-sm font-medium"
+                    >
+                      View & Leave Review
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>
@@ -324,7 +338,13 @@ const JobList = () => {
                       {job.location}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {job.company_profile?.company_name || 'Company'}
+                      <Link
+                        to={`/companies/${job.company_profile_id}`}
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {job.company_profile?.company_name || 'Company'}
+                      </Link>
                     </div>
                   </div>
                   
@@ -335,6 +355,14 @@ const JobList = () => {
                     >
                       View Details
                     </Link>
+                    {auth.isTechnician() && (
+                      <Link
+                        to={`/companies/${job.company_profile_id}`}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-center border-2 border-gray-200 text-sm font-medium"
+                      >
+                        View Company Profile
+                      </Link>
+                    )}
                     {auth.isTechnician() && job.status === 'open' && (
                       <button
                         onClick={(e) => { e.preventDefault(); handleClaimJob(job.id); }}

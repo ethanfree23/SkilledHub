@@ -272,26 +272,50 @@ const JobDetail = () => {
     );
   }
 
+  const currentUser = user || auth.getUser();
+
+  const companyId = job.company_profile_id ?? job.company_profile?.id;
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 text-sm">Dashboard</Link>
-          <span className="text-gray-400">|</span>
-          <button 
-            onClick={handleBackToList} 
-            className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+        <Link
+          to={`/companies/${companyId || 0}`}
+          className="inline-block mb-4 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-center"
+        >
+          Company Profile
+        </Link>
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-4">
+            <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 text-sm">Dashboard</Link>
+            <span className="text-gray-400">|</span>
+            <button 
+              onClick={handleBackToList} 
+              className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Jobs
+            </button>
+          </div>
+          <Link
+            to={`/companies/${companyId || 0}`}
+            className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
           >
-            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Jobs
-          </button>
+            Company Profile
+          </Link>
         </div>
         
         <div className="flex justify-between items-start mb-6">
           <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              to={`/companies/${job.company_profile_id ?? job.company_profile?.id ?? ''}`}
+              className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm"
+            >
+              Company Profile
+            </Link>
             {canLeaveReview() && !hasAlreadyReviewed() && (
               <button
                 onClick={() => setShowReviewForm(true)}
@@ -319,11 +343,11 @@ const JobDetail = () => {
                 </div>
               </div>
               
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <div className="flex items-center md:col-span-2">
+                <svg className="w-5 h-5 text-gray-400 mr-3 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                 </svg>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-500">Company</p>
                   <p className="font-medium flex items-center gap-2">
                     {job.company_profile?.company_name || 'Company'}
@@ -333,6 +357,14 @@ const JobDetail = () => {
                       </span>
                     )}
                   </p>
+                  {(job.company_profile_id ?? job.company_profile?.id) && (
+                    <Link
+                      to={`/companies/${job.company_profile_id ?? job.company_profile?.id}`}
+                      className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      View Company Profile
+                    </Link>
+                  )}
                 </div>
               </div>
               
@@ -358,6 +390,29 @@ const JobDetail = () => {
                 </div>
               </div>
             </div>
+
+            {(job.company_profile_id ?? job.company_profile?.id) && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{job.company_profile?.company_name || 'Company'}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {job.company_profile?.average_rating != null ? (
+                        <>★ {Number(job.company_profile.average_rating).toFixed(1)} average rating</>
+                      ) : (
+                        'View profile and past reviews from technicians'
+                      )}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/companies/${job.company_profile_id ?? job.company_profile?.id}`}
+                    className="shrink-0 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-center"
+                  >
+                    View Company Profile & Reviews
+                  </Link>
+                </div>
+              </div>
+            )}
 
             <div className="mb-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-3">Job Description</h3>
@@ -467,7 +522,22 @@ const JobDetail = () => {
         </div>
 
         <div className="lg:col-span-1">
-          {user && user.role === 'technician' && job.status === 'open' && (
+          {(job.company_profile_id ?? job.company_profile?.id) && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6 mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Company</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                View {job.company_profile?.company_name || 'the company'}'s profile and past reviews.
+              </p>
+              <Link
+                to={`/companies/${job.company_profile_id ?? job.company_profile?.id}`}
+                className="block w-full px-4 py-3 bg-blue-600 text-white text-center rounded-md hover:bg-blue-700 transition-colors font-medium"
+              >
+                View Company Profile
+              </Link>
+            </div>
+          )}
+
+          {currentUser?.role === 'technician' && job.status === 'open' && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Claim this Job</h3>
               <p className="text-sm text-gray-600 mb-4">
@@ -480,10 +550,17 @@ const JobDetail = () => {
               >
                 {claiming ? 'Claiming...' : 'Claim Job'}
               </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/companies/${job.company_profile_id ?? job.company_profile?.id ?? 0}`)}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium mt-3"
+              >
+                View Company Profile
+              </button>
             </div>
           )}
 
-          {user && user.role === 'technician' && job.status === 'reserved' && isJobClaimedByMe() && (
+          {currentUser?.role === 'technician' && job.status === 'reserved' && isJobClaimedByMe() && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Your Job</h3>
               <p className="text-sm text-gray-600">
@@ -565,12 +642,23 @@ const JobDetail = () => {
               {claimedBy ? (
                 <div className="border rounded p-4">
                   <div className="font-semibold flex items-center gap-2">
-                    {claimedBy.user?.email || 'Technician'}
+                    <Link
+                      to={`/technicians/${claimedBy.id}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {claimedBy.user?.email || 'Technician'}
+                    </Link>
                     {claimedBy.average_rating != null && (
                       <span className="text-amber-600 text-sm">★ {Number(claimedBy.average_rating).toFixed(1)}</span>
                     )}
                   </div>
                   <div className="text-sm text-gray-600 mt-1">{claimedBy.trade_type || '—'} • {claimedBy.experience_years ?? '—'} years experience</div>
+                  <Link
+                    to={`/technicians/${claimedBy.id}`}
+                    className="inline-block mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    View full profile & reviews →
+                  </Link>
                 </div>
               ) : (
                 <p className="text-gray-500">No one has claimed this job yet.</p>

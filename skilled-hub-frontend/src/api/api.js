@@ -156,8 +156,14 @@ export const profilesAPI = {
   getTechnicianProfile: () => 
     apiRequest('/technicians/profile'),
   
+  getTechnicianById: (id) =>
+    apiRequest(`/technicians/${id}`),
+
   getCompanyProfile: () => 
     apiRequest('/company_profiles/profile'),
+
+  getCompanyById: (id) =>
+    apiRequest(`/company_profiles/${id}`),
   
   updateTechnicianProfile: (profileData) => 
     apiRequest('/technicians/profile', {

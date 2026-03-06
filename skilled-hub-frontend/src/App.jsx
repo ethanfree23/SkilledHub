@@ -6,6 +6,8 @@ import JobDetail from './components/JobDetail';
 import Dashboard from './pages/Dashboard';
 import CreateJob from './pages/CreateJob';
 import EditJob from './pages/EditJob';
+import TechnicianProfilePage from './pages/TechnicianProfilePage';
+import CompanyProfilePage from './pages/CompanyProfilePage';
 import { auth } from './auth';
 
 // Protected Route component
@@ -123,6 +125,24 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated && user?.role === 'company'}>
                 <EditJob />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/technicians/:id"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <TechnicianProfilePage user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/companies/:id"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <CompanyProfilePage user={user} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />
