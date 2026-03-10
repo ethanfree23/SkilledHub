@@ -46,6 +46,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.string "location"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "bio"
     t.index ["user_id"], name: "index_company_profiles_on_user_id"
   end
 
@@ -94,6 +95,17 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.datetime "finished_at"
     t.datetime "scheduled_start_at"
     t.datetime "scheduled_end_at"
+    t.integer "price_cents"
+    t.integer "hourly_rate_cents"
+    t.integer "hours_per_day", default: 8
+    t.integer "days"
+    t.string "address"
+    t.string "city"
+    t.string "state"
+    t.string "zip_code"
+    t.string "country"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
     t.index ["company_profile_id"], name: "index_jobs_on_company_profile_id"
   end
 
@@ -106,6 +118,21 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.datetime "updated_at", null: false
     t.index ["conversation_id"], name: "index_messages_on_conversation_id"
     t.index ["sender_type", "sender_id"], name: "index_messages_on_sender"
+  end
+
+  create_table "payments", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "amount_cents", null: false
+    t.string "status", default: "pending", null: false
+    t.string "stripe_payment_intent_id"
+    t.string "stripe_transfer_id"
+    t.datetime "held_at"
+    t.datetime "released_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_payments_on_job_id"
+    t.index ["status"], name: "index_payments_on_status"
+    t.index ["stripe_payment_intent_id"], name: "index_payments_on_stripe_payment_intent_id"
   end
 
   create_table "ratings", force: :cascade do |t|
@@ -131,6 +158,16 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.string "availability"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "stripe_account_id"
+    t.text "bio"
+    t.string "location"
+    t.string "address"
+    t.string "city"
+    t.string "state"
+    t.string "zip_code"
+    t.string "country"
+    t.decimal "latitude", precision: 10, scale: 7
+    t.decimal "longitude", precision: 10, scale: 7
     t.index ["user_id"], name: "index_technician_profiles_on_user_id"
   end
 
@@ -140,6 +177,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
     t.integer "role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "stripe_customer_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -152,6 +190,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_06_27_012447) do
   add_foreign_key "job_applications", "technician_profiles"
   add_foreign_key "jobs", "company_profiles"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "payments", "jobs"
   add_foreign_key "ratings", "jobs"
   add_foreign_key "technician_profiles", "users"
 end

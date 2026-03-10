@@ -15,6 +15,10 @@ module Api
         elsif @current_user&.technician?
           # Hide filled/finished jobs from technicians
           jobs = jobs.where.not(status: [:filled, :finished])
+          # Hide past jobs by default (scheduled_start_at in the past)
+          unless params[:include_past] == 'true'
+            jobs = jobs.where('scheduled_start_at IS NULL OR scheduled_start_at >= ?', Time.current)
+          end
         end
 
         # Apply filters
@@ -28,6 +32,18 @@ module Api
         end
         
         render json: jobs, each_serializer: JobSerializer, include: [:company_profile, { job_applications: { technician_profile: :user } }], status: :ok
+      end
+
+      def locations
+        jobs = Job.all
+        if @current_user&.company?
+          company_profile = @current_user.company_profile
+          jobs = company_profile ? company_profile.jobs : Job.none
+        elsif @current_user&.technician?
+          jobs = jobs.where.not(status: [:filled, :finished])
+        end
+        locs = jobs.where.not(location: [nil, '']).distinct.pluck(:location).sort
+        render json: { locations: locs }, status: :ok
       end
       
       def show
@@ -94,12 +110,28 @@ module Api
 
       def accept
         job = Job.find(params[:id])
-        if @current_user.company? && job.company_profile.user_id == @current_user.id
-          job.update(status: :filled)
-          render json: job, serializer: JobSerializer, status: :ok
-        else
-          render json: { error: 'Access denied' }, status: :forbidden
+        unless @current_user.company? && job.company_profile.user_id == @current_user.id
+          return render json: { error: 'Access denied' }, status: :forbidden
         end
+        unless job.reserved?
+          return render json: { error: 'Job must be claimed before accepting' }, status: :unprocessable_entity
+        end
+
+        # If job has a price, require successful payment before accepting
+        if job.job_amount_cents > 0
+          payment_intent_id = params[:payment_intent_id]
+          if payment_intent_id.blank?
+            return render json: { error: 'Payment required. Call create_payment_intent first, then confirm with Stripe.' }, status: :unprocessable_entity
+          end
+
+          result = capture_payment_and_hold(job, payment_intent_id)
+          if result[:error]
+            return render json: { error: result[:error] }, status: :unprocessable_entity
+          end
+        end
+
+        job.update!(status: :filled)
+        render json: job, serializer: JobSerializer, status: :ok
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Job not found' }, status: :not_found
       end
@@ -114,7 +146,8 @@ module Api
           can_finish = accepted_app&.technician_profile&.user_id == @current_user.id
         end
         if can_finish
-          job.update(status: :finished, finished_at: Time.current)
+          job.update!(status: :finished, finished_at: Time.current)
+          PaymentService.release_if_eligible(job)
           render json: job, serializer: JobSerializer, status: :ok
         else
           render json: { error: 'Access denied' }, status: :forbidden
@@ -187,6 +220,17 @@ module Api
         end
 
         technician_profile = @current_user.technician_profile
+        if technician_profile
+          overlapping = technician_profile.job_applications
+            .joins(:job)
+            .where(job_applications: { status: :accepted })
+            .where(jobs: { status: [:reserved, :filled] })
+            .where.not(jobs: { id: job.id })
+            .select { |app| jobs_overlap?(app.job, job) }
+          if overlapping.any?
+            return render json: { error: 'You cannot claim this job because it overlaps with another job you have reserved.' }, status: :unprocessable_entity
+          end
+        end
         if technician_profile.nil?
           technician_profile = TechnicianProfile.create!(
             user: @current_user,
@@ -212,7 +256,45 @@ module Api
 
       def job_params
         params.permit(:title, :description, :required_documents, :location, :status, :company_profile_id, :timeline,
-                      :scheduled_start_at, :scheduled_end_at)
+                      :scheduled_start_at, :scheduled_end_at, :price_cents, :hourly_rate_cents, :hours_per_day, :days,
+                      :address, :city, :state, :zip_code, :country)
+      end
+
+      def jobs_overlap?(job_a, job_b)
+        return false unless job_a.scheduled_start_at && job_a.scheduled_end_at && job_b.scheduled_start_at && job_b.scheduled_end_at
+        start_a = job_a.scheduled_start_at
+        end_a = job_a.scheduled_end_at
+        start_b = job_b.scheduled_start_at
+        end_b = job_b.scheduled_end_at
+        start_a < end_b && end_a > start_b
+      end
+
+      def capture_payment_and_hold(job, payment_intent_id)
+        return { error: 'Stripe not configured' } if Stripe.api_key.blank?
+
+        intent = Stripe::PaymentIntent.retrieve(payment_intent_id)
+        unless intent.status == 'succeeded'
+          return { error: 'Payment not completed. Please complete the payment first.' }
+        end
+        unless intent.metadata['job_id'].to_s == job.id.to_s
+          return { error: 'Payment does not match this job' }
+        end
+
+        payment = job.payments.find_or_initialize_by(stripe_payment_intent_id: payment_intent_id)
+        if payment.persisted? && payment.held?
+          return {} # Already captured
+        end
+
+        # amount_cents = what we transfer to tech (95% of job amount)
+        payment.assign_attributes(
+          amount_cents: job.tech_payout_cents,
+          status: 'held',
+          held_at: Time.current
+        )
+        payment.save!
+        {}
+      rescue Stripe::StripeError => e
+        { error: e.message }
       end
     end
   end

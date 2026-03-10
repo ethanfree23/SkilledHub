@@ -123,6 +123,7 @@ module Api
         rating = Rating.new(attrs)
 
         if rating.save
+          PaymentService.release_if_eligible(job)
           render json: rating, serializer: RatingSerializer, status: :created
         else
           render json: { errors: rating.errors.full_messages }, status: :unprocessable_entity

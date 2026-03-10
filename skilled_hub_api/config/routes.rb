@@ -12,6 +12,9 @@ Rails.application.routes.draw do
       get 'company_profiles/profile', to: 'company_profiles#profile'
       resources :users
       resources :jobs do
+        collection do
+          get :locations
+        end
         member do
           patch :claim
           patch :accept
@@ -19,6 +22,9 @@ Rails.application.routes.draw do
           patch :extend
         end
       end
+      post 'jobs/:job_id/create_payment_intent', to: 'payments#create_intent'
+      post 'settings/create_setup_intent', to: 'settings#create_setup_intent'
+      post 'settings/create_connect_account_link', to: 'settings#create_connect_account_link'
       resources :job_applications do
         member do
           patch :accept

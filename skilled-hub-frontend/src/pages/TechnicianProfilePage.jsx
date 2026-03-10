@@ -50,6 +50,7 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
             <nav className="flex items-center gap-4">
               <Link to="/dashboard" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Dashboard</Link>
               <Link to="/jobs" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Jobs</Link>
+              <Link to="/settings" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Profile & Settings</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
@@ -67,9 +68,18 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
           <div className="p-6 border-b border-gray-200 bg-gray-50">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {profile.user?.email || 'Technician'}
-            </h1>
+            <div className="flex items-start gap-6">
+              {profile.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="w-20 h-20 rounded-full object-cover border-2 border-gray-200 shrink-0" />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gray-300 flex items-center justify-center text-2xl font-bold text-gray-500 shrink-0">
+                  {(profile.user?.email || 'T')[0].toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {profile.user?.email || 'Technician'}
+                </h1>
             <div className="mt-2 flex flex-wrap gap-4 text-gray-600">
               <span className="flex items-center">
                 <svg className="w-5 h-5 text-gray-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -89,7 +99,16 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
                 </span>
               )}
             </div>
+              </div>
+            </div>
           </div>
+
+          {profile.bio && (
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">About</h2>
+              <p className="text-gray-700 whitespace-pre-wrap">{profile.bio}</p>
+            </div>
+          )}
 
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Past Reviews</h2>

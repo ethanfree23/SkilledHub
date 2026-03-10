@@ -27,7 +27,10 @@ module Api
 
       def update
         technician = TechnicianProfile.find(params[:id])
-        if technician.update(technician_params)
+        return render json: { error: 'Access denied' }, status: :forbidden unless technician.user_id == @current_user.id
+        attrs = technician_params.to_h
+        technician.avatar.attach(params[:avatar]) if params[:avatar].present?
+        if technician.update(attrs.except(:avatar))
           render json: technician, serializer: TechnicianProfileSerializer, status: :ok
         else
           render json: { errors: technician.errors.full_messages }, status: :unprocessable_entity
@@ -56,7 +59,8 @@ module Api
       private
 
       def technician_params
-        params.permit(:specialty, :experience_years, :user_id)
+        params.permit(:trade_type, :experience_years, :availability, :bio, :location, :user_id,
+                     :address, :city, :state, :zip_code, :country)
       end
     end
   end

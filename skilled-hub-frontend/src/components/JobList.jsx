@@ -3,6 +3,16 @@ import { Link } from 'react-router-dom';
 import { jobsAPI, profilesAPI, ratingsAPI } from '../api/api';
 import { auth } from '../auth';
 
+const haversineMiles = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 3959;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 const JobList = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,6 +22,8 @@ const JobList = () => {
     status: '',
     keyword: ''
   });
+  const [sortBy, setSortBy] = useState('soonest_to_start');
+  const [locations, setLocations] = useState([]);
   const [searchInput, setSearchInput] = useState('');
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,6 +45,12 @@ const JobList = () => {
   }, [filters]);
 
   useEffect(() => {
+    jobsAPI.getLocations()
+      .then(res => setLocations(res.locations || []))
+      .catch(() => setLocations([]));
+  }, []);
+
+  useEffect(() => {
     if (auth.isTechnician()) {
       setLoadingCompleted(true);
       jobsAPI.getTechnicianDashboard()
@@ -51,12 +69,15 @@ const JobList = () => {
   }, []);
 
   const fetchJobs = async () => {
+    if (auth.isTechnician() && filters.status === 'completed') return;
     try {
       setLoading(true);
-      const data = await jobsAPI.getAll(filters);
-      // Sort jobs by created_at descending
-      const sorted = [...data].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setJobs(sorted);
+      const apiFilters = { location: filters.location, keyword: filters.keyword };
+      if (filters.status && filters.status !== 'completed') {
+        apiFilters.status = filters.status;
+      }
+      const data = await jobsAPI.getAll(apiFilters);
+      setJobs(data);
       setError(null);
       setCurrentPage(1);
     } catch (err) {
@@ -64,6 +85,45 @@ const JobList = () => {
       console.error('Error fetching jobs:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sortJobs = (jobList) => {
+    const sorted = [...jobList];
+    const jobAmount = (j) => (j.job_amount_cents ?? j.price_cents ?? 0);
+    const totalHours = (j) => (j.hours_per_day ?? 8) * (j.days ?? 0) || 0;
+    const startAt = (j) => j.scheduled_start_at ? new Date(j.scheduled_start_at).getTime() : Infinity;
+
+    switch (sortBy) {
+      case 'soonest_to_start':
+        return sorted.sort((a, b) => startAt(a) - startAt(b));
+      case 'highest_pay':
+        return sorted.sort((a, b) => jobAmount(b) - jobAmount(a));
+      case 'longest_job':
+        return sorted.sort((a, b) => totalHours(b) - totalHours(a));
+      case 'shortest_job':
+        return sorted.sort((a, b) => totalHours(a) - totalHours(b));
+      case 'distance':
+        if (technicianProfile?.latitude != null && technicianProfile?.longitude != null) {
+          const dist = (j) => haversineMiles(
+            technicianProfile.latitude, technicianProfile.longitude,
+            j.latitude, j.longitude
+          );
+          return sorted.sort((a, b) => dist(a) - dist(b));
+        }
+        if (!technicianProfile?.location) return sorted;
+        const techLoc = (technicianProfile.location || '').toLowerCase();
+        const techCity = techLoc.split(',')[0]?.trim() || techLoc;
+        return sorted.sort((a, b) => {
+          const aLoc = (a.location || '').toLowerCase();
+          const bLoc = (b.location || '').toLowerCase();
+          const aMatch = aLoc.includes(techCity) || aLoc.includes(techLoc) ? 0 : 1;
+          const bMatch = bLoc.includes(techCity) || bLoc.includes(techLoc) ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+          return aLoc.localeCompare(bLoc);
+        });
+      default:
+        return sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }
   };
 
@@ -126,10 +186,11 @@ const JobList = () => {
     setSearchInput('');
   };
 
+  const sortedJobs = sortJobs(jobs);
   const indexOfLastJob = currentPage * jobsPerPage;
   const indexOfFirstJob = indexOfLastJob - jobsPerPage;
-  const currentJobs = jobs.slice(indexOfFirstJob, indexOfLastJob);
-  const totalPages = Math.ceil(jobs.length / jobsPerPage);
+  const currentJobs = sortedJobs.slice(indexOfFirstJob, indexOfLastJob);
+  const totalPages = Math.ceil(sortedJobs.length / jobsPerPage);
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -201,66 +262,12 @@ const JobList = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
-      {auth.isTechnician() && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Completed Jobs</h2>
-          <p className="text-gray-600 mb-4">Jobs you've completed. Leave a review for the company.</p>
-          {loadingCompleted ? (
-            <div className="text-gray-500 py-4">Loading completed jobs...</div>
-          ) : completedJobs.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-gray-600">
-              No completed jobs yet. Complete a job and the company will mark it as finished.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              {completedJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="bg-white border-2 border-gray-200 rounded-xl shadow p-6 flex flex-col"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                      Complete
-                    </span>
-                  </div>
-                  <p className="text-gray-600 text-sm line-clamp-2 mb-2">{job.description || '—'}</p>
-                  <div className="text-xs text-gray-500 mb-4">
-                    <Link
-                      to={`/companies/${job.company_profile_id}`}
-                      className="text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      {job.company_profile?.company_name || 'Company'}
-                    </Link>
-                    {' • '}{job.location}
-                  </div>
-                  <div className="flex flex-col gap-2 mt-auto">
-                    <Link
-                      to={`/companies/${job.company_profile_id}`}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm font-medium border border-gray-200"
-                    >
-                      View Company Profile
-                    </Link>
-                    <Link
-                      to={`/jobs/${job.id}`}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center text-sm font-medium"
-                    >
-                      {reviewedJobIds.has(job.id) ? 'View Past Job' : 'View & Leave Review'}
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="mb-12">
         <h2 className="text-3xl font-bold text-gray-900 mb-10">
           {auth.isCompany() ? 'My Jobs' : 'Available Jobs'}
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-10">
           <input
             type="text"
             name="keyword"
@@ -277,9 +284,9 @@ const JobList = () => {
             className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">All Locations</option>
-            <option value="Austin, TX">Austin, TX</option>
-            <option value="Dallas, TX">Dallas, TX</option>
-            <option value="Houston, TX">Houston, TX</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
           </select>
           <select
             name="status"
@@ -289,9 +296,24 @@ const JobList = () => {
           >
             <option value="">All Statuses</option>
             <option value="open">Open</option>
-            <option value="closed">Closed</option>
             <option value="reserved">Reserved</option>
+            {auth.isTechnician() && (
+              <option value="completed">Completed</option>
+            )}
           </select>
+          {auth.isTechnician() && (
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="soonest_to_start">Soonest to start</option>
+              <option value="highest_pay">Highest pay</option>
+              <option value="longest_job">Longest job (total hours)</option>
+              <option value="shortest_job">Shortest job</option>
+              <option value="distance">Distance from me</option>
+            </select>
+          )}
           <div className="flex space-x-2">
             <button
               onClick={handleSearch}
@@ -309,12 +331,13 @@ const JobList = () => {
         </div>
       </div>
 
-      {jobs.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-gray-500 text-lg">No jobs found matching your criteria.</p>
-        </div>
-      ) : (
-        <>
+      {!(auth.isTechnician() && filters.status === 'completed') && (
+        sortedJobs.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500 text-lg">No jobs found matching your criteria.</p>
+          </div>
+        ) : (
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {currentJobs.filter(job => job && job.title).map((job, idx, arr) => (
               <div 
@@ -337,6 +360,14 @@ const JobList = () => {
                   </p>
                   
                   <div className="space-y-2">
+                    {job.scheduled_start_at && (
+                      <div className="flex items-center text-xs text-gray-600">
+                        <svg className="mr-2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">Starts:</span> {new Date(job.scheduled_start_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </div>
+                    )}
                     <div className="flex items-center text-xs text-gray-500">
                       <svg 
                         className="mr-2" 
@@ -347,6 +378,11 @@ const JobList = () => {
                         <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                       </svg>
                       {job.location}
+                      {auth.isTechnician() && technicianProfile?.latitude != null && job.latitude != null && (
+                        <span className="ml-2 text-gray-600">
+                          • {haversineMiles(technicianProfile.latitude, technicianProfile.longitude, job.latitude, job.longitude).toFixed(1)} mi away
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500">
                       <Link
@@ -435,10 +471,65 @@ const JobList = () => {
 
           {totalPages > 1 && (
             <div className="mt-8 text-center text-sm text-gray-600">
-              Showing {indexOfFirstJob + 1} to {Math.min(indexOfLastJob, jobs.length)} of {jobs.length} jobs
+              Showing {indexOfFirstJob + 1} to {Math.min(indexOfLastJob, sortedJobs.length)} of {sortedJobs.length} jobs
             </div>
           )}
         </>
+        )
+      )}
+
+      {auth.isTechnician() && filters.status === 'completed' && (
+        <div className="mt-16 pt-12 border-t border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">My Completed Jobs</h2>
+          <p className="text-gray-600 mb-4">Jobs you've completed. Leave a review for the company.</p>
+          {loadingCompleted ? (
+            <div className="text-gray-500 py-4">Loading completed jobs...</div>
+          ) : completedJobs.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-gray-600">
+              No completed jobs yet. Complete a job and the company will mark it as finished.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {completedJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white border-2 border-gray-200 rounded-xl shadow p-6 flex flex-col"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      Complete
+                    </span>
+                  </div>
+                  <p className="text-gray-600 text-sm line-clamp-2 mb-2">{job.description || '—'}</p>
+                  <div className="text-xs text-gray-500 mb-4">
+                    <Link
+                      to={`/companies/${job.company_profile_id}`}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {job.company_profile?.company_name || 'Company'}
+                    </Link>
+                    {' • '}{job.location}
+                  </div>
+                  <div className="flex flex-col gap-2 mt-auto">
+                    <Link
+                      to={`/companies/${job.company_profile_id}`}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-center text-sm font-medium border border-gray-200"
+                    >
+                      View Company Profile
+                    </Link>
+                    <Link
+                      to={`/jobs/${job.id}`}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center text-sm font-medium"
+                    >
+                      {reviewedJobIds.has(job.id) ? 'View Past Job' : 'View & Leave Review'}
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

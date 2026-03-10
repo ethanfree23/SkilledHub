@@ -1,4 +1,6 @@
 class CompanyProfile < ApplicationRecord
+  has_one_attached :avatar
+
   belongs_to :user
   has_many :jobs, dependent: :destroy
   has_many :conversations, dependent: :destroy

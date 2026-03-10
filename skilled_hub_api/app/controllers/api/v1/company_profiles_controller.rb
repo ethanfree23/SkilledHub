@@ -31,7 +31,10 @@ module Api
 
       def update
         company_profile = CompanyProfile.find(params[:id])
-        if company_profile.update(company_profile_params)
+        return render json: { error: 'Access denied' }, status: :forbidden unless company_profile.user_id == @current_user.id
+        attrs = company_profile_params.to_h
+        company_profile.avatar.attach(params[:avatar]) if params[:avatar].present?
+        if company_profile.update(attrs.except(:avatar))
           render json: company_profile, serializer: CompanyProfileSerializer, status: :ok
         else
           render json: { errors: company_profile.errors.full_messages }, status: :unprocessable_entity
@@ -50,17 +53,14 @@ module Api
 
       def profile
         profile = @current_user.company_profile
-        if profile
-          render json: profile, serializer: CompanyProfileSerializer, status: :ok
-        else
-          render json: { error: 'Company profile not found' }, status: :not_found
-        end
+        profile ||= CompanyProfile.create!(user_id: @current_user.id)
+        render json: profile, serializer: CompanyProfileSerializer, status: :ok
       end
 
       private
 
       def company_profile_params
-        params.permit(:company_name, :location, :user_id)
+        params.permit(:company_name, :industry, :location, :bio, :user_id)
       end
     end
   end

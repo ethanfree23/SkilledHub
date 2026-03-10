@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { jobsAPI } from '../api/api';
+import CountryStateSelect from '../components/CountryStateSelect';
 
 const toDatetimeLocal = (d) => {
   if (!d) return '';
@@ -14,7 +15,10 @@ const EditJob = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ title: '', description: '', location: '', status: 'open' });
+  const [form, setForm] = useState({
+    title: '', description: '', address: '', city: '', state: '', zip_code: '', country: '', status: 'open',
+    hourly_rate_cents: '', hours_per_day: '8', days: '',
+  });
   const [saving, setSaving] = useState(false);
   const [extendEndAt, setExtendEndAt] = useState('');
   const [extending, setExtending] = useState(false);
@@ -25,11 +29,19 @@ const EditJob = () => {
         setLoading(true);
         const data = await jobsAPI.getById(id);
         setJob(data);
+        const hasNewPricing = data.hourly_rate_cents != null && data.days != null;
         setForm({
           title: data.title || '',
           description: data.description || '',
-          location: data.location || '',
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || 'Texas',
+          zip_code: data.zip_code || '',
+          country: data.country || 'United States',
           status: data.status || 'open',
+          hourly_rate_cents: hasNewPricing ? (data.hourly_rate_cents / 100).toFixed(2) : '',
+          hours_per_day: data.hours_per_day ?? 8,
+          days: data.days ?? '',
         });
         const currentEnd = data.scheduled_end_at;
         const defaultEnd = currentEnd ? new Date(currentEnd) : new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -49,11 +61,36 @@ const EditJob = () => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const hr = parseFloat(form.hourly_rate_cents) || 0;
+  const hpd = parseInt(form.hours_per_day, 10) || 8;
+  const d = parseInt(form.days, 10) || 0;
+  const jobAmount = hr * hpd * d;
+  const companyCharge = jobAmount * 1.05;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await jobsAPI.update(id, form);
+      const payload = {
+        title: form.title,
+        description: form.description,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        zip_code: form.zip_code,
+        country: form.country,
+        status: form.status,
+      };
+      if (jobAmount > 0) {
+        payload.hourly_rate_cents = Math.round(hr * 100);
+        payload.hours_per_day = hpd;
+        payload.days = d;
+      } else {
+        payload.hourly_rate_cents = null;
+        payload.hours_per_day = null;
+        payload.days = null;
+      }
+      await jobsAPI.update(id, payload);
       alert('Job updated!');
       const data = await jobsAPI.getById(id);
       setJob(data);
@@ -112,15 +149,77 @@ const EditJob = () => {
             required
           />
         </div>
-        <div>
-          <label className="block font-medium mb-1">Location</label>
-          <input
-            className="w-full border px-3 py-2 rounded"
-            name="location"
-            value={form.location}
-            onChange={handleChange}
-            required
-          />
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+          <h3 className="font-medium text-gray-900">Job Location</h3>
+          <div>
+            <label className="block font-medium mb-1 text-sm">Address</label>
+            <input className="w-full border px-3 py-2 rounded bg-white" name="address" value={form.address} onChange={handleChange} placeholder="e.g. 123 Main St" required />
+          </div>
+          <div>
+            <label className="block font-medium mb-1 text-sm">City</label>
+            <input className="w-full border px-3 py-2 rounded bg-white" name="city" value={form.city} onChange={handleChange} placeholder="e.g. Houston" required />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CountryStateSelect
+              country={form.country}
+              state={form.state}
+              onCountryChange={(v) => handleChange({ target: { name: 'country', value: v } })}
+              onStateChange={(v) => handleChange({ target: { name: 'state', value: v } })}
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-1 text-sm">Zip Code</label>
+            <input className="w-full border px-3 py-2 rounded bg-white" name="zip_code" value={form.zip_code} onChange={handleChange} placeholder="e.g. 77007" />
+          </div>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+          <h3 className="font-medium text-gray-900">Pricing</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-medium mb-1 text-sm">Hourly rate (USD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                name="hourly_rate_cents"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={form.hourly_rate_cents}
+                onChange={handleChange}
+                placeholder="e.g. 50"
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-1 text-sm">Hours per day</label>
+              <input
+                type="number"
+                min="1"
+                max="24"
+                name="hours_per_day"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={form.hours_per_day}
+                onChange={handleChange}
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-1 text-sm">Number of days</label>
+              <input
+                type="number"
+                min="0"
+                name="days"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={form.days}
+                onChange={handleChange}
+                placeholder="e.g. 3"
+              />
+            </div>
+          </div>
+          {jobAmount > 0 && (
+            <div className="text-sm space-y-1 pt-2 border-t border-gray-200">
+              <p><span className="font-medium">Job total:</span> ${jobAmount.toFixed(2)}</p>
+              <p><span className="font-medium">You pay (incl. 5% fee):</span> ${companyCharge.toFixed(2)}</p>
+            </div>
+          )}
         </div>
         <div>
           <label className="block font-medium mb-1">Status</label>
@@ -175,4 +274,4 @@ const EditJob = () => {
   );
 };
 
-export default EditJob; 
+export default EditJob;

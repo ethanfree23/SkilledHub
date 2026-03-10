@@ -15,8 +15,11 @@ const JobsPage = ({ user, onLogout }) => {
               <Link to="/dashboard" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
                 Dashboard
               </Link>
-              <Link to="/jobs" className="px-3 py-2 font-medium text-blue-600 bg-blue-50 rounded-md">
+              <Link to="/jobs" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
                 Jobs
+              </Link>
+              <Link to="/settings" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
+                Profile & Settings
               </Link>
             </nav>
           </div>

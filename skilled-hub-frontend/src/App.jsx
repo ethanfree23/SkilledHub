@@ -8,6 +8,7 @@ import CreateJob from './pages/CreateJob';
 import EditJob from './pages/EditJob';
 import TechnicianProfilePage from './pages/TechnicianProfilePage';
 import CompanyProfilePage from './pages/CompanyProfilePage';
+import SettingsPage from './pages/SettingsPage';
 import { auth } from './auth';
 
 // Protected Route component
@@ -143,6 +144,15 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 <CompanyProfilePage user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                <SettingsPage user={user} onLogout={handleLogout} />
               </ProtectedRoute>
             }
           />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { jobsAPI, profilesAPI } from '../api/api';
+import DateTimeInput from '../components/DateTimeInput';
+import CountryStateSelect from '../components/CountryStateSelect';
 
 const toDatetimeLocal = (d) => {
   if (!d) return '';
@@ -9,15 +11,51 @@ const toDatetimeLocal = (d) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const LUNCH_HOURS = 1;
+
+const getDefaultStart = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(8, 0, 0, 0);
+  return tomorrow;
+};
+
+/**
+ * Compute end date/time from start + days + hours per day.
+ * Each day: hours_per_day of work + 1 hour lunch.
+ * E.g. Start 8 AM, 3 days, 8 hrs/day → ends 5 PM on day 3 (8+8+1=17)
+ */
+const computeEndFromPricing = (startStr, days, hoursPerDay) => {
+  if (!startStr) return '';
+  const start = new Date(startStr);
+  if (isNaN(start.getTime())) return '';
+  const hpd = Math.max(1, parseInt(hoursPerDay, 10) || 8);
+  const d = Math.max(1, parseInt(days, 10) || 1);
+  const end = new Date(start);
+  end.setDate(end.getDate() + d - 1);
+  const endHour = start.getHours() + hpd + LUNCH_HOURS;
+  end.setHours(endHour, start.getMinutes(), 0, 0);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`;
+};
+
 const CreateJob = () => {
-  const now = new Date();
-  const defaultEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +1 day
+  const defaultStart = getDefaultStart();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("Texas");
+  const [zipCode, setZipCode] = useState("");
+  const [country, setCountry] = useState("United States");
+  const [hourlyRate, setHourlyRate] = useState("");
+  const [hoursPerDay, setHoursPerDay] = useState("8");
+  const [days, setDays] = useState("");
   const [status, setStatus] = useState("open");
-  const [scheduledStartAt, setScheduledStartAt] = useState(toDatetimeLocal(now));
-  const [scheduledEndAt, setScheduledEndAt] = useState(toDatetimeLocal(defaultEnd));
+  const [scheduledStartAt, setScheduledStartAt] = useState(toDatetimeLocal(defaultStart));
+  const [scheduledEndAt, setScheduledEndAt] = useState(
+    computeEndFromPricing(toDatetimeLocal(defaultStart), 1, 8)
+  );
   const [saving, setSaving] = useState(false);
   const [companyProfileId, setCompanyProfileId] = useState(null);
   const navigate = useNavigate();
@@ -34,19 +72,41 @@ const CreateJob = () => {
     fetchProfile();
   }, []);
 
+  // Auto-compute end date/time from start + days + hours per day (+ 1 hr lunch)
+  useEffect(() => {
+    const computed = computeEndFromPricing(scheduledStartAt, days, hoursPerDay);
+    if (computed) setScheduledEndAt(computed);
+  }, [scheduledStartAt, days, hoursPerDay]);
+
+  const hr = parseFloat(hourlyRate) || 0;
+  const hpd = parseInt(hoursPerDay, 10) || 8;
+  const d = parseInt(days, 10) || 0;
+  const jobAmount = hr * hpd * d;
+  const companyCharge = jobAmount * 1.05;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await jobsAPI.create({
+      const payload = {
         title,
         description,
-        location,
+        address,
+        city,
+        state,
+        zip_code: zipCode,
+        country,
         status,
         company_profile_id: companyProfileId,
         scheduled_start_at: scheduledStartAt ? new Date(scheduledStartAt).toISOString() : null,
         scheduled_end_at: scheduledEndAt ? new Date(scheduledEndAt).toISOString() : null,
-      });
+      };
+      if (jobAmount > 0) {
+        payload.hourly_rate_cents = Math.round(hr * 100);
+        payload.hours_per_day = hpd;
+        payload.days = d;
+      }
+      await jobsAPI.create(payload);
       alert('Job created!');
       navigate('/dashboard');
     } catch (err) {
@@ -78,33 +138,111 @@ const CreateJob = () => {
             required
           />
         </div>
-        <div>
-          <label className="block font-medium mb-1">Location</label>
-          <input
-            className="w-full border px-3 py-2 rounded"
-            value={location}
-            onChange={e => setLocation(e.target.value)}
-            required
-          />
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+          <h3 className="font-medium text-gray-900">Job Location</h3>
+          <div>
+            <label className="block font-medium mb-1 text-sm">Address</label>
+            <input
+              className="w-full border px-3 py-2 rounded bg-white"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="e.g. 123 Main St"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-1 text-sm">City</label>
+            <input
+              className="w-full border px-3 py-2 rounded bg-white"
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="e.g. Houston"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <CountryStateSelect
+              country={country}
+              state={state}
+              onCountryChange={setCountry}
+              onStateChange={setState}
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium mb-1 text-sm">Zip Code</label>
+            <input
+              className="w-full border px-3 py-2 rounded bg-white"
+              value={zipCode}
+              onChange={e => setZipCode(e.target.value)}
+              placeholder="e.g. 77007"
+            />
+          </div>
+        </div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+          <h3 className="font-medium text-gray-900">Pricing</h3>
+          <p className="text-sm text-gray-600">When a tech claims this job, you will be charged the total + 5% platform fee.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-medium mb-1 text-sm">Hourly rate (USD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 50"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={hourlyRate}
+                onChange={e => setHourlyRate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-1 text-sm">Hours per day</label>
+              <input
+                type="number"
+                min="1"
+                max="24"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={hoursPerDay}
+                onChange={e => setHoursPerDay(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-0.5">Default: 8</p>
+            </div>
+            <div>
+              <label className="block font-medium mb-1 text-sm">Number of days</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="e.g. 3"
+                className="w-full border px-3 py-2 rounded bg-white"
+                value={days}
+                onChange={e => setDays(e.target.value)}
+              />
+            </div>
+          </div>
+          {jobAmount > 0 && (
+            <div className="text-sm space-y-1 pt-2 border-t border-gray-200">
+              <p><span className="font-medium">Job total:</span> ${jobAmount.toFixed(2)}</p>
+              <p><span className="font-medium">You pay (incl. 5% fee):</span> ${companyCharge.toFixed(2)}</p>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block font-medium mb-1">Start Date & Time</label>
-            <input
-              type="datetime-local"
-              className="w-full border px-3 py-2 rounded"
+            <DateTimeInput
               value={scheduledStartAt}
-              onChange={e => setScheduledStartAt(e.target.value)}
+              onChange={(e) => setScheduledStartAt(e.target.value)}
+              className="w-full"
             />
           </div>
           <div>
             <label className="block font-medium mb-1">End Date & Time</label>
-            <input
-              type="datetime-local"
-              className="w-full border px-3 py-2 rounded"
+            <DateTimeInput
               value={scheduledEndAt}
-              onChange={e => setScheduledEndAt(e.target.value)}
+              onChange={(e) => setScheduledEndAt(e.target.value)}
+              className="w-full"
             />
+            <p className="text-xs text-gray-500 mt-0.5">Auto-calculated from days and hours (incl. 1 hr lunch/day). Adjust if needed.</p>
           </div>
         </div>
         <div>
@@ -130,4 +268,4 @@ const CreateJob = () => {
   );
 };
 
-export default CreateJob; 
+export default CreateJob;

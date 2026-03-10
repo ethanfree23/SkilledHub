@@ -5,9 +5,10 @@ const API_BASE_URL = 'http://localhost:3000/api/v1';
 const apiRequest = async (endpoint, options = {}) => {
   const token = localStorage.getItem('token');
   
+  const isFormData = options.body instanceof FormData;
   const config = {
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData && { 'Content-Type': 'application/json' }),
       ...(token && { 'Authorization': `Bearer ${token}` }),
       ...options.headers,
     },
@@ -91,6 +92,12 @@ export const jobsAPI = {
       method: 'PATCH',
     }),
 
+  accept: (id, { payment_intent_id } = {}) =>
+    apiRequest(`/jobs/${id}/accept`, {
+      method: 'PATCH',
+      body: JSON.stringify({ payment_intent_id }),
+    }),
+
   finish: (id) =>
     apiRequest(`/jobs/${id}/finish`, {
       method: 'PATCH',
@@ -107,6 +114,28 @@ export const jobsAPI = {
 
   getTechnicianDashboard: () =>
     apiRequest('/dashboard/technician_jobs'),
+
+  getLocations: () =>
+    apiRequest('/jobs/locations'),
+};
+
+// Payments (Stripe)
+export const paymentsAPI = {
+  createIntent: (jobId) =>
+    apiRequest(`/jobs/${jobId}/create_payment_intent`, {
+      method: 'POST',
+    }),
+};
+
+// Settings (profile + payment setup)
+export const settingsAPI = {
+  createSetupIntent: () =>
+    apiRequest('/settings/create_setup_intent', { method: 'POST' }),
+  createConnectAccountLink: (baseUrl) =>
+    apiRequest('/settings/create_connect_account_link', {
+      method: 'POST',
+      body: JSON.stringify({ base_url: baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173') }),
+    }),
 };
 
 // Job Applications endpoints
@@ -171,17 +200,14 @@ export const profilesAPI = {
   getCompanyById: (id) =>
     apiRequest(`/company_profiles/${id}`),
   
-  updateTechnicianProfile: (profileData) => 
-    apiRequest('/technicians/profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
-    }),
-  
-  updateCompanyProfile: (profileData) => 
-    apiRequest('/company_profiles/profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
-    }),
+  updateCompanyProfile: (id, profileData) => {
+    const body = profileData instanceof FormData ? profileData : JSON.stringify(profileData);
+    return apiRequest(`/company_profiles/${id}`, { method: 'PUT', body });
+  },
+  updateTechnicianProfile: (id, profileData) => {
+    const body = profileData instanceof FormData ? profileData : JSON.stringify(profileData);
+    return apiRequest(`/technicians/${id}`, { method: 'PUT', body });
+  },
 };
 
 // Ratings endpoints (reviews after job completion)
