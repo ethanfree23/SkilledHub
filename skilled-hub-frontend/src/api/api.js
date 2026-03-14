@@ -69,7 +69,10 @@ export const authAPI = {
 // Jobs endpoints
 export const jobsAPI = {
   getAll: (filters = {}) => {
-    const params = new URLSearchParams(filters);
+    const clean = Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v != null && v !== '')
+    );
+    const params = new URLSearchParams(clean);
     return apiRequest(`/jobs?${params}`);
   },
   

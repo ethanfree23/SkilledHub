@@ -6,6 +6,13 @@ import { auth } from '../auth';
 import Modal from 'react-modal';
 import StarRating from './StarRating';
 
+const toDatetimeLocal = (d) => {
+  if (!d) return '';
+  const date = new Date(d);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 const JobDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -16,7 +23,15 @@ const JobDetail = () => {
   const [user, setUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showClaimedModal, setShowClaimedModal] = useState(false);
-  const [editData, setEditData] = useState({ description: '', location: '' });
+  const [editData, setEditData] = useState({
+    description: '',
+    location: '',
+    hourly_rate_cents: '',
+    hours_per_day: '8',
+    days: '',
+    scheduled_start_at: '',
+    scheduled_end_at: '',
+  });
   const [savingEdit, setSavingEdit] = useState(false);
   const [claimedBy, setClaimedBy] = useState(null);
   const [loadingClaimed, setLoadingClaimed] = useState(false);
@@ -196,7 +211,16 @@ const JobDetail = () => {
   };
 
   const openEditModal = () => {
-    setEditData({ description: job.description, location: job.location });
+    const hasNewPricing = job.hourly_rate_cents != null && job.days != null;
+    setEditData({
+      description: job.description || '',
+      location: job.location || '',
+      hourly_rate_cents: hasNewPricing ? (job.hourly_rate_cents / 100).toFixed(2) : '',
+      hours_per_day: String(job.hours_per_day ?? 8),
+      days: job.days != null ? String(job.days) : '',
+      scheduled_start_at: toDatetimeLocal(job.scheduled_start_at),
+      scheduled_end_at: toDatetimeLocal(job.scheduled_end_at),
+    });
     setShowEditModal(true);
   };
   const closeEditModal = () => setShowEditModal(false);
@@ -233,7 +257,27 @@ const JobDetail = () => {
     e.preventDefault();
     setSavingEdit(true);
     try {
-      await jobsAPI.update(job.id, editData);
+      const hr = parseFloat(editData.hourly_rate_cents) || 0;
+      const hpd = parseInt(editData.hours_per_day, 10) || 8;
+      const d = parseInt(editData.days, 10) || 0;
+      const jobAmount = hr * hpd * d;
+
+      const payload = {
+        description: editData.description,
+        location: editData.location,
+        scheduled_start_at: editData.scheduled_start_at ? new Date(editData.scheduled_start_at).toISOString() : null,
+        scheduled_end_at: editData.scheduled_end_at ? new Date(editData.scheduled_end_at).toISOString() : null,
+      };
+      if (jobAmount > 0) {
+        payload.hourly_rate_cents = Math.round(hr * 100);
+        payload.hours_per_day = hpd;
+        payload.days = d;
+      } else {
+        payload.hourly_rate_cents = null;
+        payload.hours_per_day = null;
+        payload.days = null;
+      }
+      await jobsAPI.update(job.id, payload);
       await fetchJobDetails();
       closeEditModal();
     } catch {
@@ -733,7 +777,7 @@ const JobDetail = () => {
       </div>
       {/* Edit Job Modal */}
       <Modal isOpen={showEditModal} onRequestClose={closeEditModal} ariaHideApp={false} className="fixed inset-0 flex items-center justify-center z-50">
-        <div className="bg-white p-8 rounded shadow-lg w-full max-w-md">
+        <div className="bg-white p-8 rounded shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
           <h2 className="text-xl font-bold mb-4">Edit Job</h2>
           <form onSubmit={handleEditSubmit} className="space-y-4">
             <div>
@@ -743,6 +787,41 @@ const JobDetail = () => {
             <div>
               <label className="block text-sm font-medium mb-1">Location</label>
               <input name="location" value={editData.location} onChange={handleEditChange} className="w-full border rounded p-2" required />
+            </div>
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+              <h3 className="font-medium text-gray-900">Price</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Hourly rate ($)</label>
+                  <input type="number" name="hourly_rate_cents" value={editData.hourly_rate_cents} onChange={handleEditChange} className="w-full border rounded p-2" min="0" step="0.01" placeholder="e.g. 25.00" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Hours/day</label>
+                  <input type="number" name="hours_per_day" value={editData.hours_per_day} onChange={handleEditChange} className="w-full border rounded p-2" min="1" max="24" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Days</label>
+                  <input type="number" name="days" value={editData.days} onChange={handleEditChange} className="w-full border rounded p-2" min="0" placeholder="e.g. 3" />
+                </div>
+              </div>
+              {(() => {
+                const hr = parseFloat(editData.hourly_rate_cents) || 0;
+                const hpd = parseInt(editData.hours_per_day, 10) || 8;
+                const d = parseInt(editData.days, 10) || 0;
+                const amt = hr * hpd * d;
+                return amt > 0 ? <p className="text-sm text-gray-600">Job amount: ${amt.toFixed(2)} (you pay ${(amt * 1.05).toFixed(2)} incl. 5% fee)</p> : null;
+              })()}
+            </div>
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+              <h3 className="font-medium text-gray-900">Schedule</h3>
+              <div>
+                <label className="block text-sm font-medium mb-1">Start date & time</label>
+                <input type="datetime-local" name="scheduled_start_at" value={editData.scheduled_start_at} onChange={handleEditChange} className="w-full border rounded p-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">End date & time</label>
+                <input type="datetime-local" name="scheduled_end_at" value={editData.scheduled_end_at} onChange={handleEditChange} className="w-full border rounded p-2" />
+              </div>
             </div>
             <div className="flex justify-end space-x-2">
               <button type="button" onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>

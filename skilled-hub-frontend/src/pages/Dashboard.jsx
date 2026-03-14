@@ -3,11 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import { jobsAPI, ratingsAPI } from '../api/api';
 import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen } from 'react-icons/fa';
 
-// open, claimed (filled but not started), active (in progress), completed
+// open, claimed (filled but not started), active (in progress), completed, expired
 const statusLabel = (job) => {
   if (!job) return <span className="capitalize text-gray-600">—</span>;
   const status = job.status;
-  if (status === 'open') return <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">Open</span>;
+  if (status === 'open') {
+    const endAt = job.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
+    const now = Date.now();
+    if (endAt !== null && endAt < now) {
+      return <span className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-700">Expired</span>;
+    }
+    return <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">Open</span>;
+  }
   if (status === 'finished') return <span className="px-2 py-1 text-xs rounded bg-green-200 text-green-800">Completed</span>;
   if (status === 'reserved' || status === 'filled') {
     const startAt = job.scheduled_start_at ? new Date(job.scheduled_start_at).getTime() : null;
@@ -18,6 +25,11 @@ const statusLabel = (job) => {
     return <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Active</span>;
   }
   return <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800 capitalize">{status}</span>;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleDateString();
 };
 
 const Dashboard = ({ user, onLogout }) => {
@@ -54,6 +66,7 @@ const Dashboard = ({ user, onLogout }) => {
     try {
       await jobsAPI.finish(jobId);
       fetchDashboard();
+      window.open(`/jobs/${jobId}`, '_blank', 'noopener,noreferrer');
     } catch (err) {
       alert('Failed to mark job as finished');
     }
@@ -133,20 +146,35 @@ const DashboardHeader = ({ user, onLogout }) => (
   </header>
 );
 
+const sortByMostRecent = (list) => {
+  return [...(list || [])].sort((a, b) => {
+    const ta = new Date(a.finished_at || a.updated_at || a.created_at || 0).getTime();
+    const tb = new Date(b.finished_at || b.updated_at || b.created_at || 0).getTime();
+    return tb - ta;
+  });
+};
+
 const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) => {
-  const allJobs = [
-    ...(jobs?.requested || []),
-    ...(jobs?.unrequested || []),
-    ...(jobs?.expired || []),
-  ];
-  const openCount = (jobs?.unrequested || []).length;
+  const now = Date.now();
+  const requested = sortByMostRecent(jobs?.requested || []);
+  const unrequested = jobs?.unrequested || [];
+  const openJobs = sortByMostRecent(unrequested.filter(j => {
+    const endAt = j.scheduled_end_at ? new Date(j.scheduled_end_at).getTime() : null;
+    return endAt === null || endAt >= now;
+  }));
+  const expiredOpen = sortByMostRecent(unrequested.filter(j => {
+    const endAt = j.scheduled_end_at ? new Date(j.scheduled_end_at).getTime() : null;
+    return endAt !== null && endAt < now;
+  }));
+  const completed = sortByMostRecent(jobs?.expired || []);
+  const allJobs = [...requested, ...openJobs, ...expiredOpen, ...completed];
+  const openCount = openJobs.length;
   // Active = claimed and in progress (started); must match backend filter for status=active
-  const activeCount = (jobs?.requested || []).filter((j) => {
+  const activeCount = requested.filter((j) => {
     const startAt = j.scheduled_start_at ? new Date(j.scheduled_start_at).getTime() : null;
-    const now = Date.now();
     return startAt !== null && startAt <= now;
   }).length;
-  const completedCount = (jobs?.expired || []).filter(j => j.status === 'finished').length;
+  const completedCount = completed.length;
 
   return (
     <>
@@ -210,13 +238,15 @@ const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) 
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job Title</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {allJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No jobs yet. <Link to="/jobs/create" className="text-blue-600 hover:underline">Create your first job</Link>
                   </td>
                 </tr>
@@ -226,6 +256,8 @@ const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) 
                     <td className="px-4 py-2 font-medium text-gray-800">{job.title}</td>
                     <td className="px-4 py-2">{statusLabel(job)}</td>
                     <td className="px-4 py-2">{new Date(job.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">{formatDate(job.scheduled_start_at)}</td>
+                    <td className="px-4 py-2">{formatDate(job.scheduled_end_at)}</td>
                     <td className="px-4 py-2 flex space-x-2">
                       <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded text-sm" onClick={() => navigate(`/jobs/${job.id}/edit`)}>Edit</button>
                       <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm" onClick={() => navigate(`/jobs/${job.id}`)}>View</button>

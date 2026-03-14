@@ -24,7 +24,7 @@ const JobList = () => {
     status: statusFromUrl,
     keyword: ''
   });
-  const [sortBy, setSortBy] = useState('soonest_to_start');
+  const [sortBy, setSortBy] = useState('most_recent');
   const [locations, setLocations] = useState([]);
   const [searchInput, setSearchInput] = useState('');
 
@@ -61,7 +61,11 @@ const JobList = () => {
     if (auth.isTechnician()) {
       setLoadingCompleted(true);
       jobsAPI.getTechnicianDashboard()
-        .then(res => setCompletedJobs(res.completed || []))
+        .then(res => {
+          const completed = (res.completed || []).slice();
+          completed.sort((a, b) => new Date(b.finished_at || b.updated_at || b.created_at || 0) - new Date(a.finished_at || a.updated_at || a.created_at || 0));
+          setCompletedJobs(completed);
+        })
         .catch(() => setCompletedJobs([]))
         .finally(() => setLoadingCompleted(false));
     }
@@ -76,15 +80,20 @@ const JobList = () => {
   }, []);
 
   const fetchJobs = async () => {
-    if (auth.isTechnician() && filters.status === 'completed') return;
+    if (auth.isTechnician() && filters.status === 'completed') {
+      setLoading(false);
+      setJobs([]);
+      setError(null);
+      return;
+    }
     try {
       setLoading(true);
-      const apiFilters = { location: filters.location, keyword: filters.keyword };
+      const apiFilters = { location: filters.location || undefined, keyword: filters.keyword || undefined };
       if (filters.status) {
         apiFilters.status = filters.status;
       }
       const data = await jobsAPI.getAll(apiFilters);
-      setJobs(data);
+      setJobs(Array.isArray(data) ? data : []);
       setError(null);
       setCurrentPage(1);
     } catch (err) {
@@ -100,8 +109,12 @@ const JobList = () => {
     const jobAmount = (j) => (j.job_amount_cents ?? j.price_cents ?? 0);
     const totalHours = (j) => (j.hours_per_day ?? 8) * (j.days ?? 0) || 0;
     const startAt = (j) => j.scheduled_start_at ? new Date(j.scheduled_start_at).getTime() : Infinity;
+    const createdAt = (j) => new Date(j.created_at || 0).getTime();
+    const finishedAt = (j) => new Date(j.finished_at || j.updated_at || j.created_at || 0).getTime();
 
     switch (sortBy) {
+      case 'most_recent':
+        return sorted.sort((a, b) => Math.max(finishedAt(b), createdAt(b)) - Math.max(finishedAt(a), createdAt(a)));
       case 'soonest_to_start':
         return sorted.sort((a, b) => startAt(a) - startAt(b));
       case 'highest_pay':
@@ -239,7 +252,14 @@ const JobList = () => {
 
   const getStatusBadge = (job) => {
     const status = job?.status;
-    if (status === 'open') return <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Open</span>;
+    if (status === 'open') {
+      const endAt = job?.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
+      const now = Date.now();
+      if (endAt !== null && endAt < now) {
+        return <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-700">Expired</span>;
+      }
+      return <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Open</span>;
+    }
     if (status === 'finished') return <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-200 text-green-800">Completed</span>;
     if (status === 'reserved' || status === 'filled') {
       const startAt = job?.scheduled_start_at ? new Date(job.scheduled_start_at).getTime() : null;
@@ -318,6 +338,7 @@ const JobList = () => {
                 <option value="active">Active</option>
                 <option value="reserved">Claimed</option>
                 <option value="completed">Completed</option>
+                <option value="expired">Expired</option>
               </>
             )}
             {auth.isTechnician() && (
@@ -328,12 +349,13 @@ const JobList = () => {
               </>
             )}
           </select>
-          {auth.isTechnician() && (
+          {(auth.isTechnician() || auth.isCompany()) && (
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
+              <option value="most_recent">Most recent first</option>
               <option value="soonest_to_start">Soonest to start</option>
               <option value="highest_pay">Highest pay</option>
               <option value="longest_job">Longest job (total hours)</option>

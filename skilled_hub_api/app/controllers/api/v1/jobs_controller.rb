@@ -35,12 +35,22 @@ module Api
               .where(job_applications: { technician_profile_id: technician_profile.id, status: :accepted })
               .where(status: [:finished])
           else
-            # Browse: open and reserved (hide filled/finished)
-            jobs = jobs.where.not(status: [:filled, :finished])
-            unless params[:include_past] == 'true'
-              jobs = jobs.where('scheduled_start_at IS NULL OR scheduled_start_at >= ?', Time.current)
+            # Browse: when "All" show all jobs (open, claimed, active, completed); otherwise open/available only
+            if params[:status].present?
+              jobs = jobs.where.not(status: [:filled, :finished])
+              unless params[:include_past] == 'true'
+                jobs = jobs.where('scheduled_start_at IS NULL OR scheduled_start_at >= ?', Time.current)
+              end
             end
+            # When status blank ("All"): jobs stays as Job.all - show everything
           end
+        end
+
+        # Order: most recent first (by created_at, or finished_at for completed)
+        jobs = if params[:status].to_s == 'completed'
+          jobs.order(Arel.sql('COALESCE(jobs.finished_at, jobs.updated_at, jobs.created_at) DESC'))
+        else
+          jobs.reorder('jobs.created_at DESC')
         end
 
         # Apply filters
@@ -57,6 +67,10 @@ module Api
               .where('scheduled_start_at IS NULL OR scheduled_start_at > ?', Time.current)
           when 'completed'
             jobs = jobs.where(status: [:finished])
+          when 'expired'
+            # Expired = open jobs past their scheduled end date (never claimed)
+            jobs = jobs.where(status: :open)
+              .where('scheduled_end_at IS NOT NULL AND scheduled_end_at <= ?', Time.current)
           else
             jobs = jobs.where(status: params[:status])
           end
@@ -139,9 +153,15 @@ module Api
         jobs = company_profile.jobs.includes(:job_applications)
 
         # claimed = technician has claimed (reserved or filled); unclaimed = open; completed = finished
-        claimed = jobs.select { |job| job.reserved? || job.filled? }
-        unclaimed = jobs.select { |job| job.open? }
-        completed = jobs.select { |job| job.finished? }
+        # Within each group: most recent first (by finished_at/updated_at/created_at)
+        sort_by_recency = ->(a, b) {
+          ta = a.finished_at || a.updated_at || a.created_at
+          tb = b.finished_at || b.updated_at || b.created_at
+          (tb || Time.at(0)) <=> (ta || Time.at(0))
+        }
+        claimed = jobs.select { |job| job.reserved? || job.filled? }.sort(&sort_by_recency)
+        unclaimed = jobs.select { |job| job.open? }.sort(&sort_by_recency)
+        completed = jobs.select { |job| job.finished? }.sort(&sort_by_recency)
 
         render json: {
           requested: ActiveModel::Serializer::CollectionSerializer.new(claimed, serializer: JobSerializer),
@@ -237,8 +257,8 @@ module Api
           .distinct
           .includes(:company_profile, :job_applications)
 
-        in_progress = base.where(status: [:reserved, :filled])
-        completed = base.where(status: :finished)
+        in_progress = base.where(status: [:reserved, :filled]).order('jobs.created_at DESC')
+        completed = base.where(status: :finished).order(Arel.sql('COALESCE(jobs.finished_at, jobs.updated_at, jobs.created_at) DESC'))
 
         render json: {
           in_progress: ActiveModel::Serializer::CollectionSerializer.new(in_progress, serializer: JobSerializer),
