@@ -123,6 +123,9 @@ export const jobsAPI = {
   getTechnicianDashboard: () =>
     apiRequest('/dashboard/technician_jobs'),
 
+  getAnalytics: () =>
+    apiRequest('/dashboard/analytics'),
+
   getLocations: () =>
     apiRequest('/jobs/locations'),
 };

@@ -49,6 +49,7 @@ Rails.application.routes.draw do
       resources :auth, only: [:index]
       get 'dashboard/jobs', to: 'jobs#dashboard_jobs'
       get 'dashboard/technician_jobs', to: 'jobs#technician_dashboard_jobs'
+      get 'dashboard/analytics', to: 'analytics#show'
     end
   end
 end

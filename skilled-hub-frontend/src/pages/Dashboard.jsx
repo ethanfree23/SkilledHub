@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { jobsAPI, ratingsAPI } from '../api/api';
-import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen } from 'react-icons/fa';
+import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine } from 'react-icons/fa';
 
 // open, claimed (filled but not started), active (in progress), completed, expired
 const statusLabel = (job) => {
@@ -32,10 +32,16 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
+const formatCurrency = (cents) => {
+  if (cents == null || cents === 0) return '$0';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+};
+
 const Dashboard = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [jobs, setJobs] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,13 +53,22 @@ const Dashboard = ({ user, onLogout }) => {
     setError(null);
     try {
       if (user?.role === 'company') {
-        const res = await jobsAPI.getDashboard();
-        setJobs(res);
+        const [jobsRes, analyticsRes] = await Promise.all([
+          jobsAPI.getDashboard(),
+          jobsAPI.getAnalytics().catch(() => null),
+        ]);
+        setJobs(jobsRes);
+        setAnalytics(analyticsRes);
       } else if (user?.role === 'technician') {
-        const res = await jobsAPI.getTechnicianDashboard();
-        setJobs(res);
+        const [jobsRes, analyticsRes] = await Promise.all([
+          jobsAPI.getTechnicianDashboard(),
+          jobsAPI.getAnalytics().catch(() => null),
+        ]);
+        setJobs(jobsRes);
+        setAnalytics(analyticsRes);
       } else {
         setJobs(null);
+        setAnalytics(null);
       }
     } catch (err) {
       setError('Failed to load dashboard');
@@ -99,10 +114,10 @@ const Dashboard = ({ user, onLogout }) => {
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {user?.role === 'company' && (
-            <CompanyDashboardContent jobs={jobs} onFinish={handleFinish} onRefresh={fetchDashboard} navigate={navigate} user={user} />
+            <CompanyDashboardContent jobs={jobs} analytics={analytics} onFinish={handleFinish} onRefresh={fetchDashboard} navigate={navigate} user={user} />
           )}
           {user?.role === 'technician' && (
-            <TechnicianDashboardContent jobs={jobs} navigate={navigate} user={user} />
+            <TechnicianDashboardContent jobs={jobs} analytics={analytics} navigate={navigate} user={user} />
           )}
           {user?.role !== 'company' && user?.role !== 'technician' && (
             <p className="text-gray-500">Dashboard not available for your role.</p>
@@ -154,7 +169,7 @@ const sortByMostRecent = (list) => {
   });
 };
 
-const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) => {
+const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigate, user }) => {
   const now = Date.now();
   const requested = sortByMostRecent(jobs?.requested || []);
   const unrequested = jobs?.unrequested || [];
@@ -178,6 +193,42 @@ const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) 
 
   return (
     <>
+      {/* Analytics Section */}
+      {analytics && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <FaChartLine className="text-blue-600" /> Analytics
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl shadow-lg p-5 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Total Spent</p>
+                  <p className="text-2xl font-bold mt-1">{formatCurrency(analytics.total_spent_cents)}</p>
+                </div>
+                <FaDollarSign className="text-3xl text-emerald-200/80" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-blue-500">
+              <p className="text-gray-500 text-sm font-medium">Jobs Completed</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.jobs_completed ?? completedCount}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-amber-500">
+              <p className="text-gray-500 text-sm font-medium">Technicians Hired</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.unique_technicians_hired ?? 0}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-indigo-500">
+              <p className="text-gray-500 text-sm font-medium">Total Jobs Posted</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.jobs_posted ?? allJobs.length}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-teal-500">
+              <p className="text-gray-500 text-sm font-medium">Active Jobs</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.jobs_active ?? activeCount}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Link
           to="/jobs"
@@ -276,7 +327,7 @@ const CompanyDashboardContent = ({ jobs, onFinish, onRefresh, navigate, user }) 
   );
 };
 
-const TechnicianDashboardContent = ({ jobs, navigate, user }) => {
+const TechnicianDashboardContent = ({ jobs, analytics, navigate, user }) => {
   const inProgress = jobs?.in_progress || [];
   const completed = jobs?.completed || [];
   const [reviewedJobIds, setReviewedJobIds] = useState(new Set());
@@ -291,6 +342,52 @@ const TechnicianDashboardContent = ({ jobs, navigate, user }) => {
 
   return (
     <>
+      {/* Analytics Section */}
+      {analytics && (
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <FaChartLine className="text-blue-600" /> Analytics
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl shadow-lg p-5 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Total Earned</p>
+                  <p className="text-2xl font-bold mt-1">{formatCurrency(analytics.total_earned_cents)}</p>
+                </div>
+                <FaDollarSign className="text-3xl text-emerald-200/80" />
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-amber-500">
+              <p className="text-gray-500 text-sm font-medium">Pending Earnings</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{formatCurrency(analytics.pending_earned_cents)}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-blue-500">
+              <p className="text-gray-500 text-sm font-medium">Jobs Completed</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.jobs_completed ?? completed.length}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-indigo-500">
+              <div className="flex items-center gap-2">
+                <FaStar className="text-amber-500" />
+                <div>
+                  <p className="text-gray-500 text-sm font-medium">Average Rating</p>
+                  <p className="text-2xl font-bold text-gray-800 mt-1">
+                    {analytics.average_rating != null ? `${Number(analytics.average_rating).toFixed(1)} / 5` : '—'}
+                  </p>
+                </div>
+              </div>
+              {analytics.reviews_count > 0 && (
+                <p className="text-xs text-gray-500 mt-1">{analytics.reviews_count} review{analytics.reviews_count !== 1 ? 's' : ''}</p>
+              )}
+            </div>
+            <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-teal-500">
+              <p className="text-gray-500 text-sm font-medium">Total Jobs</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.total_jobs ?? (inProgress.length + completed.length)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
         <Link
           to="/jobs?status=active"

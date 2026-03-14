@@ -150,6 +150,37 @@ class PaymentService
     end
   end
 
+  # Sum of Stripe transfers to a technician's connected account (source of truth for earnings)
+  def self.stripe_earnings_cents_for(technician_profile)
+    return nil if technician_profile.blank? || technician_profile.stripe_account_id.blank?
+    return nil if Stripe.api_key.blank?
+
+    total = 0
+    has_more = true
+    starting_after = nil
+
+    while has_more
+      params = {
+        destination: technician_profile.stripe_account_id,
+        limit: 100
+      }
+      params[:starting_after] = starting_after if starting_after.present?
+
+      list = Stripe::Transfer.list(params)
+      list.data.each do |t|
+        next if t.reversed
+        amount_reversed = t.respond_to?(:amount_reversed) ? (t.amount_reversed || 0) : 0
+        total += (t.amount || 0) - amount_reversed
+      end
+      has_more = list.has_more
+      starting_after = list.data.last&.id if has_more && list.data.any?
+    end
+
+    total
+  rescue Stripe::StripeError
+    nil
+  end
+
   # Release funds to tech when: both reviewed OR 72 hours passed since job finished
   def self.release_if_eligible(job)
     return unless job.finished?
