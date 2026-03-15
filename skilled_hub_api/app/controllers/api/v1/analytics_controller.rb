@@ -10,6 +10,8 @@ module Api
           render json: technician_analytics, status: :ok
         elsif @current_user.company?
           render json: company_analytics, status: :ok
+        elsif @current_user.admin?
+          render json: admin_analytics, status: :ok
         else
           render json: { error: 'Analytics not available for your role' }, status: :forbidden
         end
@@ -117,6 +119,19 @@ module Api
           jobs_active: 0,
           unique_technicians_hired: 0,
           total_jobs: 0
+        }
+      end
+
+      def admin_analytics
+        {
+          total_users: User.count,
+          technicians_count: User.technician.count,
+          companies_count: User.company.count,
+          total_jobs: Job.count,
+          jobs_open: Job.where(status: :open).count,
+          jobs_finished: Job.where(status: :finished).count,
+          jobs_in_progress: Job.where(status: [:reserved, :filled]).count,
+          total_job_applications: JobApplication.count
         }
       end
     end

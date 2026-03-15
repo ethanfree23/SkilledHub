@@ -3,7 +3,7 @@ class User < ApplicationRecord
 
   validates :email, presence: true, uniqueness: { case_sensitive: false }
 
-  enum role: { technician: 0, company: 1 }
+  enum role: { technician: 0, company: 1, admin: 2 }
 
   has_one :technician_profile, dependent: :destroy
   has_one :company_profile, dependent: :destroy

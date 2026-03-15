@@ -24,7 +24,9 @@ module Api
       end
 
       def create
-        user = User.new(user_params)
+        # Registration only allows technician or company; admin is created manually
+        permitted_role = %w[technician company].include?(params[:role].to_s) ? params[:role] : 'technician'
+        user = User.new(user_params.merge(role: permitted_role))
         if user.save
           UserMailer.welcome_email(user).deliver_later
           token = JWT.encode({ user_id: user.id }, Rails.application.secret_key_base)

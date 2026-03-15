@@ -42,7 +42,15 @@ module Api
                 jobs = jobs.where('scheduled_start_at IS NULL OR scheduled_start_at >= ?', Time.current)
               end
             end
-            # When status blank ("All"): jobs stays as Job.all - show everything
+            # Technicians must never see jobs claimed by other technicians
+            if technician_profile
+              claimed_by_others = Job.joins(:job_applications)
+                .where(status: [:reserved, :filled])
+                .where(job_applications: { status: :accepted })
+                .where.not(job_applications: { technician_profile_id: technician_profile.id })
+                .select(:id)
+              jobs = jobs.where.not(id: claimed_by_others)
+            end
           end
         end
 

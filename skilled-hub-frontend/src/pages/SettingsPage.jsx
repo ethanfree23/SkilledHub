@@ -28,6 +28,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
   const isCompany = user?.role === 'company';
   const isTechnician = user?.role === 'technician';
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchProfile();
@@ -74,6 +75,8 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
       setLoading(false);
     }
   };
+
+  const showProfileForm = isCompany || isTechnician;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -265,6 +268,9 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
         {/* Profile section */}
         <section className="bg-white rounded-2xl shadow p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile</h2>
+          {isAdmin ? (
+            <p className="text-gray-500">Admin accounts do not have technician or company profiles.</p>
+          ) : (
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div className="flex items-center gap-6">
               <div className="relative">
@@ -349,6 +355,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
+          )}
         </section>
 
         {/* Payment section */}
@@ -385,7 +392,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
             </div>
           )}
 
-          {!isCompany && !isTechnician && (
+          {(isAdmin || (!isCompany && !isTechnician)) && (
             <p className="text-gray-500">Payment settings are available for companies and technicians.</p>
           )}
         </section>

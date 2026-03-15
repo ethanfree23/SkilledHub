@@ -81,6 +81,11 @@ export const auth = {
     return auth.hasRole('company');
   },
 
+  // Check if user is an admin
+  isAdmin: () => {
+    return auth.hasRole('admin');
+  },
+
   // Logout user (clear all auth data)
   logout: () => {
     auth.removeToken();

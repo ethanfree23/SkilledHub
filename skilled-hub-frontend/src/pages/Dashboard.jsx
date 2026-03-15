@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { jobsAPI, ratingsAPI } from '../api/api';
-import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine } from 'react-icons/fa';
+import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine, FaUsers, FaUserCog, FaBuilding } from 'react-icons/fa';
 
 // open, claimed (filled but not started), active (in progress), completed, expired
 const statusLabel = (job) => {
@@ -66,6 +66,10 @@ const Dashboard = ({ user, onLogout }) => {
         ]);
         setJobs(jobsRes);
         setAnalytics(analyticsRes);
+      } else if (user?.role === 'admin') {
+        const analyticsRes = await jobsAPI.getAnalytics().catch(() => null);
+        setJobs(null);
+        setAnalytics(analyticsRes);
       } else {
         setJobs(null);
         setAnalytics(null);
@@ -119,7 +123,10 @@ const Dashboard = ({ user, onLogout }) => {
           {user?.role === 'technician' && (
             <TechnicianDashboardContent jobs={jobs} analytics={analytics} navigate={navigate} user={user} />
           )}
-          {user?.role !== 'company' && user?.role !== 'technician' && (
+          {user?.role === 'admin' && (
+            <AdminDashboardContent analytics={analytics} navigate={navigate} user={user} />
+          )}
+          {user?.role !== 'company' && user?.role !== 'technician' && user?.role !== 'admin' && (
             <p className="text-gray-500">Dashboard not available for your role.</p>
           )}
         </div>
@@ -159,6 +166,73 @@ const DashboardHeader = ({ user, onLogout }) => (
       </div>
     </div>
   </header>
+);
+
+const AdminDashboardContent = ({ analytics, navigate, user }) => (
+  <>
+    <h2 className="text-xl font-semibold text-gray-800 mb-6">Platform Overview</h2>
+    {analytics && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg p-5 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-indigo-100 text-sm font-medium">Total Users</p>
+              <p className="text-2xl font-bold mt-1">{analytics.total_users ?? 0}</p>
+            </div>
+            <FaUsers className="text-3xl text-indigo-200/80" />
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-blue-500">
+          <div className="flex items-center gap-2">
+            <FaUserCog className="text-blue-500" />
+            <div>
+              <p className="text-gray-500 text-sm font-medium">Technicians</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.technicians_count ?? 0}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-amber-500">
+          <div className="flex items-center gap-2">
+            <FaBuilding className="text-amber-500" />
+            <div>
+              <p className="text-gray-500 text-sm font-medium">Companies</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.companies_count ?? 0}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-teal-500">
+          <p className="text-gray-500 text-sm font-medium">Total Jobs</p>
+          <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.total_jobs ?? 0}</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-emerald-500">
+          <p className="text-gray-500 text-sm font-medium">Job Applications</p>
+          <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.total_job_applications ?? 0}</p>
+        </div>
+      </div>
+    )}
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-blue-400">
+        <p className="text-gray-500 text-sm font-medium">Open Jobs</p>
+        <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_open ?? 0}</p>
+      </div>
+      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-yellow-400">
+        <p className="text-gray-500 text-sm font-medium">In Progress</p>
+        <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_in_progress ?? 0}</p>
+      </div>
+      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-green-400">
+        <p className="text-gray-500 text-sm font-medium">Completed</p>
+        <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_finished ?? 0}</p>
+      </div>
+    </div>
+    <div className="mt-8">
+      <Link
+        to="/jobs"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+      >
+        <FaBriefcase /> View All Jobs
+      </Link>
+    </div>
+  </>
 );
 
 const sortByMostRecent = (list) => {

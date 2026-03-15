@@ -58,6 +58,7 @@ const CreateJob = () => {
   );
   const [saving, setSaving] = useState(false);
   const [companyProfileId, setCompanyProfileId] = useState(null);
+  const [errorModal, setErrorModal] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -110,7 +111,7 @@ const CreateJob = () => {
       alert('Job created!');
       navigate('/dashboard');
     } catch (err) {
-      alert('Failed to create job');
+      setErrorModal(err.message || 'Failed to create job');
     } finally {
       setSaving(false);
     }
@@ -264,6 +265,25 @@ const CreateJob = () => {
           {saving ? 'Creating...' : 'Create Job'}
         </button>
       </form>
+
+      {/* Error modal - matches app design */}
+      {errorModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
+          <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Unable to create job</h2>
+            <p className="text-gray-700 mb-6">{errorModal}</p>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setErrorModal(null)}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

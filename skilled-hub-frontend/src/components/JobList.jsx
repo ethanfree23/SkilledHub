@@ -292,7 +292,7 @@ const JobList = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12">
       <div className="mb-12">
         <h2 className="text-3xl font-bold text-gray-900 mb-10">
-          {auth.isCompany() ? 'My Jobs' : 'Available Jobs'}
+          {auth.isCompany() ? 'My Jobs' : auth.isAdmin() ? 'All Jobs' : 'Available Jobs'}
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-10">
@@ -341,15 +341,23 @@ const JobList = () => {
                 <option value="expired">Expired</option>
               </>
             )}
-            {auth.isTechnician() && (
+            {auth.isTechnician() && !auth.isAdmin() && (
               <>
                 <option value="active">Active</option>
                 <option value="reserved">Claimed</option>
                 <option value="completed">Completed</option>
               </>
             )}
+            {auth.isAdmin() && (
+              <>
+                <option value="active">Active (Live)</option>
+                <option value="reserved">Claimed</option>
+                <option value="completed">Completed</option>
+                <option value="expired">Expired</option>
+              </>
+            )}
           </select>
-          {(auth.isTechnician() || auth.isCompany()) && (
+          {(auth.isTechnician() || auth.isCompany() || auth.isAdmin()) && (
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}

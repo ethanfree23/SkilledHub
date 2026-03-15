@@ -47,6 +47,12 @@ module Api
         end
       end
 
+      def require_admin
+        unless @current_user&.admin?
+          render json: { error: 'Access denied. Admin role required.' }, status: :forbidden
+        end
+      end
+
       # Allow JSON payloads to be parsed correctly into params (Rails API parses JSON by default; this ensures compatibility)
       def transform_json_params
         return unless request.content_type.to_s.include?('application/json')
