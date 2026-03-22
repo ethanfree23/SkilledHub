@@ -50,7 +50,7 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
             <nav className="flex items-center gap-4">
               <Link to="/dashboard" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Dashboard</Link>
               <Link to="/jobs" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Jobs</Link>
-              <Link to="/settings" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Profile & Settings</Link>
+              <Link to="/settings" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600">Settings</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

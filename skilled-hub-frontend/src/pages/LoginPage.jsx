@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authAPI } from '../api/api';
 import { auth } from '../auth';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const tab = searchParams.get('tab');
+  const [isLogin, setIsLogin] = useState(tab !== 'signup');
+
+  useEffect(() => {
+    if (tab === 'signup') setIsLogin(false);
+    else if (tab === 'login') setIsLogin(true);
+  }, [tab]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

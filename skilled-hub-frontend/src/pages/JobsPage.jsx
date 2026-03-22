@@ -22,7 +22,7 @@ const JobsPage = ({ user, onLogout }) => {
                 Messages
               </Link>
               <Link to="/settings" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
-                Profile & Settings
+                Settings
               </Link>
             </nav>
           </div>

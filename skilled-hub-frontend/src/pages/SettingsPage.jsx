@@ -269,7 +269,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Profile & Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>

@@ -146,11 +146,11 @@ const DashboardHeader = ({ user, onLogout }) => (
           <Link to="/dashboard" className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1">Dashboard</Link>
           <Link to="/jobs" className="text-gray-600 hover:text-blue-600">Jobs</Link>
           <Link to="/messages" className="text-gray-600 hover:text-blue-600">Messages</Link>
-          <Link to="/settings" className="text-gray-600 hover:text-blue-600">Profile & Settings</Link>
+          <Link to="/settings" className="text-gray-600 hover:text-blue-600">Settings</Link>
         </nav>
       </div>
       <div className="flex items-center space-x-4">
-        <Link to="/settings" className="flex items-center gap-2 hover:opacity-80" title="Profile & Settings">
+        <Link to="/settings" className="flex items-center gap-2 hover:opacity-80" title="Settings">
           <div className="bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center text-gray-600 font-bold">
             {user?.email?.[0]?.toUpperCase() || '?'}
           </div>
