@@ -22,21 +22,10 @@ const LoginPage = ({ onLoginSuccess }) => {
     setLoading(true);
     setError('');
     try {
-      console.log('Starting login process...');
       const response = await authAPI.login(loginData.email, loginData.password);
-      console.log('Login response:', response);
-      
       auth.setToken(response.token);
       auth.setUser(response.user);
-      console.log('Token and user set in auth');
-      
       onLoginSuccess(response.user);
-      console.log('onLoginSuccess called');
-      
-      console.log('User role:', response.user.role);
-      console.log('User role type:', typeof response.user.role);
-      console.log('Role comparison result:', response.user.role === 'company');
-      
       setTimeout(() => navigate('/dashboard'), 100);
     } catch (err) {
       console.error('Login error:', err);
@@ -57,22 +46,10 @@ const LoginPage = ({ onLoginSuccess }) => {
     }
 
     try {
-      console.log('Starting registration process...');
-      console.log('Registration data:', registerData);
       const response = await authAPI.register(registerData);
-      console.log('Register response:', response);
-      
       auth.setToken(response.token);
       auth.setUser(response.user);
-      console.log('Token and user set in auth');
-      
       onLoginSuccess(response.user);
-      console.log('onLoginSuccess called');
-      
-      console.log('User role:', response.user.role);
-      console.log('User role type:', typeof response.user.role);
-      console.log('Role comparison result:', response.user.role === 'company');
-      
       setTimeout(() => navigate('/dashboard'), 100);
     } catch (err) {
       console.error('Registration error:', err);

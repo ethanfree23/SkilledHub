@@ -33,10 +33,6 @@ function App() {
     const checkAuth = () => {
       const authenticated = auth.isAuthenticated();
       const currentUser = auth.getUser();
-      
-      console.log('App: checkAuth - authenticated:', authenticated); // Debug log
-      console.log('App: checkAuth - currentUser:', currentUser); // Debug log
-      
       setIsAuthenticated(authenticated);
       setUser(currentUser);
       setLoading(false);
@@ -46,11 +42,8 @@ function App() {
   }, []);
 
   const handleLoginSuccess = (userData) => {
-    console.log('App: handleLoginSuccess called with userData:', userData); // Debug log
     setIsAuthenticated(true);
     setUser(userData);
-    console.log('App: Authentication state updated'); // Debug log
-    // Navigation will be handled in LoginPage.jsx
   };
 
   const handleLogout = () => {
