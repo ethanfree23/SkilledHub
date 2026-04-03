@@ -74,9 +74,16 @@ Rails.application.configure do
 
   config.action_mailer.perform_caching = false
 
-  # Railway often blocks outbound SMTP (Net::OpenTimeout to live.smtp.mailtrap.io). Use HTTPS API instead:
-  # TechFlash Railway: set MAILTRAP_USE_HTTP=true and keep SMTP_PASSWORD as your Mailtrap API token.
-  if ENV['MAILTRAP_USE_HTTP'] == 'true'
+  # Railway blocks outbound SMTP (587). Use Mailtrap HTTPS API by default when a token exists.
+  # Opt out: MAILTRAP_USE_HTTP=false (then SMTP_ADDRESS + SMTP_* are used).
+  mailtrap_http =
+    ENV['MAILTRAP_USE_HTTP'] != 'false' && (
+      ENV['MAILTRAP_USE_HTTP'] == 'true' ||
+      ENV['SMTP_PASSWORD'].present? ||
+      ENV['MAILTRAP_API_TOKEN'].present?
+    )
+
+  if mailtrap_http
     config.action_mailer.delivery_method = :mailtrap_http
     config.action_mailer.mailtrap_http_settings = {
       api_token: ENV['SMTP_PASSWORD'].presence || ENV['MAILTRAP_API_TOKEN']
@@ -120,14 +127,20 @@ Rails.application.configure do
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.after_initialize do
-    if ENV['MAILTRAP_USE_HTTP'] == 'true'
+    mailtrap_http = ENV['MAILTRAP_USE_HTTP'] != 'false' && (
+      ENV['MAILTRAP_USE_HTTP'] == 'true' ||
+      ENV['SMTP_PASSWORD'].present? ||
+      ENV['MAILTRAP_API_TOKEN'].present?
+    )
+
+    if mailtrap_http
       Rails.logger.warn(
         '[mail] boot: delivery=mailtrap_http api_token=' \
         "#{ENV['SMTP_PASSWORD'].present? || ENV['MAILTRAP_API_TOKEN'].present?} " \
         "MAILER_FROM=#{ENV['MAILER_FROM'].present?}"
       )
       if ENV['SMTP_PASSWORD'].blank? && ENV['MAILTRAP_API_TOKEN'].blank?
-        Rails.logger.error('[mail] MAILTRAP_USE_HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
+        Rails.logger.error('[mail] Mailtrap HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
       end
     else
       Rails.logger.warn(

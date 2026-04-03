@@ -264,13 +264,18 @@ module Api
         technician_profile = @current_user.technician_profile
         return render json: { in_progress: [], completed: [] }, status: :ok unless technician_profile
 
-        base = Job.joins(:job_applications)
+        # Pluck ids first: PostgreSQL rejects DISTINCT + ORDER BY non-selected expressions on the same relation.
+        job_ids = Job.joins(:job_applications)
           .where(job_applications: { technician_profile_id: technician_profile.id, status: :accepted })
           .distinct
-          .includes(:company_profile)
+          .pluck(:id)
 
-        in_progress = base.where(status: [:reserved, :filled]).order('jobs.created_at DESC')
-        completed = base.where(status: :finished).order(Arel.sql('COALESCE(jobs.finished_at, jobs.updated_at, jobs.created_at) DESC'))
+        in_progress = Job.where(id: job_ids, status: [:reserved, :filled])
+          .includes(:company_profile)
+          .order(created_at: :desc)
+        completed = Job.where(id: job_ids, status: :finished)
+          .includes(:company_profile)
+          .order(Arel.sql('COALESCE(jobs.finished_at, jobs.updated_at, jobs.created_at) DESC'))
 
         # Manual JSON to avoid serializer issues (avatar_url, nested associations, etc.)
         job_to_hash = ->(j) {

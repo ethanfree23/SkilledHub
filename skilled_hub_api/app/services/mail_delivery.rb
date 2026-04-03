@@ -4,9 +4,15 @@
 # Uses deliver_now (not deliver_later) so sends run inline and never depend on Active Job.
 module MailDelivery
   def self.safe_deliver
-    if ENV['MAILTRAP_USE_HTTP'] == 'true'
+    mailtrap_http = ENV['MAILTRAP_USE_HTTP'] != 'false' && (
+      ENV['MAILTRAP_USE_HTTP'] == 'true' ||
+      ENV['SMTP_PASSWORD'].present? ||
+      ENV['MAILTRAP_API_TOKEN'].present?
+    )
+
+    if mailtrap_http
       if ENV['SMTP_PASSWORD'].blank? && ENV['MAILTRAP_API_TOKEN'].blank?
-        Rails.logger.error('[mail] MAILTRAP_USE_HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
+        Rails.logger.error('[mail] Mailtrap HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
         return nil
       end
     elsif ENV['SMTP_ADDRESS'].blank?
