@@ -123,7 +123,7 @@ module Api
         rating = Rating.new(attrs)
 
         if rating.save
-          MailDelivery.safe_deliver { UserMailer.review_received_email(rating).deliver_later }
+          MailDelivery.safe_deliver { UserMailer.review_received_email(rating).deliver_now }
           PaymentService.release_if_eligible(job)
           render json: rating, serializer: RatingSerializer, status: :created
         else

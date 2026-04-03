@@ -17,12 +17,12 @@ namespace :skilled_hub do
 
         # Remind company if they haven't reviewed
         unless Rating.exists?(job: job, reviewer: company_profile)
-          MailDelivery.safe_deliver { UserMailer.review_reminder_email(job, company_profile.user, :company).deliver_later }
+          MailDelivery.safe_deliver { UserMailer.review_reminder_email(job, company_profile.user, :company).deliver_now }
         end
 
         # Remind technician if they haven't reviewed
         unless Rating.exists?(job: job, reviewer: technician_profile)
-          MailDelivery.safe_deliver { UserMailer.review_reminder_email(job, technician_profile.user, :technician).deliver_later }
+          MailDelivery.safe_deliver { UserMailer.review_reminder_email(job, technician_profile.user, :technician).deliver_now }
         end
       end
 

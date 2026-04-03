@@ -20,7 +20,7 @@ module Api
         message = @conversation.messages.build(message_params)
         message.sender = current_user_profile
         if message.save
-          MailDelivery.safe_deliver { UserMailer.new_message(message).deliver_later } if @conversation.job_thread?
+          MailDelivery.safe_deliver { UserMailer.new_message(message).deliver_now } if @conversation.job_thread?
           render json: message, serializer: MessageSerializer, status: :created
         else
           render json: { errors: message.errors.full_messages }, status: :unprocessable_entity

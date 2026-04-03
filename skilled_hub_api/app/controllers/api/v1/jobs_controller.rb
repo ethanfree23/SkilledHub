@@ -126,7 +126,7 @@ module Api
 
         job = Job.new(job_params)
         if job.save
-          MailDelivery.safe_deliver { UserMailer.job_posted_email(job).deliver_later }
+          MailDelivery.safe_deliver { UserMailer.job_posted_email(job).deliver_now }
           render json: job, serializer: JobSerializer, status: :created
         else
           render json: { errors: job.errors.full_messages }, status: :unprocessable_entity
@@ -352,12 +352,12 @@ module Api
           end
           job.update!(status: :filled)
           MailDelivery.safe_deliver do
-            UserMailer.job_claimed_email(job).deliver_later
-            UserMailer.payment_confirmation_email(job, job.company_charge_cents).deliver_later
+            UserMailer.job_claimed_email(job).deliver_now
+            UserMailer.payment_confirmation_email(job, job.company_charge_cents).deliver_now
           end
         else
           job.update!(status: :filled)
-          MailDelivery.safe_deliver { UserMailer.job_claimed_email(job).deliver_later }
+          MailDelivery.safe_deliver { UserMailer.job_claimed_email(job).deliver_now }
         end
 
         render json: job, serializer: JobSerializer, status: :ok
