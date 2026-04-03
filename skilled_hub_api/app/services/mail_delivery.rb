@@ -4,11 +4,15 @@
 # Uses deliver_now (not deliver_later) so sends run inline and never depend on Active Job.
 module MailDelivery
   def self.safe_deliver
-    if ENV['SMTP_ADDRESS'].blank?
+    if ENV['MAILTRAP_USE_HTTP'] == 'true'
+      if ENV['SMTP_PASSWORD'].blank? && ENV['MAILTRAP_API_TOKEN'].blank?
+        Rails.logger.error('[mail] MAILTRAP_USE_HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
+        return nil
+      end
+    elsif ENV['SMTP_ADDRESS'].blank?
       Rails.logger.error('[mail] SMTP_ADDRESS is unset — cannot send mail. Set it on the Railway app service.')
       return nil
-    end
-    if ENV['SMTP_PASSWORD'].blank?
+    elsif ENV['SMTP_PASSWORD'].blank?
       Rails.logger.error('[mail] SMTP_PASSWORD is unset — Mailtrap token missing.')
       return nil
     end

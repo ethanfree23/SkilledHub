@@ -74,9 +74,16 @@ Rails.application.configure do
 
   config.action_mailer.perform_caching = false
 
+  # Railway often blocks outbound SMTP (Net::OpenTimeout to live.smtp.mailtrap.io). Use HTTPS API instead:
+  # TechFlash Railway: set MAILTRAP_USE_HTTP=true and keep SMTP_PASSWORD as your Mailtrap API token.
+  if ENV['MAILTRAP_USE_HTTP'] == 'true'
+    config.action_mailer.delivery_method = :mailtrap_http
+    config.action_mailer.mailtrap_http_settings = {
+      api_token: ENV['SMTP_PASSWORD'].presence || ENV['MAILTRAP_API_TOKEN']
+    }
   # Same SMTP env vars as development: SMTP_ADDRESS, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
   # Optional: SMTP_AUTHENTICATION=login (Mailtrap’s Rails sample uses login; default is plain)
-  if ENV['SMTP_ADDRESS'].present?
+  elsif ENV['SMTP_ADDRESS'].present?
     smtp_auth = ENV.fetch('SMTP_AUTHENTICATION', 'plain').downcase.to_sym
     smtp_auth = :plain unless %i[plain login cram_md5].include?(smtp_auth)
 
@@ -113,14 +120,24 @@ Rails.application.configure do
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.after_initialize do
-    # One line per deploy — search Deploy Logs for "[mail] boot" to confirm env + code are live.
-    Rails.logger.warn(
-      '[mail] boot: smtp_configured=' \
-      "#{ENV['SMTP_ADDRESS'].present? && ENV['SMTP_PASSWORD'].present? && ENV['SMTP_USERNAME'].present?} " \
-      "MAILER_FROM=#{ENV['MAILER_FROM'].present?}"
-    )
-    if ENV['SMTP_ADDRESS'].blank? || ENV['SMTP_PASSWORD'].blank?
-      Rails.logger.error('[mail] SMTP_ADDRESS or SMTP_PASSWORD missing — app cannot send mail (Mailtrap SMTP).')
+    if ENV['MAILTRAP_USE_HTTP'] == 'true'
+      Rails.logger.warn(
+        '[mail] boot: delivery=mailtrap_http api_token=' \
+        "#{ENV['SMTP_PASSWORD'].present? || ENV['MAILTRAP_API_TOKEN'].present?} " \
+        "MAILER_FROM=#{ENV['MAILER_FROM'].present?}"
+      )
+      if ENV['SMTP_PASSWORD'].blank? && ENV['MAILTRAP_API_TOKEN'].blank?
+        Rails.logger.error('[mail] MAILTRAP_USE_HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
+      end
+    else
+      Rails.logger.warn(
+        '[mail] boot: smtp_configured=' \
+        "#{ENV['SMTP_ADDRESS'].present? && ENV['SMTP_PASSWORD'].present? && ENV['SMTP_USERNAME'].present?} " \
+        "MAILER_FROM=#{ENV['MAILER_FROM'].present?}"
+      )
+      if ENV['SMTP_ADDRESS'].blank? || ENV['SMTP_PASSWORD'].blank?
+        Rails.logger.error('[mail] SMTP_ADDRESS or SMTP_PASSWORD missing — app cannot send mail (Mailtrap SMTP).')
+      end
     end
   end
 end
