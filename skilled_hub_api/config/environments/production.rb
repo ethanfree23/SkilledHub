@@ -75,21 +75,24 @@ Rails.application.configure do
   config.action_mailer.perform_caching = false
 
   # Same SMTP env vars as development: SMTP_ADDRESS, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
+  # Optional: SMTP_AUTHENTICATION=login (Mailtrap’s Rails sample uses login; default is plain)
   if ENV['SMTP_ADDRESS'].present?
+    smtp_auth = ENV.fetch('SMTP_AUTHENTICATION', 'plain').downcase.to_sym
+    smtp_auth = :plain unless %i[plain login cram_md5].include?(smtp_auth)
+
     config.action_mailer.delivery_method = :smtp
     config.action_mailer.smtp_settings = {
       address:              ENV['SMTP_ADDRESS'],
       port:                 (ENV['SMTP_PORT'] || 587).to_i,
       user_name:            ENV['SMTP_USERNAME'],
       password:             ENV['SMTP_PASSWORD'],
-      authentication:       :plain,
+      authentication:       smtp_auth,
       enable_starttls_auto:  true
     }
   end
 
-  # Ignore bad email addresses and do not raise email delivery errors.
-  # Set this to true and configure the email server for immediate delivery to raise delivery errors.
-  # config.action_mailer.raise_delivery_errors = false
+  # Must be true so SMTP failures raise; MailDelivery.safe_deliver logs them without failing the API.
+  config.action_mailer.raise_delivery_errors = true
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).
@@ -108,4 +111,10 @@ Rails.application.configure do
   # ]
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  config.after_initialize do
+    if ENV['SMTP_ADDRESS'].blank?
+      Rails.logger.warn('[mail] SMTP_ADDRESS is unset — ActionMailer is not using Mailtrap SMTP.')
+    end
+  end
 end

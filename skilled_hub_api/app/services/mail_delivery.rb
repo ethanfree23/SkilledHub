@@ -5,6 +5,7 @@
 module MailDelivery
   def self.safe_deliver
     yield
+    Rails.logger.info('[mail] delivery completed')
   rescue StandardError => e
     Rails.logger.error("[mail] #{e.class}: #{e.message}\n#{e.backtrace.first(12).join("\n")}")
     nil
