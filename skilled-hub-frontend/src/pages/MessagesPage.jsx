@@ -51,6 +51,11 @@ const MessagesPage = ({ user, onLogout }) => {
               <Link to="/dashboard" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
                 Dashboard
               </Link>
+              {currentUser?.role === 'admin' && (
+                <Link to="/crm" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
+                  CRM
+                </Link>
+              )}
               <Link to="/jobs" className="px-3 py-2 font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md">
                 Jobs
               </Link>

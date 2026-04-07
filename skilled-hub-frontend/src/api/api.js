@@ -67,6 +67,36 @@ export const authAPI = {
     }),
 };
 
+// Admin CRM (company pipeline + optional link to platform company account)
+export const crmAPI = {
+  list: () => apiRequest('/admin/crm_leads'),
+  get: (id) => apiRequest(`/admin/crm_leads/${id}`),
+  create: (data) =>
+    apiRequest('/admin/crm_leads', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id, data) =>
+    apiRequest(`/admin/crm_leads/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  remove: (id) =>
+    apiRequest(`/admin/crm_leads/${id}`, {
+      method: 'DELETE',
+    }),
+  searchCompanyAccounts: (q) =>
+    apiRequest(`/admin/company_accounts/search?q=${encodeURIComponent(q || '')}`),
+};
+
+// Admin platform metrics (dashboard drill-down lists)
+export const adminAPI = {
+  getPlatformInsights: (category, period = '7d') => {
+    const params = new URLSearchParams({ category, period });
+    return apiRequest(`/admin/platform_insights?${params}`);
+  },
+};
+
 // Feedback: POST stores + emails admins; GET lists all (admin only)
 export const feedbackAPI = {
   list: () => apiRequest('/feedback'),

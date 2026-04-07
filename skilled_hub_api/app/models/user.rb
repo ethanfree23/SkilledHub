@@ -12,5 +12,7 @@ class User < ApplicationRecord
   has_many :ratings_given, class_name: 'Rating', foreign_key: :reviewer_id, dependent: :destroy
   has_many :ratings_received, class_name: 'Rating', foreign_key: :reviewee_id, dependent: :destroy
   has_many :feedback_submissions, dependent: :destroy
+  has_many :crm_leads, foreign_key: :linked_user_id, dependent: :nullify, inverse_of: :linked_user
+  has_many :user_login_events, dependent: :delete_all
 end
   

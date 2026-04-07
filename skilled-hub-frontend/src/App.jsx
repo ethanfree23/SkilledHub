@@ -11,6 +11,7 @@ import TechnicianProfilePage from './pages/TechnicianProfilePage';
 import CompanyProfilePage from './pages/CompanyProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import MessagesPage from './pages/MessagesPage';
+import CrmPage from './pages/CrmPage';
 import FeedbackWidget from './components/FeedbackWidget';
 import { auth } from './auth';
 
@@ -173,6 +174,19 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 <MessagesPage user={user} onLogout={handleLogout} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/crm"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                {user?.role === 'admin' ? (
+                  <CrmPage user={user} onLogout={handleLogout} />
+                ) : (
+                  <Navigate to="/dashboard" replace />
+                )}
               </ProtectedRoute>
             }
           />

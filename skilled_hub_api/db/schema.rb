@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_30_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_07_130000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -63,6 +63,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_30_160000) do
     t.index ["feedback_submission_id"], name: "index_conversations_on_feedback_submission_id", unique: true
     t.index ["job_id"], name: "index_conversations_on_job_id"
     t.index ["technician_profile_id"], name: "index_conversations_on_technician_profile_id"
+  end
+
+  create_table "crm_leads", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "contact_name"
+    t.string "email"
+    t.string "phone"
+    t.string "website"
+    t.string "status", default: "lead", null: false
+    t.text "notes"
+    t.integer "linked_user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["linked_user_id"], name: "index_crm_leads_on_linked_user_id", unique: true
+    t.index ["status"], name: "index_crm_leads_on_status"
   end
 
   create_table "documents", force: :cascade do |t|
@@ -189,6 +204,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_30_160000) do
     t.index ["user_id"], name: "index_technician_profiles_on_user_id"
   end
 
+  create_table "user_login_events", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "created_at"], name: "index_user_login_events_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_user_login_events_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email"
     t.string "password_digest"
@@ -205,6 +228,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_30_160000) do
   add_foreign_key "conversations", "feedback_submissions"
   add_foreign_key "conversations", "jobs"
   add_foreign_key "conversations", "technician_profiles"
+  add_foreign_key "crm_leads", "users", column: "linked_user_id"
   add_foreign_key "feedback_submissions", "users"
   add_foreign_key "job_applications", "jobs"
   add_foreign_key "job_applications", "technician_profiles"
@@ -213,4 +237,5 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_30_160000) do
   add_foreign_key "payments", "jobs"
   add_foreign_key "ratings", "jobs"
   add_foreign_key "technician_profiles", "users"
+  add_foreign_key "user_login_events", "users"
 end

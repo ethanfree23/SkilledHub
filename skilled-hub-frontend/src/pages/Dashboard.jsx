@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TECHFLASH_LOGO_NAV } from '../constants/branding';
-import { jobsAPI, ratingsAPI, feedbackAPI } from '../api/api';
+import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
 import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine, FaUsers, FaUserCog, FaBuilding, FaCommentDots } from 'react-icons/fa';
 
@@ -37,6 +37,233 @@ const formatDate = (dateStr) => {
 const formatCurrency = (cents) => {
   if (cents == null || cents === 0) return '$0';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+};
+
+const PERIOD_OPTIONS = [
+  { id: '24h', label: '24 hours' },
+  { id: '7d', label: '7 days' },
+  { id: '30d', label: '30 days' },
+  { id: 'all', label: 'All time' },
+];
+
+const humanizeStatus = (s) => (s == null ? '—' : String(s).replace(/_/g, ' '));
+
+const AdminInsightTable = ({ category, items }) => {
+  if (!items?.length) {
+    return <p className="text-gray-500 text-sm py-8 text-center">No rows for this time range.</p>;
+  }
+
+  if (category === 'total_users') {
+    return (
+      <div className="overflow-x-auto max-h-[min(70vh,28rem)] overflow-y-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Logins</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Msgs</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Money</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. out</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. in</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50/80">
+                <td className="px-3 py-2 text-gray-800">{row.email}</td>
+                <td className="px-3 py-2 capitalize text-gray-600">{row.role}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.logins}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.messages_sent}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(row.money_cents)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_given}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_received}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (category === 'technicians') {
+    return (
+      <div className="overflow-x-auto max-h-[min(70vh,28rem)] overflow-y-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Trade</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Logins</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Msgs</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Earned</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. out</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. in</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50/80">
+                <td className="px-3 py-2 text-gray-800">{row.email}</td>
+                <td className="px-3 py-2 text-gray-600">{row.trade_type || '—'}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.logins}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.messages_sent}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(row.money_earned_cents)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_given}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_received}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (category === 'companies') {
+    return (
+      <div className="overflow-x-auto max-h-[min(70vh,28rem)] overflow-y-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Logins</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Msgs</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Spent</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. out</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Rev. in</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50/80">
+                <td className="px-3 py-2 font-medium text-gray-800">{row.company_name || '—'}</td>
+                <td className="px-3 py-2 text-gray-600">{row.email}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.logins}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.messages_sent}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(row.money_spent_cents)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_given}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.reviews_received}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (['total_jobs', 'open_jobs', 'jobs_in_progress', 'completed'].includes(category)) {
+    return (
+      <div className="overflow-x-auto max-h-[min(70vh,28rem)] overflow-y-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Apps</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Msgs</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
+              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Reviews</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50/80">
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    className="text-left font-medium text-blue-700 hover:underline"
+                    onClick={() => window.open(`/jobs/${row.id}`, '_blank', 'noopener,noreferrer')}
+                  >
+                    {row.title || `Job #${row.id}`}
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-gray-600">{row.company_name || '—'}</td>
+                <td className="px-3 py-2 capitalize text-gray-700">{humanizeStatus(row.status)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.applications_in_period}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.messages_in_period}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(row.money_released_cents)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{row.ratings_in_period}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (category === 'job_applications') {
+    return (
+      <div className="overflow-x-auto max-h-[min(70vh,28rem)] overflow-y-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {items.map((row) => (
+              <tr key={row.id} className="hover:bg-gray-50/80">
+                <td className="px-3 py-2">
+                  <button
+                    type="button"
+                    className="text-left font-medium text-blue-700 hover:underline"
+                    onClick={() => window.open(`/jobs/${row.job_id}`, '_blank', 'noopener,noreferrer')}
+                  >
+                    {row.job_title}
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-gray-700">{row.technician_email || '—'}</td>
+                <td className="px-3 py-2 text-gray-600">{row.company_name || '—'}</td>
+                <td className="px-3 py-2 capitalize">{row.status}</td>
+                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                  {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+const AdminTotalsStrip = ({ totals, category }) => {
+  if (!totals) return null;
+  const chips = [];
+  if (totals.count != null) {
+    chips.push({
+      label: category === 'job_applications' ? 'Applications' : 'Rows',
+      value: totals.count,
+    });
+  }
+  if (totals.logins != null) chips.push({ label: 'Logins', value: totals.logins });
+  if (totals.messages_sent != null) chips.push({ label: 'Messages (job threads)', value: totals.messages_sent });
+  if (totals.money_cents != null) chips.push({ label: 'Money', value: formatCurrency(totals.money_cents) });
+  if (totals.reviews != null) chips.push({ label: 'Reviews', value: totals.reviews });
+  if (totals.applications != null && ['total_jobs', 'open_jobs', 'jobs_in_progress', 'completed'].includes(category)) {
+    chips.push({ label: 'Applications (period)', value: totals.applications });
+  }
+
+  if (!chips.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-3 mb-4">
+      {chips.map((c) => (
+        <div key={c.label} className="inline-flex items-baseline gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm">
+          <span className="text-gray-500">{c.label}</span>
+          <span className="font-semibold text-gray-900 tabular-nums">{c.value}</span>
+        </div>
+      ))}
+    </div>
+  );
 };
 
 const Dashboard = ({ user, onLogout }) => {
@@ -135,7 +362,7 @@ const Dashboard = ({ user, onLogout }) => {
             <TechnicianDashboardContent jobs={jobs} analytics={analytics} navigate={navigate} user={user} />
           )}
           {user?.role === 'admin' && (
-            <AdminDashboardContent analytics={analytics} feedbackList={feedbackList} navigate={navigate} />
+            <AdminDashboardContent analytics={analytics} feedbackList={feedbackList} />
           )}
           {user?.role !== 'company' && user?.role !== 'technician' && user?.role !== 'admin' && (
             <p className="text-gray-500">Dashboard not available for your role.</p>
@@ -163,6 +390,9 @@ const DashboardHeader = ({ user, onLogout }) => (
         </Link>
         <nav className="flex space-x-4">
           <Link to="/dashboard" className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1">Dashboard</Link>
+          {user?.role === 'admin' && (
+            <Link to="/crm" className="text-gray-600 hover:text-blue-600">CRM</Link>
+          )}
           <Link to="/jobs" className="text-gray-600 hover:text-blue-600">Jobs</Link>
           <Link to="/messages" className="text-gray-600 hover:text-blue-600">Messages</Link>
           <Link to="/settings" className="text-gray-600 hover:text-blue-600">Settings</Link>
@@ -186,21 +416,67 @@ const DashboardHeader = ({ user, onLogout }) => (
   </header>
 );
 
-const AdminDashboardContent = ({ analytics, feedbackList, navigate }) => (
+const AdminDashboardContent = ({ analytics, feedbackList }) => {
+  const [insightCategory, setInsightCategory] = useState(null);
+  const [period, setPeriod] = useState('7d');
+  const [insight, setInsight] = useState(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState(null);
+
+  useEffect(() => {
+    if (!insightCategory) {
+      setInsight(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setInsightLoading(true);
+    setInsightError(null);
+    adminAPI
+      .getPlatformInsights(insightCategory, period)
+      .then((data) => {
+        if (!cancelled) setInsight(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setInsightError(err.message || 'Failed to load details');
+      })
+      .finally(() => {
+        if (!cancelled) setInsightLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [insightCategory, period]);
+
+  const toggleInsight = (cat) => {
+    setInsightCategory((prev) => (prev === cat ? null : cat));
+  };
+
+  const ringIf = (cat) => (insightCategory === cat ? 'ring-2 ring-blue-500 ring-offset-2' : '');
+
+  return (
   <>
     <h2 className="text-xl font-semibold text-gray-800 mb-6">Platform Overview</h2>
     {analytics && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
-        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg p-5 text-white">
+        <button
+          type="button"
+          onClick={() => toggleInsight('total_users')}
+          className={`text-left bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg p-5 text-white ${ringIf('total_users')} hover:brightness-105 transition`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-indigo-100 text-sm font-medium">Total Users</p>
               <p className="text-2xl font-bold mt-1">{analytics.total_users ?? 0}</p>
+              <p className="text-indigo-200/90 text-xs mt-2">Click for list and metrics</p>
             </div>
             <FaUsers className="text-3xl text-indigo-200/80" />
           </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-blue-500">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleInsight('technicians')}
+          className={`text-left bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-blue-500 ${ringIf('technicians')} hover:shadow-md transition`}
+        >
           <div className="flex items-center gap-2">
             <FaUserCog className="text-blue-500" />
             <div>
@@ -208,8 +484,12 @@ const AdminDashboardContent = ({ analytics, feedbackList, navigate }) => (
               <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.technicians_count ?? 0}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-amber-500">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleInsight('companies')}
+          className={`text-left bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-amber-500 ${ringIf('companies')} hover:shadow-md transition`}
+        >
           <div className="flex items-center gap-2">
             <FaBuilding className="text-amber-500" />
             <div>
@@ -217,32 +497,109 @@ const AdminDashboardContent = ({ analytics, feedbackList, navigate }) => (
               <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.companies_count ?? 0}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-teal-500">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleInsight('total_jobs')}
+          className={`text-left bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-teal-500 ${ringIf('total_jobs')} hover:shadow-md transition`}
+        >
           <p className="text-gray-500 text-sm font-medium">Total Jobs</p>
           <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.total_jobs ?? 0}</p>
-        </div>
-        <div className="bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-emerald-500">
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleInsight('job_applications')}
+          className={`text-left bg-white rounded-2xl shadow flex flex-col justify-center p-5 border-l-4 border-emerald-500 ${ringIf('job_applications')} hover:shadow-md transition`}
+        >
           <p className="text-gray-500 text-sm font-medium">Job Applications</p>
           <p className="text-2xl font-bold text-gray-800 mt-1">{analytics.total_job_applications ?? 0}</p>
-        </div>
+        </button>
       </div>
     )}
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-blue-400">
+      <button
+        type="button"
+        onClick={() => toggleInsight('open_jobs')}
+        className={`text-left bg-white rounded-2xl shadow p-5 border-l-4 border-blue-400 ${ringIf('open_jobs')} hover:shadow-md transition`}
+      >
         <p className="text-gray-500 text-sm font-medium">Open Jobs</p>
         <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_open ?? 0}</p>
-      </div>
-      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-yellow-400">
+      </button>
+      <button
+        type="button"
+        onClick={() => toggleInsight('jobs_in_progress')}
+        className={`text-left bg-white rounded-2xl shadow p-5 border-l-4 border-yellow-400 ${ringIf('jobs_in_progress')} hover:shadow-md transition`}
+      >
         <p className="text-gray-500 text-sm font-medium">In Progress</p>
         <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_in_progress ?? 0}</p>
-      </div>
-      <div className="bg-white rounded-2xl shadow p-5 border-l-4 border-green-400">
+      </button>
+      <button
+        type="button"
+        onClick={() => toggleInsight('completed')}
+        className={`text-left bg-white rounded-2xl shadow p-5 border-l-4 border-green-400 ${ringIf('completed')} hover:shadow-md transition`}
+      >
         <p className="text-gray-500 text-sm font-medium">Completed</p>
         <p className="text-2xl font-bold text-gray-800 mt-1">{analytics?.jobs_finished ?? 0}</p>
-      </div>
+      </button>
     </div>
-    <div className="mt-8">
+
+    {insightCategory && (
+      <section className="mt-8 bg-white rounded-2xl shadow border border-gray-100 p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">{insight?.label || 'Details'}</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Metrics below respect the selected time window. Logins are counted from successful sign-ins (tracked from deployment of login history).
+              {insight?.since ? (
+                <span className="block mt-1">Window start: {new Date(insight.since).toLocaleString()}</span>
+              ) : (
+                <span className="block mt-1">All time — no start filter.</span>
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setPeriod(opt.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+                  period === opt.id
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setInsightCategory(null)}
+              className="px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        {insightLoading && <p className="text-gray-500 text-sm py-6">Loading…</p>}
+        {insightError && <p className="text-red-600 text-sm py-2">{insightError}</p>}
+        {!insightLoading && insight && !insightError && (
+          <>
+            <AdminTotalsStrip totals={insight.totals} category={insight.category} />
+            <AdminInsightTable category={insight.category} items={insight.items} />
+          </>
+        )}
+      </section>
+    )}
+
+    <div className="mt-8 flex flex-wrap gap-4">
+      <Link
+        to="/crm"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-800 font-medium"
+      >
+        <FaBuilding /> Company CRM
+      </Link>
       <Link
         to="/jobs"
         className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
@@ -301,7 +658,8 @@ const AdminDashboardContent = ({ analytics, feedbackList, navigate }) => (
       )}
     </section>
   </>
-);
+  );
+};
 
 const sortByMostRecent = (list) => {
   return [...(list || [])].sort((a, b) => {

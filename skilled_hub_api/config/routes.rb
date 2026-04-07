@@ -52,6 +52,12 @@ Rails.application.routes.draw do
       get 'dashboard/jobs', to: 'jobs#dashboard_jobs'
       get 'dashboard/technician_jobs', to: 'jobs#technician_dashboard_jobs'
       get 'dashboard/analytics', to: 'analytics#show'
+
+      namespace :admin do
+        get "company_accounts/search", to: "company_accounts#search"
+        get "platform_insights", to: "platform_insights#show"
+        resources :crm_leads, only: %i[index show create update destroy]
+      end
     end
   end
 end
