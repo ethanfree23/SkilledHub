@@ -40,5 +40,16 @@ module SkilledHubApi
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # Must run before config/environments/*.rb — production sets
+    # config.action_mailer.mailtrap_http_settings, which calls ActionMailer::Base.mailtrap_http_settings=
+    # only after add_delivery_method :mailtrap_http defines that setter.
+    initializer :register_mailtrap_http_delivery, before: :load_environment_config do
+      require "action_mailer/base"
+      require Rails.root.join("lib/mailtrap_http_delivery").to_s
+      unless ActionMailer::Base.delivery_methods.key?(:mailtrap_http)
+        ActionMailer::Base.add_delivery_method :mailtrap_http, MailtrapHttpDelivery
+      end
+    end
   end
 end
