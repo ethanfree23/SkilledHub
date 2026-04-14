@@ -72,7 +72,7 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
+      <div className="App min-w-0 overflow-x-hidden">
         <FeedbackWidget user={user} />
         <Routes>
           {/* Marketing landing page */}

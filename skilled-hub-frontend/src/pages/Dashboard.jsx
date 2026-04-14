@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { TECHFLASH_LOGO_NAV } from '../constants/branding';
 import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
+import AppHeader from '../components/AppHeader';
 import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine, FaUsers, FaUserCog, FaBuilding, FaCommentDots } from 'react-icons/fa';
 
 // open, claimed (filled but not started), active (in progress), completed, expired
@@ -332,7 +332,7 @@ const Dashboard = ({ user, onLogout }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader user={user} onLogout={onLogout} />
+        <AppHeader user={user} onLogout={onLogout} activePage="dashboard" profileAvatar />
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-lg text-gray-600">Loading dashboard...</p>
@@ -344,7 +344,7 @@ const Dashboard = ({ user, onLogout }) => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader user={user} onLogout={onLogout} />
+        <AppHeader user={user} onLogout={onLogout} activePage="dashboard" profileAvatar />
         <div className="p-8 text-center text-red-600">{error}</div>
       </div>
     );
@@ -352,7 +352,7 @@ const Dashboard = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader user={user} onLogout={onLogout} />
+      <AppHeader user={user} onLogout={onLogout} activePage="dashboard" profileAvatar />
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {user?.role === 'company' && (
@@ -380,41 +380,6 @@ const Dashboard = ({ user, onLogout }) => {
     </div>
   );
 };
-
-const DashboardHeader = ({ user, onLogout }) => (
-  <header className="bg-white shadow-sm border-b border-gray-200">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-      <div className="flex items-center space-x-6">
-        <Link to="/dashboard" className="flex items-center space-x-2">
-          <img src={TECHFLASH_LOGO_NAV} alt="TechFlash" className="h-9 object-contain" />
-        </Link>
-        <nav className="flex space-x-4">
-          <Link to="/dashboard" className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1">Dashboard</Link>
-          {user?.role === 'admin' && (
-            <Link to="/crm" className="text-gray-600 hover:text-blue-600">CRM</Link>
-          )}
-          <Link to="/jobs" className="text-gray-600 hover:text-blue-600">Jobs</Link>
-          <Link to="/messages" className="text-gray-600 hover:text-blue-600">Messages</Link>
-          <Link to="/settings" className="text-gray-600 hover:text-blue-600">Settings</Link>
-        </nav>
-      </div>
-      <div className="flex items-center space-x-4">
-        <Link to="/settings" className="flex items-center gap-2 hover:opacity-80" title="Settings">
-          <div className="bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center text-gray-600 font-bold">
-            {user?.email?.[0]?.toUpperCase() || '?'}
-          </div>
-        </Link>
-        <span className="text-xs text-gray-500 capitalize">{user?.role}</span>
-        <button
-          onClick={onLogout}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          Logout
-        </button>
-      </div>
-    </div>
-  </header>
-);
 
 const AdminDashboardContent = ({ analytics, feedbackList }) => {
   const [insightCategory, setInsightCategory] = useState(null);

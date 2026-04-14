@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { TECHFLASH_LOGO_NAV } from '../constants/branding';
+import AppHeader from '../components/AppHeader';
 import { profilesAPI, settingsAPI, authAPI, documentsAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from '../components/CardPaymentForm';
@@ -27,6 +27,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [deletingCertId, setDeletingCertId] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'success' });
   const [confirmCertId, setConfirmCertId] = useState(null);
+  const [settingsTab, setSettingsTab] = useState('account');
   const publishableKey = getStripePublishableKey();
   const stripe = useMemo(() => {
     if (window.Stripe && isValidStripePublishableKey(publishableKey)) {
@@ -266,25 +267,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-          <div className="flex items-center gap-6">
-            <Link to="/dashboard" className="flex items-center space-x-2">
-              <img src={TECHFLASH_LOGO_NAV} alt="TechFlash" className="h-9 object-contain" />
-            </Link>
-            <nav className="flex space-x-4">
-              <Link to="/dashboard" className="text-gray-600 hover:text-blue-600">Dashboard</Link>
-              <Link to="/jobs" className="text-gray-600 hover:text-blue-600">Jobs</Link>
-              <Link to="/messages" className="text-gray-600 hover:text-blue-600">Messages</Link>
-              <Link to="/settings" className="text-blue-600 font-medium border-b-2 border-blue-600 pb-1">Settings</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{user?.email}</span>
-            <button onClick={onLogout} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Logout</button>
-          </div>
-        </div>
-      </header>
+      <AppHeader user={user} onLogout={onLogout} activePage="settings" emailVariant="simple" />
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
@@ -293,54 +276,77 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>
         )}
 
-        {/* Account section - Email (username) & Password */}
-        <section className="bg-white rounded-2xl shadow p-6 mb-8 border-2 border-blue-100">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Account</h2>
-          <p className="text-sm text-gray-600 mb-4">Your email is your username. Change it here along with your password.</p>
-          {accountError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{accountError}</div>
-          )}
-          <form onSubmit={handleAccountSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email (username)</label>
-              <input
-                type="email"
-                value={accountEmail}
-                onChange={(e) => setAccountEmail(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New password (leave blank to keep current)</label>
-              <input
-                type="password"
-                value={accountPassword}
-                onChange={(e) => setAccountPassword(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="••••••••"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label>
-              <input
-                type="password"
-                value={accountPasswordConfirm}
-                onChange={(e) => setAccountPasswordConfirm(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="••••••••"
-              />
-            </div>
-            <button type="submit" disabled={savingAccount} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {savingAccount ? 'Saving...' : 'Update Account'}
-            </button>
-          </form>
-        </section>
+        <section className="bg-white rounded-2xl shadow border border-gray-200 overflow-hidden" aria-label="Settings sections">
+          <div className="flex border-b border-gray-200" role="tablist" aria-label="Settings categories">
+            {['account', 'profile', 'payment'].map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                id={`settings-tab-${id}`}
+                aria-selected={settingsTab === id}
+                aria-controls={`settings-panel-${id}`}
+                tabIndex={settingsTab === id ? 0 : -1}
+                onClick={() => setSettingsTab(id)}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px capitalize ${
+                  settingsTab === id
+                    ? 'text-blue-600 border-blue-600 bg-blue-50/50'
+                    : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                {id === 'account' ? 'Account' : id === 'profile' ? 'Profile' : 'Payment'}
+              </button>
+            ))}
+          </div>
 
-        {/* Profile section */}
-        <section className="bg-white rounded-2xl shadow p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile</h2>
+          <div className="p-6">
+            {settingsTab === 'account' && (
+              <div id="settings-panel-account" role="tabpanel" aria-labelledby="settings-tab-account">
+                <p className="text-sm text-gray-600 mb-4">Your email is your username. Change it here along with your password.</p>
+                {accountError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{accountError}</div>
+                )}
+                <form onSubmit={handleAccountSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (username)</label>
+                    <input
+                      type="email"
+                      value={accountEmail}
+                      onChange={(e) => setAccountEmail(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2"
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New password (leave blank to keep current)</label>
+                    <input
+                      type="password"
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label>
+                    <input
+                      type="password"
+                      value={accountPasswordConfirm}
+                      onChange={(e) => setAccountPasswordConfirm(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <button type="submit" disabled={savingAccount} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    {savingAccount ? 'Saving...' : 'Update Account'}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {settingsTab === 'profile' && (
+              <div id="settings-panel-profile" role="tabpanel" aria-labelledby="settings-tab-profile">
           {isAdmin ? (
             <p className="text-gray-500">Admin accounts do not have technician or company profiles.</p>
           ) : (
@@ -461,11 +467,11 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
             </button>
           </form>
           )}
-        </section>
+              </div>
+            )}
 
-        {/* Payment section */}
-        <section className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment</h2>
+            {settingsTab === 'payment' && (
+              <div id="settings-panel-payment" role="tabpanel" aria-labelledby="settings-tab-payment">
           {paymentError && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{paymentError}</div>}
           {paymentSuccess && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">{paymentSuccess}</div>}
 
@@ -500,6 +506,9 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           {(isAdmin || (!isCompany && !isTechnician)) && (
             <p className="text-gray-500">Payment settings are available for companies and technicians.</p>
           )}
+              </div>
+            )}
+          </div>
         </section>
       </main>
 
