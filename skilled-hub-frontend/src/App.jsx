@@ -12,6 +12,12 @@ import CompanyProfilePage from './pages/CompanyProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import MessagesPage from './pages/MessagesPage';
 import CrmPage from './pages/CrmPage';
+import LegalPage from './pages/LegalPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import CookiePolicyPage from './pages/CookiePolicyPage';
+import PaymentTermsPage from './pages/PaymentTermsPage';
+import DmcaIpClaimsPage from './pages/DmcaIpClaimsPage';
 import FeedbackWidget from './components/FeedbackWidget';
 import { auth } from './auth';
 
@@ -94,6 +100,14 @@ function App() {
               </PublicRoute>
             } 
           />
+
+          {/* Legal pages */}
+          <Route path="/legal" element={<LegalPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/cookie-policy" element={<CookiePolicyPage />} />
+          <Route path="/payment-terms" element={<PaymentTermsPage />} />
+          <Route path="/dmca-ip-policy" element={<DmcaIpClaimsPage />} />
           
           {/* Dashboard - both company and technician */}
           <Route

@@ -8,7 +8,7 @@ const navActive =
   'px-3 py-2 font-medium text-blue-600 bg-blue-50 rounded-md whitespace-nowrap shrink-0';
 
 /**
- * @param {'dashboard'|'jobs'|'messages'|'crm'|'settings'|null|undefined} activePage
+ * @param {'dashboard'|'jobs'|'messages'|'crm'|'settings'|'legal'|null|undefined} activePage
  * @param {'full'|'minimal'} navPreset — minimal: Dashboard, Jobs, Settings (profile pages)
  * @param {boolean} profileAvatar — letter avatar linking to settings; hidden below md
  * @param {'none'|'welcome'|'simple'|'crm'} emailVariant — right-side user info (not used when profileAvatar)
@@ -62,12 +62,20 @@ export default function AppHeader({
               <NavLink page="settings" to="/settings">
                 Settings
               </NavLink>
+              <NavLink page="legal" to="/legal">
+                Legal
+              </NavLink>
             </>
           )}
           {navPreset === 'minimal' && (
-            <NavLink page="settings" to="/settings">
-              Settings
-            </NavLink>
+            <>
+              <NavLink page="settings" to="/settings">
+                Settings
+              </NavLink>
+              <NavLink page="legal" to="/legal">
+                Legal
+              </NavLink>
+            </>
           )}
         </nav>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">

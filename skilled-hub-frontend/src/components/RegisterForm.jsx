@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../api/api';
 import { auth } from '../auth';
 
@@ -154,6 +154,18 @@ const RegisterForm = ({
       >
         {loading ? 'Creating account...' : 'Create account'}
       </button>
+
+      <p className="text-xs text-gray-500">
+        By creating an account, you agree to the{' '}
+        <Link to="/terms-of-service" className="text-[#3A7CA5] hover:underline">
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link to="/privacy-policy" className="text-[#3A7CA5] hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </form>
   );
 };

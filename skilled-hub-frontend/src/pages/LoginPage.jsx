@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { TECHFLASH_LOGO_LOGIN } from '../constants/branding';
 import { authAPI } from '../api/api';
 import { auth } from '../auth';
@@ -140,6 +140,17 @@ const LoginPage = ({ onLoginSuccess }) => {
               </button>
             </p>
           </div>
+        </div>
+        <div className="mt-4 text-center text-xs text-gray-500">
+          By using TechFlash, you agree to our{' '}
+          <Link to="/terms-of-service" className="text-[#3A7CA5] hover:underline">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy-policy" className="text-[#3A7CA5] hover:underline">
+            Privacy Policy
+          </Link>
+          .
         </div>
       </div>
     </div>

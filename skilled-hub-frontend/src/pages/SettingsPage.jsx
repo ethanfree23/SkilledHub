@@ -276,7 +276,10 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>
         )}
 
-        <section className="bg-white rounded-2xl shadow border border-gray-200 overflow-hidden" aria-label="Settings sections">
+        <section
+          className="bg-white rounded-2xl shadow border border-gray-200 overflow-x-hidden"
+          aria-label="Settings sections"
+        >
           <div className="flex border-b border-gray-200" role="tablist" aria-label="Settings categories">
             {['account', 'profile', 'payment'].map((id) => (
               <button
@@ -471,7 +474,12 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
             )}
 
             {settingsTab === 'payment' && (
-              <div id="settings-panel-payment" role="tabpanel" aria-labelledby="settings-tab-payment">
+              <div
+                id="settings-panel-payment"
+                role="tabpanel"
+                aria-labelledby="settings-tab-payment"
+                className="overflow-visible"
+              >
           {paymentError && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{paymentError}</div>}
           {paymentSuccess && <div className="mb-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">{paymentSuccess}</div>}
 
@@ -479,6 +487,13 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
             <div>
               <h3 className="text-base font-medium text-gray-900 mb-2">Credit card</h3>
               <p className="text-gray-600 mb-4">Add a credit or debit card to pay for jobs when you accept technicians.</p>
+              {!isValidStripePublishableKey(publishableKey) && (
+                <p className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  Stripe is not configured for this build. Set <code className="font-mono text-xs">VITE_STRIPE_PUBLISHABLE_KEY_TEST</code> or{' '}
+                  <code className="font-mono text-xs">VITE_STRIPE_PUBLISHABLE_KEY</code> in your frontend <code className="font-mono text-xs">.env</code> (must start with{' '}
+                  <code className="font-mono text-xs">pk_</code>).
+                </p>
+              )}
               <CardPaymentForm
                 stripe={stripe}
                 publishableKey={publishableKey}

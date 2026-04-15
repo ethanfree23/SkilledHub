@@ -184,6 +184,12 @@ const MarketingPage = ({ onLoginSuccess }) => {
           <div className="flex gap-8">
             <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Login</Link>
             <Link to="/login?tab=signup" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Sign up</Link>
+            <Link to="/legal" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Legal</Link>
+            <Link to="/terms-of-service" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Terms</Link>
+            <Link to="/privacy-policy" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Privacy</Link>
+            <Link to="/cookie-policy" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Cookies</Link>
+            <Link to="/payment-terms" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">Payments</Link>
+            <Link to="/dmca-ip-policy" className="text-sm font-medium text-gray-600 hover:text-[#FE6711] transition">DMCA/IP</Link>
           </div>
         </div>
       </footer>

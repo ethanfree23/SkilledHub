@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import { isValidStripePublishableKey } from '../stripeConfig';
 
 const cardStyle = {
@@ -31,52 +31,114 @@ const CardPaymentForm = ({
   const cardCvcElRef = useRef(null);
   const stripeRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const stripeInstance =
       stripeProp ||
       (window.Stripe && isValidStripePublishableKey(publishableKey) ? window.Stripe(publishableKey) : null);
-    if (!cardNumberRef.current || !stripeInstance) return;
-    setCardReady(false);
-    let mounted = true;
-    const mount = () => {
+    if (!stripeInstance) return;
+
+    let cancelled = false;
+    let unmount = () => {};
+
+    const mountAll = () => {
+      const elNum = cardNumberRef.current;
+      const elExp = cardExpiryRef.current;
+      const elCvc = cardCvcRef.current;
+      if (!elNum || !elExp || !elCvc) return false;
+
+      let cardNumber;
+      let cardExpiry;
+      let cardCvc;
       try {
         stripeRef.current = stripeInstance;
         const elements = stripeInstance.elements();
-        const cardNumber = elements.create('cardNumber', { style: cardStyle });
-        const cardExpiry = elements.create('cardExpiry', { style: cardStyle });
-        const cardCvc = elements.create('cardCvc', { style: cardStyle });
-        cardNumber.mount(cardNumberRef.current);
-        cardExpiry.mount(cardExpiryRef.current);
-        cardCvc.mount(cardCvcRef.current);
-        if (mounted) {
-          cardNumberElRef.current = cardNumber;
-          cardExpiryElRef.current = cardExpiry;
-          cardCvcElRef.current = cardCvc;
-          setCardReady(true);
-        } else {
-          cardNumber.unmount();
-          cardExpiry.unmount();
-          cardCvc.unmount();
+        cardNumber = elements.create('cardNumber', { style: cardStyle });
+        cardExpiry = elements.create('cardExpiry', { style: cardStyle });
+        cardCvc = elements.create('cardCvc', { style: cardStyle });
+        cardNumber.mount(elNum);
+        cardExpiry.mount(elExp);
+        cardCvc.mount(elCvc);
+      } catch {
+        try {
+          cardNumber?.unmount();
+        } catch {
+          /* ignore */
         }
-        return () => {
-          cardNumber.unmount();
-          cardExpiry.unmount();
-          cardCvc.unmount();
-          cardNumberElRef.current = null;
-          cardExpiryElRef.current = null;
-          cardCvcElRef.current = null;
-          stripeRef.current = null;
-          setCardReady(false);
-        };
-      } catch (err) {
-        if (mounted) setError('Could not load card form');
-        return () => {};
+        try {
+          cardExpiry?.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardCvc?.unmount();
+        } catch {
+          /* ignore */
+        }
+        if (!cancelled) setError('Could not load card form');
+        return true;
       }
+
+      if (cancelled) {
+        cardNumber.unmount();
+        cardExpiry.unmount();
+        cardCvc.unmount();
+        return true;
+      }
+
+      cardNumberElRef.current = cardNumber;
+      cardExpiryElRef.current = cardExpiry;
+      cardCvcElRef.current = cardCvc;
+      setCardReady(true);
+
+      unmount = () => {
+        try {
+          cardNumber.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardExpiry.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardCvc.unmount();
+        } catch {
+          /* ignore */
+        }
+        cardNumberElRef.current = null;
+        cardExpiryElRef.current = null;
+        cardCvcElRef.current = null;
+        stripeRef.current = null;
+        setCardReady(false);
+      };
+      return true;
     };
-    const cleanup = mount();
+
+    setError(null);
+    setCardReady(false);
+
+    let rafId = 0;
+    let attempts = 0;
+    const maxAttempts = 40;
+
+    const tick = () => {
+      if (cancelled) return;
+      if (mountAll()) return;
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        setError('Could not load card form');
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+
     return () => {
-      mounted = false;
-      cleanup?.();
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      unmount();
     };
   }, [stripeProp, publishableKey]);
 
@@ -106,7 +168,10 @@ const CardPaymentForm = ({
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Card number</label>
-          <div ref={cardNumberRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+          <div
+            ref={cardNumberRef}
+            className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Name on card</label>
@@ -121,11 +186,17 @@ const CardPaymentForm = ({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Expiration date (MM/YY)</label>
-            <div ref={cardExpiryRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+            <div
+              ref={cardExpiryRef}
+              className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">CVC</label>
-            <div ref={cardCvcRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+            <div
+              ref={cardCvcRef}
+              className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+            />
           </div>
         </div>
       </div>

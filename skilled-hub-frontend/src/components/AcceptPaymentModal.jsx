@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import { paymentsAPI, jobsAPI } from '../api/api';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
 
@@ -20,32 +20,110 @@ const AcceptPaymentModal = ({ isOpen, onClose, jobId, amountCents, onSuccess }) 
 
   const publishableKey = getStripePublishableKey();
 
-  useEffect(() => {
-    if (!isOpen || !cardNumberRef.current || !window.Stripe || !isValidStripePublishableKey(publishableKey)) return;
-    setCardReady(false);
-    try {
-      const stripe = window.Stripe(publishableKey);
-      stripeRef.current = stripe;
-      const elements = stripe.elements();
-      const cardNumber = elements.create('cardNumber', { style: cardStyle });
-      const cardExpiry = elements.create('cardExpiry', { style: cardStyle });
-      const cardCvc = elements.create('cardCvc', { style: cardStyle });
-      cardNumber.mount(cardNumberRef.current);
-      cardExpiry.mount(cardExpiryRef.current);
-      cardCvc.mount(cardCvcRef.current);
-      cardNumberElRef.current = cardNumber;
-      setCardReady(true);
-      return () => {
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (!window.Stripe || !isValidStripePublishableKey(publishableKey)) return;
+
+    const stripeInstance = window.Stripe(publishableKey);
+    let cancelled = false;
+    let unmount = () => {};
+
+    const mountAll = () => {
+      const elNum = cardNumberRef.current;
+      const elExp = cardExpiryRef.current;
+      const elCvc = cardCvcRef.current;
+      if (!elNum || !elExp || !elCvc) return false;
+
+      let cardNumber;
+      let cardExpiry;
+      let cardCvc;
+      try {
+        stripeRef.current = stripeInstance;
+        const elements = stripeInstance.elements();
+        cardNumber = elements.create('cardNumber', { style: cardStyle });
+        cardExpiry = elements.create('cardExpiry', { style: cardStyle });
+        cardCvc = elements.create('cardCvc', { style: cardStyle });
+        cardNumber.mount(elNum);
+        cardExpiry.mount(elExp);
+        cardCvc.mount(elCvc);
+      } catch {
+        try {
+          cardNumber?.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardExpiry?.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardCvc?.unmount();
+        } catch {
+          /* ignore */
+        }
+        if (!cancelled) setError('Could not load card form');
+        return true;
+      }
+
+      if (cancelled) {
         cardNumber.unmount();
         cardExpiry.unmount();
         cardCvc.unmount();
+        return true;
+      }
+
+      cardNumberElRef.current = cardNumber;
+      setCardReady(true);
+
+      unmount = () => {
+        try {
+          cardNumber.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardExpiry.unmount();
+        } catch {
+          /* ignore */
+        }
+        try {
+          cardCvc.unmount();
+        } catch {
+          /* ignore */
+        }
         cardNumberElRef.current = null;
         stripeRef.current = null;
         setCardReady(false);
       };
-    } catch {
-      return () => {};
-    }
+      return true;
+    };
+
+    setError(null);
+    setCardReady(false);
+
+    let rafId = 0;
+    let attempts = 0;
+    const maxAttempts = 40;
+
+    const tick = () => {
+      if (cancelled) return;
+      if (mountAll()) return;
+      attempts += 1;
+      if (attempts >= maxAttempts) {
+        setError('Could not load card form');
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      unmount();
+    };
   }, [isOpen, publishableKey]);
 
   const handleSubmit = async (e) => {
@@ -85,7 +163,7 @@ const AcceptPaymentModal = ({ isOpen, onClose, jobId, amountCents, onSuccess }) 
   const amount = (amountCents / 100).toFixed(2);
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/50">
-      <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto relative z-[51]">
         <h2 className="text-xl font-bold mb-4">Payment</h2>
         <p className="text-gray-700 mb-4">
           Pay <span className="font-semibold">${amount}</span> to accept this technician. Funds are held until the job is complete and both parties have reviewed (or 3 days pass).
@@ -93,7 +171,10 @@ const AcceptPaymentModal = ({ isOpen, onClose, jobId, amountCents, onSuccess }) 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Card number</label>
-            <div ref={cardNumberRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+            <div
+              ref={cardNumberRef}
+              className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Name on card</label>
@@ -108,11 +189,17 @@ const AcceptPaymentModal = ({ isOpen, onClose, jobId, amountCents, onSuccess }) 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiration date (MM/YY)</label>
-              <div ref={cardExpiryRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+              <div
+                ref={cardExpiryRef}
+                className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">CVC</label>
-              <div ref={cardCvcRef} className="p-3 border border-gray-300 rounded-lg bg-white min-h-[42px]" />
+              <div
+                ref={cardCvcRef}
+                className="relative z-10 p-3 border border-gray-300 rounded-lg bg-white min-h-[44px]"
+              />
             </div>
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
