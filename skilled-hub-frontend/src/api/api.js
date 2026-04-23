@@ -78,6 +78,19 @@ export const authAPI = {
     }),
 };
 
+export const passwordResetsAPI = {
+  request: (email) =>
+    apiRequest('/password_resets', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  complete: (token, password, password_confirmation) =>
+    apiRequest('/password_resets', {
+      method: 'PATCH',
+      body: JSON.stringify({ token, password, password_confirmation }),
+    }),
+};
+
 // Admin CRM (company pipeline + optional link to platform company account)
 export const crmAPI = {
   list: () => apiRequest('/admin/crm_leads'),
@@ -98,6 +111,29 @@ export const crmAPI = {
     }),
   searchCompanyAccounts: (q) =>
     apiRequest(`/admin/company_accounts/search?q=${encodeURIComponent(q || '')}`),
+  createCompanyAccount: (data) =>
+    apiRequest('/admin/company_accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+// Admin user directory + per-user analytics
+export const adminUsersAPI = {
+  list: ({ q, role } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (role && role !== 'all') params.set('role', role);
+    const qs = params.toString();
+    return apiRequest(`/admin/users${qs ? `?${qs}` : ''}`);
+  },
+  get: (id, period = '7d') =>
+    apiRequest(`/admin/users/${id}?period=${encodeURIComponent(period)}`),
+  create: (data) =>
+    apiRequest('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // Admin platform metrics (dashboard drill-down lists)

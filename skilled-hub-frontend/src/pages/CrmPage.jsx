@@ -45,6 +45,15 @@ const CrmPage = ({ user, onLogout }) => {
   const searchTimer = useRef(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
 
+  const [provision, setProvision] = useState({
+    email: '',
+    company_name: '',
+    industry: '',
+    location: '',
+    bio: '',
+  });
+  const [provisionSaving, setProvisionSaving] = useState(false);
+
   const loadList = useCallback(async () => {
     setLoading(true);
     try {
@@ -201,6 +210,47 @@ const CrmPage = ({ user, onLogout }) => {
     }
   };
 
+  const provisionCompanyAccount = async (e) => {
+    e.preventDefault();
+    const email = provision.email?.trim();
+    if (!email) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Email required',
+        message: 'Enter the company login email.',
+        variant: 'error',
+      });
+      return;
+    }
+    setProvisionSaving(true);
+    try {
+      await crmAPI.createCompanyAccount({
+        email,
+        company_name: provision.company_name?.trim() || undefined,
+        industry: provision.industry?.trim() || undefined,
+        location: provision.location?.trim() || undefined,
+        bio: provision.bio?.trim() || undefined,
+      });
+      setProvision({ email: '', company_name: '', industry: '', location: '', bio: '' });
+      setAlertModal({
+        isOpen: true,
+        title: 'Company account created',
+        message:
+          'They receive an email with a link to set their password (72-hour link). Until then they can sign in using their email as the temporary password (very short addresses get a short suffix so the password meets minimum length).',
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not create account',
+        message: err.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setProvisionSaving(false);
+    }
+  };
+
   const removeRecord = async () => {
     if (!selectedId) return;
     if (!window.confirm('Delete this CRM record? This does not delete the linked platform account.')) return;
@@ -243,6 +293,71 @@ const CrmPage = ({ user, onLogout }) => {
           >
             <FaPlus /> Add company
           </button>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Create platform company account</h2>
+          <p className="text-sm text-gray-500 mt-1 mb-4">
+            Creates a business user and company profile. A temporary password is derived from their email for first
+            login; we always send a follow-up email with a secure link to choose a new password.
+          </p>
+          <form onSubmit={provisionCompanyAccount} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="block sm:col-span-2">
+              <span className="text-xs font-medium text-gray-500 uppercase">Login email *</span>
+              <input
+                type="email"
+                required
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.email}
+                onChange={(e) => setProvision((p) => ({ ...p, email: e.target.value }))}
+                placeholder="contact@theirbusiness.com"
+                autoComplete="off"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-xs font-medium text-gray-500 uppercase">Company display name</span>
+              <input
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.company_name}
+                onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
+                placeholder="Defaults to “Company” if empty"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-500 uppercase">Industry</span>
+              <input
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.industry}
+                onChange={(e) => setProvision((p) => ({ ...p, industry: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-gray-500 uppercase">Location</span>
+              <input
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.location}
+                onChange={(e) => setProvision((p) => ({ ...p, location: e.target.value }))}
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-xs font-medium text-gray-500 uppercase">Bio</span>
+              <textarea
+                rows={2}
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.bio}
+                onChange={(e) => setProvision((p) => ({ ...p, bio: e.target.value }))}
+              />
+            </label>
+            <div className="sm:col-span-2">
+              <button
+                type="submit"
+                disabled={provisionSaving}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
+              >
+                {provisionSaving ? 'Creating…' : 'Create account & send email'}
+              </button>
+            </div>
+          </form>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

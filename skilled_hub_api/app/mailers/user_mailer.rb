@@ -9,6 +9,20 @@ class UserMailer < ApplicationMailer
     mail(to: @email, subject: 'Welcome to TechFlash!')
   end
 
+  # reason: :self_service (forgot password) or :admin_provisioned
+  def password_reset_instructions(user, reason: :self_service)
+    @user = user
+    @reason = reason
+    @reset_url = frontend_reset_password_url(user.password_reset_token)
+    subject =
+      if reason == :admin_provisioned
+        'Set your TechFlash password — account ready'
+      else
+        'Reset your TechFlash password'
+      end
+    mail(to: user.email, subject: subject)
+  end
+
   def job_posted_email(job)
     @job = job
     @user = job.company_profile.user
@@ -133,6 +147,11 @@ class UserMailer < ApplicationMailer
   end
 
   private
+
+  def frontend_reset_password_url(token)
+    base = ENV.fetch('FRONTEND_URL', 'http://localhost:5173').chomp('/')
+    "#{base}/reset-password?token=#{CGI.escape(token)}"
+  end
 
   def recipient_for_message(message)
     conv = message.conversation

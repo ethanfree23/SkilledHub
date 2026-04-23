@@ -1,9 +1,35 @@
 class User < ApplicationRecord
+  PASSWORD_RESET_EXPIRY = 72.hours
+
   has_secure_password
 
   validates :email, presence: true, uniqueness: { case_sensitive: false }
 
   enum role: { technician: 0, company: 1, admin: 2 }
+
+  # Temporary password when an admin provisions an account (has_secure_password min length 6).
+  def self.initial_password_from_email(email)
+    e = email.to_s.strip
+    raise ArgumentError, 'email required' if e.blank?
+
+    e.length >= 6 ? e : "#{e}!TF26"
+  end
+
+  def generate_password_reset_token!
+    self.password_reset_token = SecureRandom.urlsafe_base64(32)
+    self.password_reset_sent_at = Time.current
+    save!(validate: false)
+  end
+
+  def clear_password_reset_token!
+    update_columns(password_reset_token: nil, password_reset_sent_at: nil, updated_at: Time.current)
+  end
+
+  def password_reset_token_active?
+    password_reset_token.present? &&
+      password_reset_sent_at.present? &&
+      password_reset_sent_at > PASSWORD_RESET_EXPIRY.ago
+  end
 
   has_one :technician_profile, dependent: :destroy
   has_one :company_profile, dependent: :destroy

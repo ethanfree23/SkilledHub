@@ -8,6 +8,8 @@ Rails.application.routes.draw do
       post "sessions", to: "sessions#create"
       post "auth/login", to: "sessions#create"
       post "auth/register", to: "users#create"
+      post "password_resets", to: "password_resets#create"
+      patch "password_resets", to: "password_resets#update"
       get 'technicians/profile', to: 'technicians#profile'
       get 'company_profiles/profile', to: 'company_profiles#profile'
       patch 'users/me', to: 'users#update_me'
@@ -61,8 +63,10 @@ Rails.application.routes.draw do
       post 'stripe/webhook', to: 'stripe_webhooks#create'
 
       namespace :admin do
+        post "company_accounts", to: "company_accounts#create"
         get "company_accounts/search", to: "company_accounts#search"
         get "platform_insights", to: "platform_insights#show"
+        resources :users, only: %i[index show create]
         resources :crm_leads, only: %i[index show create update destroy]
       end
     end

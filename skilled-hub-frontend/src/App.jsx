@@ -12,12 +12,15 @@ import CompanyProfilePage from './pages/CompanyProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import MessagesPage from './pages/MessagesPage';
 import CrmPage from './pages/CrmPage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminUserDetailPage from './pages/AdminUserDetailPage';
 import LegalPage from './pages/LegalPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
 import PaymentTermsPage from './pages/PaymentTermsPage';
 import DmcaIpClaimsPage from './pages/DmcaIpClaimsPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import FeedbackWidget from './components/FeedbackWidget';
 import { auth } from './auth';
 
@@ -108,6 +111,8 @@ function App() {
           <Route path="/cookie-policy" element={<CookiePolicyPage />} />
           <Route path="/payment-terms" element={<PaymentTermsPage />} />
           <Route path="/dmca-ip-policy" element={<DmcaIpClaimsPage />} />
+
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           {/* Dashboard - both company and technician */}
           <Route
@@ -198,6 +203,31 @@ function App() {
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 {user?.role === 'admin' ? (
                   <CrmPage user={user} onLogout={handleLogout} />
+                ) : (
+                  <Navigate to="/dashboard" replace />
+                )}
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/users/:userId"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                {user?.role === 'admin' ? (
+                  <AdminUserDetailPage user={user} onLogout={handleLogout} />
+                ) : (
+                  <Navigate to="/dashboard" replace />
+                )}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute isAuthenticated={isAuthenticated}>
+                {user?.role === 'admin' ? (
+                  <AdminUsersPage user={user} onLogout={handleLogout} />
                 ) : (
                   <Navigate to="/dashboard" replace />
                 )}
