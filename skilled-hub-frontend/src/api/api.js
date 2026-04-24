@@ -135,6 +135,19 @@ export const adminUsersAPI = {
   },
   get: (id, period = '7d') =>
     apiRequest(`/admin/users/${id}?period=${encodeURIComponent(period)}`),
+  sendPasswordSetup: (id, { sendEmail = true } = {}) =>
+    apiRequest(`/admin/users/${id}/password_setup`, {
+      method: 'POST',
+      body: JSON.stringify({ send_email: sendEmail }),
+    }),
+  setPassword: (id, password, passwordConfirmation) =>
+    apiRequest(`/admin/users/${id}/password`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        password,
+        password_confirmation: passwordConfirmation,
+      }),
+    }),
   create: (data) => {
     if (data instanceof FormData) {
       return apiRequest('/admin/users', {

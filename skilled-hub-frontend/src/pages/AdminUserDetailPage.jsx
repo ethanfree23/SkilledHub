@@ -26,6 +26,10 @@ export default function AdminUserDetailPage({ user, onLogout }) {
     message: '',
     variant: 'error',
   });
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [manualResetUrl, setManualResetUrl] = useState('');
+  const [manualPassword, setManualPassword] = useState('');
+  const [manualPasswordConfirmation, setManualPasswordConfirmation] = useState('');
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -54,6 +58,101 @@ export default function AdminUserDetailPage({ user, onLogout }) {
   const profile = u?.profile;
   const isCompany = data?.role_key === 'company' || u?.role === 'company';
   const isTech = data?.role_key === 'technician' || u?.role === 'technician';
+  const canManagePassword = isCompany || isTech;
+
+  const sendSetupEmail = async () => {
+    if (!u?.id) return;
+    setAccessBusy(true);
+    try {
+      const res = await adminUsersAPI.sendPasswordSetup(u.id, { sendEmail: true });
+      setManualResetUrl(res?.reset_url || '');
+      setAlertModal({
+        isOpen: true,
+        title: 'Setup email sent',
+        message: `A new password setup email was sent to ${u.email}.`,
+        variant: 'success',
+      });
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not send setup email',
+        message: e.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
+  const generateManualLink = async () => {
+    if (!u?.id) return;
+    setAccessBusy(true);
+    try {
+      const res = await adminUsersAPI.sendPasswordSetup(u.id, { sendEmail: false });
+      setManualResetUrl(res?.reset_url || '');
+      setAlertModal({
+        isOpen: true,
+        title: 'Manual setup link generated',
+        message: 'Use the generated link below in your own email or message to the user.',
+        variant: 'success',
+      });
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not generate setup link',
+        message: e.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setAccessBusy(false);
+    }
+  };
+
+  const copyManualLink = async () => {
+    if (!manualResetUrl) return;
+    try {
+      await navigator.clipboard.writeText(manualResetUrl);
+      setAlertModal({
+        isOpen: true,
+        title: 'Link copied',
+        message: 'Setup link copied to clipboard.',
+        variant: 'success',
+      });
+    } catch {
+      setAlertModal({
+        isOpen: true,
+        title: 'Copy failed',
+        message: 'Could not copy automatically. Copy the link manually from the field.',
+        variant: 'error',
+      });
+    }
+  };
+
+  const applyManualPassword = async (e) => {
+    e.preventDefault();
+    if (!u?.id) return;
+    setAccessBusy(true);
+    try {
+      await adminUsersAPI.setPassword(u.id, manualPassword, manualPasswordConfirmation);
+      setManualPassword('');
+      setManualPasswordConfirmation('');
+      setAlertModal({
+        isOpen: true,
+        title: 'Password updated',
+        message: `Password was set for ${u.email}. Share it through a secure channel.`,
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not set password',
+        message: err.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setAccessBusy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -131,6 +230,89 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                 )}
               </dl>
             </section>
+
+            {canManagePassword && (
+              <section className="bg-white rounded-2xl border border-gray-100 shadow p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">Access management</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Send a new setup email, generate a manual setup link, or set a password directly for this account.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    type="button"
+                    disabled={accessBusy}
+                    onClick={sendSetupEmail}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    Send setup email
+                  </button>
+                  <button
+                    type="button"
+                    disabled={accessBusy}
+                    onClick={generateManualLink}
+                    className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 font-medium disabled:opacity-50"
+                  >
+                    Generate manual setup link
+                  </button>
+                </div>
+                {manualResetUrl && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Manual setup link</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={manualResetUrl}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={copyManualLink}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <form onSubmit={applyManualPassword} className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
+                    <input
+                      type="password"
+                      value={manualPassword}
+                      onChange={(e) => setManualPassword(e.target.value)}
+                      minLength={6}
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
+                    <input
+                      type="password"
+                      value={manualPasswordConfirmation}
+                      onChange={(e) => setManualPasswordConfirmation(e.target.value)}
+                      minLength={6}
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-gray-500 mb-2">
+                      Password must be at least 6 characters and include uppercase, lowercase, number, and special character.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={accessBusy}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
+                    >
+                      Save password
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
 
             <section className="bg-white rounded-2xl border border-gray-100 shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Logins</h2>

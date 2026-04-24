@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { TECHFLASH_LOGO_LOGIN } from '../constants/branding';
-import { authAPI } from '../api/api';
+import { authAPI, passwordResetsAPI } from '../api/api';
 import { auth } from '../auth';
 import RegisterForm from '../components/RegisterForm';
 
@@ -16,6 +16,8 @@ const LoginPage = ({ onLoginSuccess }) => {
   }, [tab]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetNotice, setResetNotice] = useState('');
 
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const navigate = useNavigate();
@@ -41,6 +43,25 @@ const LoginPage = ({ onLoginSuccess }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setLoginData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleForgotPassword = async () => {
+    const email = loginData.email?.trim();
+    if (!email) {
+      setError('Enter your email first, then click Forgot password.');
+      return;
+    }
+    setResetLoading(true);
+    setError('');
+    setResetNotice('');
+    try {
+      await passwordResetsAPI.request(email);
+      setResetNotice('If an account exists for that email, we sent a password reset link.');
+    } catch (err) {
+      setError(err.message || 'Could not start password reset');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -115,7 +136,23 @@ const LoginPage = ({ onLoginSuccess }) => {
                   placeholder="••••••••"
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#3A7CA5] focus:border-[#3A7CA5] text-[#2E2E2E]"
                 />
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={resetLoading}
+                    className="text-sm font-medium text-[#3A7CA5] hover:text-[#2F5D7C] disabled:opacity-50"
+                  >
+                    {resetLoading ? 'Sending reset link…' : 'Forgot password?'}
+                  </button>
+                </div>
               </div>
+
+              {resetNotice && (
+                <div className="p-3 bg-green-50 border border-green-200 text-green-800 rounded text-sm">
+                  {resetNotice}
+                </div>
+              )}
 
               <button
                 type="submit"

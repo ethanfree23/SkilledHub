@@ -67,7 +67,12 @@ Rails.application.routes.draw do
         post "company_accounts", to: "company_accounts#create"
         get "company_accounts/search", to: "company_accounts#search"
         get "platform_insights", to: "platform_insights#show"
-        resources :users, only: %i[index show create]
+        resources :users, only: %i[index show create] do
+          member do
+            post :password_setup
+            patch :password, action: :set_password
+          end
+        end
         resources :crm_leads, only: %i[index show create update destroy]
       end
     end

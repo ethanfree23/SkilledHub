@@ -92,7 +92,64 @@ module Api
           render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
         end
 
+        # POST /api/v1/admin/users/:id/password_setup
+        # Generates a new password setup link and optionally emails it.
+        def password_setup
+          user = provisioned_user!
+          return if user.nil?
+          user.generate_password_reset_token!
+          send_email = ActiveModel::Type::Boolean.new.cast(params.fetch(:send_email, true))
+
+          if send_email
+            MailDelivery.safe_deliver do
+              UserMailer.password_reset_instructions(user, reason: :admin_provisioned).deliver_now
+            end
+          end
+
+          render json: {
+            message: send_email ? "Password setup email sent" : "Password setup link generated",
+            reset_url: frontend_reset_password_url(user.password_reset_token),
+            expires_in_hours: (User::PASSWORD_RESET_EXPIRY / 1.hour).to_i
+          }, status: :ok
+        end
+
+        # PATCH /api/v1/admin/users/:id/password
+        # Directly sets a new password for a provisioned account.
+        def set_password
+          user = provisioned_user!
+          return if user.nil?
+          password = params[:password].to_s
+          password_confirmation = params[:password_confirmation].to_s
+
+          unless PasswordStrength.valid?(password)
+            return render json: { errors: [PasswordStrength::REQUIREMENT_TEXT] }, status: :unprocessable_entity
+          end
+
+          user.password = password
+          user.password_confirmation = password_confirmation
+          if user.save
+            user.clear_password_reset_token!
+            render json: { message: "Password updated for #{user.email}" }, status: :ok
+          else
+            render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
+          end
+        end
+
         private
+
+        def provisioned_user!
+          user = User.find_by(id: params[:id].to_i)
+          if user.blank? || user.admin?
+            render json: { errors: ["User not found"] }, status: :not_found
+            return
+          end
+          user
+        end
+
+        def frontend_reset_password_url(token)
+          base = ENV.fetch("FRONTEND_URL", "http://localhost:5173").chomp("/")
+          "#{base}/reset-password?token=#{CGI.escape(token)}"
+        end
 
         def company_avatar_url(profile)
           return nil unless profile.avatar.attached?
