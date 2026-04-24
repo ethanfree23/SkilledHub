@@ -29,7 +29,7 @@ module Api
           end
         end
 
-        # POST /api/v1/admin/users — role company|technician + profile fields
+        # POST /api/v1/admin/users — JSON or multipart (company + logo)
         def create
           role = params[:role].to_s
           begin
@@ -39,8 +39,15 @@ module Api
                 email: params[:email],
                 company_name: params[:company_name],
                 industry: params[:industry],
-                location: params[:location],
-                bio: params[:bio]
+                bio: params[:bio],
+                phone: params[:phone],
+                website_url: params[:website_url],
+                facebook_url: params[:facebook_url],
+                instagram_url: params[:instagram_url],
+                linkedin_url: params[:linkedin_url],
+                service_cities: parse_service_cities_param,
+                logo: params[:logo],
+                contact_name: params[:contact_name]
               )
             when "technician"
               result = AdminAccountProvisioner.provision_technician!(
@@ -64,7 +71,12 @@ module Api
             if role == "company"
               {
                 user: UserSerializer.new(user).as_json,
-                company_profile: profile.as_json(only: %i[id company_name industry location bio user_id created_at updated_at])
+                company_profile: profile.as_json(
+                  only: %i[
+                    id company_name industry location bio phone website_url facebook_url instagram_url linkedin_url
+                    service_cities user_id created_at updated_at
+                  ]
+                ).merge("avatar_url" => company_avatar_url(profile))
               }
             else
               {
@@ -81,6 +93,38 @@ module Api
         end
 
         private
+
+        def company_avatar_url(profile)
+          return nil unless profile.avatar.attached?
+
+          Rails.application.routes.url_helpers.rails_blob_url(profile.avatar)
+        rescue StandardError
+          nil
+        end
+
+        def parse_service_cities_param
+          raw = params[:service_cities]
+          return [] if raw.blank?
+
+          if raw.is_a?(Array)
+            return raw.map(&:to_s).map(&:strip).reject(&:blank?).uniq
+          end
+
+          if raw.is_a?(ActionController::Parameters)
+            return raw.to_unsafe_h.sort_by { |k, _| k.to_s.to_i }.map { |_, v| v.to_s.strip }.reject(&:blank?).uniq
+          end
+
+          if raw.is_a?(String)
+            begin
+              parsed = JSON.parse(raw)
+              return parsed.is_a?(Array) ? parsed.map(&:to_s).map(&:strip).reject(&:blank?).uniq : []
+            rescue JSON::ParserError
+              return raw.split(",").map(&:strip).reject(&:blank?).uniq
+            end
+          end
+
+          []
+        end
 
         def filter_by_role(scope)
           case params[:role].to_s

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
 import AppHeader from '../components/AppHeader';
@@ -267,6 +267,8 @@ const AdminTotalsStrip = ({ totals, category }) => {
 };
 
 const Dashboard = ({ user, onLogout }) => {
+  const [searchParams] = useSearchParams();
+  const showWelcomeBanner = searchParams.get('welcome') === '1';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [jobs, setJobs] = useState(null);
@@ -356,7 +358,15 @@ const Dashboard = ({ user, onLogout }) => {
       <main className="py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {user?.role === 'company' && (
-            <CompanyDashboardContent jobs={jobs} analytics={analytics} onFinish={handleFinish} onRefresh={fetchDashboard} navigate={navigate} user={user} />
+            <CompanyDashboardContent
+              jobs={jobs}
+              analytics={analytics}
+              onFinish={handleFinish}
+              onRefresh={fetchDashboard}
+              navigate={navigate}
+              user={user}
+              showWelcome={showWelcomeBanner}
+            />
           )}
           {user?.role === 'technician' && (
             <TechnicianDashboardContent jobs={jobs} analytics={analytics} navigate={navigate} user={user} />
@@ -634,7 +644,7 @@ const sortByMostRecent = (list) => {
   });
 };
 
-const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigate, user }) => {
+const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigate, user, showWelcome = false }) => {
   const now = Date.now();
   const requested = sortByMostRecent(jobs?.requested || []);
   const unrequested = jobs?.unrequested || [];
@@ -658,6 +668,20 @@ const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigat
 
   return (
     <>
+      {showWelcome && (
+        <div className="mb-8 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-blue-950 shadow-sm">
+          <p className="font-semibold text-lg mb-1">Welcome aboard!</p>
+          <p className="text-sm text-blue-900/90 mb-4">
+            You&rsquo;re set up on TechFlash. Post a job to hire technicians, or explore your dashboard below.
+          </p>
+          <Link
+            to="/jobs/create"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FE6711] text-white text-sm font-semibold hover:opacity-95 shadow"
+          >
+            Post a job
+          </Link>
+        </div>
+      )}
       {/* Analytics Section */}
       {analytics && (
         <div className="mb-8">

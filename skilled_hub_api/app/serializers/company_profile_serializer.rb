@@ -1,5 +1,6 @@
 class CompanyProfileSerializer < ActiveModel::Serializer
-  attributes :id, :company_name, :industry, :location, :bio, :avatar_url, :user_id, :average_rating, :created_at, :updated_at
+  attributes :id, :company_name, :industry, :location, :bio, :avatar_url, :user_id, :average_rating, :created_at, :updated_at,
+             :phone, :website_url, :facebook_url, :instagram_url, :linkedin_url, :service_cities
 
   belongs_to :user
   has_many :jobs

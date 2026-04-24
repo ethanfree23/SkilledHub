@@ -1,11 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { TECHFLASH_LOGO_LOGIN } from '../constants/branding';
 import { passwordResetsAPI } from '../api/api';
+import { auth } from '../auth';
+
+const PASSWORD_HINT =
+  'Use at least 6 characters with uppercase, lowercase, one number, and one special character.';
+
+function passwordMeetsRules(pw) {
+  if (!pw || pw.length < 6) return false;
+  return /[A-Z]/.test(pw) && /[a-z]/.test(pw) && /\d/.test(pw) && /[^A-Za-z0-9]/.test(pw);
+}
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const token = useMemo(() => searchParams.get('token')?.trim() || '', [searchParams]);
 
   const [password, setPassword] = useState('');
@@ -21,15 +29,36 @@ const ResetPasswordPage = () => {
       setError('This link is missing a token. Open the link from your email.');
       return;
     }
+    if (!passwordMeetsRules(password)) {
+      setError(PASSWORD_HINT);
+      return;
+    }
     if (password !== passwordConfirmation) {
       setError('Passwords do not match');
       return;
     }
     setLoading(true);
     try {
-      await passwordResetsAPI.complete(token, password, passwordConfirmation);
+      const res = await passwordResetsAPI.complete(token, password, passwordConfirmation);
+      if (res.token && res.user) {
+        auth.setToken(res.token);
+        auth.setUser(res.user);
+      }
       setDone(true);
-      setTimeout(() => navigate('/login'), 2000);
+      const role = res.role;
+      const dest =
+        role === 'company'
+          ? '/dashboard?welcome=1'
+          : role === 'technician'
+            ? '/jobs?welcome=1'
+            : '/login';
+      setTimeout(() => {
+        if (res.token && res.user) {
+          window.location.assign(dest);
+        } else {
+          window.location.assign('/login');
+        }
+      }, 600);
     } catch (err) {
       setError(err.message || 'Could not update password');
     } finally {
@@ -42,16 +71,14 @@ const ResetPasswordPage = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
           <img src={TECHFLASH_LOGO_LOGIN} alt="TechFlash" className="h-16 mx-auto object-contain" />
-          <p className="mt-3 text-gray-600">Set a new password for your account.</p>
+          <p className="mt-3 text-gray-600">Set a secure password for your account.</p>
         </div>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-6 shadow-md rounded-lg sm:px-10">
           {done ? (
-            <p className="text-center text-gray-700">
-              Password updated. Redirecting to login…
-            </p>
+            <p className="text-center text-gray-700">Password saved. Taking you to TechFlash…</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
@@ -63,6 +90,7 @@ const ResetPasswordPage = () => {
                   available.
                 </p>
               )}
+              <p className="text-xs text-gray-600">{PASSWORD_HINT}</p>
               <div>
                 <label htmlFor="new-password" className="block text-sm font-medium text-[#2E2E2E]">
                   New password
@@ -98,7 +126,7 @@ const ResetPasswordPage = () => {
                 disabled={loading || !token}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#3A7CA5] hover:bg-[#2f6690] disabled:opacity-50"
               >
-                {loading ? 'Saving…' : 'Update password'}
+                {loading ? 'Saving…' : 'Save password & continue'}
               </button>
               <p className="text-center text-sm text-gray-500">
                 <Link to="/login" className="text-[#3A7CA5] font-medium hover:underline">

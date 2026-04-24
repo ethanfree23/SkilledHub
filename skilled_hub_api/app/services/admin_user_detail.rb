@@ -88,6 +88,12 @@ class AdminUserDetail
         industry: cp.industry,
         location: cp.location,
         bio: cp.bio,
+        phone: cp.phone,
+        website_url: cp.website_url,
+        facebook_url: cp.facebook_url,
+        instagram_url: cp.instagram_url,
+        linkedin_url: cp.linkedin_url,
+        service_cities: Array(cp.service_cities),
         stripe_customer_id: user.stripe_customer_id
       }
     end

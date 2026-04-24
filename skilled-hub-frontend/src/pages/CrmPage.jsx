@@ -20,6 +20,7 @@ const CRM_STATUSES = [
   'contacted',
   'qualified',
   'proposal',
+  'prospect',
   'customer',
   'churned',
   'lost',
@@ -48,6 +49,7 @@ const CrmPage = ({ user, onLogout }) => {
   const [provision, setProvision] = useState({
     email: '',
     company_name: '',
+    phone: '',
     industry: '',
     location: '',
     bio: '',
@@ -222,16 +224,26 @@ const CrmPage = ({ user, onLogout }) => {
       });
       return;
     }
+    if (!provision.company_name?.trim() || !provision.phone?.trim() || !provision.bio?.trim()) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Missing required fields',
+        message: 'Company name, phone number, and bio are required.',
+        variant: 'error',
+      });
+      return;
+    }
     setProvisionSaving(true);
     try {
       await crmAPI.createCompanyAccount({
         email,
-        company_name: provision.company_name?.trim() || undefined,
+        company_name: provision.company_name.trim(),
+        phone: provision.phone.trim(),
         industry: provision.industry?.trim() || undefined,
         location: provision.location?.trim() || undefined,
-        bio: provision.bio?.trim() || undefined,
+        bio: provision.bio.trim(),
       });
-      setProvision({ email: '', company_name: '', industry: '', location: '', bio: '' });
+      setProvision({ email: '', company_name: '', phone: '', industry: '', location: '', bio: '' });
       setAlertModal({
         isOpen: true,
         title: 'Company account created',
@@ -315,12 +327,23 @@ const CrmPage = ({ user, onLogout }) => {
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Company display name</span>
+              <span className="text-xs font-medium text-gray-500 uppercase">Company display name *</span>
               <input
+                required
                 className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                 value={provision.company_name}
                 onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
-                placeholder="Defaults to “Company” if empty"
+                placeholder="Registered business or DBA"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
+              <input
+                type="tel"
+                required
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={provision.phone}
+                onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
               />
             </label>
             <label className="block">
@@ -340,9 +363,10 @@ const CrmPage = ({ user, onLogout }) => {
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Bio</span>
+              <span className="text-xs font-medium text-gray-500 uppercase">Bio *</span>
               <textarea
                 rows={2}
+                required
                 className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                 value={provision.bio}
                 onChange={(e) => setProvision((p) => ({ ...p, bio: e.target.value }))}

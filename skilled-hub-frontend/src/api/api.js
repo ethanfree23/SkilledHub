@@ -118,6 +118,12 @@ export const crmAPI = {
     }),
 };
 
+// US city autocomplete (Nominatim via Rails) — admin only
+export const adminLocationAPI = {
+  citySuggestions: (q) =>
+    apiRequest(`/admin/location_suggestions?q=${encodeURIComponent(q)}`),
+};
+
 // Admin user directory + per-user analytics
 export const adminUsersAPI = {
   list: ({ q, role } = {}) => {
@@ -129,11 +135,18 @@ export const adminUsersAPI = {
   },
   get: (id, period = '7d') =>
     apiRequest(`/admin/users/${id}?period=${encodeURIComponent(period)}`),
-  create: (data) =>
-    apiRequest('/admin/users', {
+  create: (data) => {
+    if (data instanceof FormData) {
+      return apiRequest('/admin/users', {
+        method: 'POST',
+        body: data,
+      });
+    }
+    return apiRequest('/admin/users', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
+    });
+  },
 };
 
 // Admin platform metrics (dashboard drill-down lists)

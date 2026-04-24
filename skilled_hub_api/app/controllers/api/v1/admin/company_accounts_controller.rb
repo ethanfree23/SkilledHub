@@ -11,12 +11,23 @@ module Api
         # Creates a company user + company profile; initial password is derived from email;
         # sends password-reset email so they can choose a real password.
         def create
+          cities = provision_params[:service_cities]
+          if cities.blank? && provision_params[:location].present?
+            cities = provision_params[:location].to_s.split(",").map(&:strip).reject(&:blank?)
+          end
+
           result = AdminAccountProvisioner.provision_company!(
             email: provision_params[:email],
             company_name: provision_params[:company_name],
             industry: provision_params[:industry],
-            location: provision_params[:location],
-            bio: provision_params[:bio]
+            bio: provision_params[:bio],
+            phone: provision_params[:phone],
+            website_url: provision_params[:website_url],
+            facebook_url: provision_params[:facebook_url],
+            instagram_url: provision_params[:instagram_url],
+            linkedin_url: provision_params[:linkedin_url],
+            service_cities: cities,
+            contact_name: provision_params[:contact_name]
           )
 
           render json: {
@@ -56,7 +67,11 @@ module Api
         private
 
         def provision_params
-          params.permit(:email, :company_name, :industry, :location, :bio)
+          params.permit(
+            :email, :company_name, :industry, :location, :bio, :phone, :website_url,
+            :facebook_url, :instagram_url, :linkedin_url, :contact_name,
+            service_cities: []
+          )
         end
       end
     end

@@ -63,6 +63,7 @@ Rails.application.routes.draw do
       post 'stripe/webhook', to: 'stripe_webhooks#create'
 
       namespace :admin do
+        get "location_suggestions", to: "location_suggestions#index"
         post "company_accounts", to: "company_accounts#create"
         get "company_accounts/search", to: "company_accounts#search"
         get "platform_insights", to: "platform_insights#show"

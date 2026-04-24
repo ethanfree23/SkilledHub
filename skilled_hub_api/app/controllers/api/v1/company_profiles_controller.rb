@@ -60,7 +60,11 @@ module Api
       private
 
       def company_profile_params
-        params.permit(:company_name, :industry, :location, :bio, :user_id)
+        params.permit(
+          :company_name, :industry, :location, :bio, :user_id,
+          :phone, :website_url, :facebook_url, :instagram_url, :linkedin_url,
+          service_cities: []
+        )
       end
     end
   end

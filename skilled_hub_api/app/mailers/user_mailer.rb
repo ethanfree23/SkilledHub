@@ -16,7 +16,7 @@ class UserMailer < ApplicationMailer
     @reset_url = frontend_reset_password_url(user.password_reset_token)
     subject =
       if reason == :admin_provisioned
-        'Set your TechFlash password — account ready'
+        'Welcome aboard — your TechFlash account is ready'
       else
         'Reset your TechFlash password'
       end

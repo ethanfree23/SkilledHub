@@ -1,6 +1,9 @@
 class CompanyProfile < ApplicationRecord
   has_one_attached :avatar
 
+  before_validation :normalize_service_cities_list
+  before_save :sync_location_from_service_cities
+
   belongs_to :user
   has_many :jobs, dependent: :destroy
   has_many :conversations, dependent: :destroy
@@ -12,5 +15,29 @@ class CompanyProfile < ApplicationRecord
 
   def average_rating
     Rating.average_for(self)
+  end
+
+  private
+
+  def normalize_service_cities_list
+    raw = service_cities
+    arr =
+      case raw
+      when String
+        begin
+          parsed = JSON.parse(raw)
+          parsed.is_a?(Array) ? parsed : []
+        rescue JSON::ParserError
+          []
+        end
+      else
+        Array(raw)
+      end
+    self.service_cities = arr.map { |c| c.to_s.strip.presence }.compact.uniq
+  end
+
+  def sync_location_from_service_cities
+    cities = Array(service_cities).map(&:to_s).map(&:strip).reject(&:blank?)
+    self.location = cities.join(", ") if cities.any?
   end
 end
