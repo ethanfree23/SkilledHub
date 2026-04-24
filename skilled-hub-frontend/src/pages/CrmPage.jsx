@@ -10,6 +10,7 @@ import {
   FaCommentDots,
   FaBriefcase,
   FaDollarSign,
+  FaLink,
   FaSearch,
   FaPlus,
   FaTrash,
