@@ -11,9 +11,11 @@ import {
   FaBriefcase,
   FaDollarSign,
   FaLink,
-  FaSearch,
   FaPlus,
+  FaSearch,
+  FaTimes,
   FaTrash,
+  FaUserPlus,
 } from 'react-icons/fa';
 
 const CRM_STATUSES = [
@@ -56,6 +58,8 @@ const CrmPage = ({ user, onLogout }) => {
     bio: '',
   });
   const [provisionSaving, setProvisionSaving] = useState(false);
+  const [provisionModalOpen, setProvisionModalOpen] = useState(false);
+  const [newCompanyModalOpen, setNewCompanyModalOpen] = useState(false);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -154,15 +158,33 @@ const CrmPage = ({ user, onLogout }) => {
     return () => clearTimeout(searchTimer.current);
   }, [searchQ]);
 
+  useEffect(() => {
+    const modalOpen = provisionModalOpen || newCompanyModalOpen;
+    if (!modalOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (provisionModalOpen && !provisionSaving) setProvisionModalOpen(false);
+      if (newCompanyModalOpen && !saving) {
+        setNewCompanyModalOpen(false);
+        setIsCreating(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [provisionModalOpen, newCompanyModalOpen, provisionSaving, saving]);
+
   const openCreate = () => {
+    setProvisionModalOpen(false);
     setSelectedId(null);
     setIsCreating(true);
+    setNewCompanyModalOpen(true);
     setSearchQ('');
     setSearchHits([]);
   };
 
   const selectLead = (id) => {
     setIsCreating(false);
+    setNewCompanyModalOpen(false);
     setSelectedId(id);
     setSearchQ('');
     setSearchHits([]);
@@ -194,6 +216,7 @@ const CrmPage = ({ user, onLogout }) => {
         const res = await crmAPI.create(payload);
         await loadList();
         setIsCreating(false);
+        setNewCompanyModalOpen(false);
         setSelectedId(res.crm_lead.id);
         setDetail(res);
       } else if (selectedId) {
@@ -245,6 +268,7 @@ const CrmPage = ({ user, onLogout }) => {
         bio: provision.bio.trim(),
       });
       setProvision({ email: '', company_name: '', phone: '', industry: '', location: '', bio: '' });
+      setProvisionModalOpen(false);
       setAlertModal({
         isOpen: true,
         title: 'Company account created',
@@ -292,97 +316,35 @@ const CrmPage = ({ user, onLogout }) => {
       <AppHeader user={user} onLogout={onLogout} activePage="crm" emailVariant="crm" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div>
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold text-gray-900">Company CRM</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Track prospects and link a record to a real company account to see jobs, spend, and activity.
+              Track prospects and link records to company accounts for jobs, spend, and activity.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            <FaPlus /> Add company
-          </button>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-gray-100 shadow p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Create platform company account</h2>
-          <p className="text-sm text-gray-500 mt-1 mb-4">
-            Creates a business user and company profile. A temporary password is derived from their email for first
-            login; we always send a follow-up email with a secure link to choose a new password.
-          </p>
-          <form onSubmit={provisionCompanyAccount} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Login email *</span>
-              <input
-                type="email"
-                required
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.email}
-                onChange={(e) => setProvision((p) => ({ ...p, email: e.target.value }))}
-                placeholder="contact@theirbusiness.com"
-                autoComplete="off"
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Company display name *</span>
-              <input
-                required
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.company_name}
-                onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
-                placeholder="Registered business or DBA"
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
-              <input
-                type="tel"
-                required
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.phone}
-                onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-500 uppercase">Industry</span>
-              <input
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.industry}
-                onChange={(e) => setProvision((p) => ({ ...p, industry: e.target.value }))}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-500 uppercase">Location</span>
-              <input
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.location}
-                onChange={(e) => setProvision((p) => ({ ...p, location: e.target.value }))}
-              />
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Bio *</span>
-              <textarea
-                rows={2}
-                required
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={provision.bio}
-                onChange={(e) => setProvision((p) => ({ ...p, bio: e.target.value }))}
-              />
-            </label>
-            <div className="sm:col-span-2">
-              <button
-                type="submit"
-                disabled={provisionSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
-              >
-                {provisionSaving ? 'Creating…' : 'Create account & send email'}
-              </button>
-            </div>
-          </form>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
+            >
+              <FaPlus className="w-4 h-4" aria-hidden />
+              Add company
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNewCompanyModalOpen(false);
+                setIsCreating(false);
+                setProvisionModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 shadow-sm"
+            >
+              <FaUserPlus className="w-4 h-4" aria-hidden />
+              Create platform account
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -425,18 +387,16 @@ const CrmPage = ({ user, onLogout }) => {
           </div>
 
           <div className="lg:col-span-3 space-y-6">
-            {!isCreating && !selectedId && (
+            {!selectedId && (
               <div className="bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center text-gray-500">
-                Select a company on the left or add a new one.
+                Select a company on the left or use the buttons above to add a CRM record or create a platform account.
               </div>
             )}
 
-            {(isCreating || selectedId) && (
+            {selectedId && !isCreating && (
               <div className="bg-white rounded-2xl shadow border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  {isCreating ? 'New company' : 'Edit record'}
-                </h2>
-                {detailLoading && !isCreating && (
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit record</h2>
+                {detailLoading && (
                   <p className="text-sm text-gray-500 mb-4">Loading details…</p>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -571,27 +531,13 @@ const CrmPage = ({ user, onLogout }) => {
                   >
                     {saving ? 'Saving…' : 'Save'}
                   </button>
-                  {!isCreating && selectedId && (
-                    <button
-                      type="button"
-                      onClick={removeRecord}
-                      className="px-5 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 font-medium inline-flex items-center gap-2"
-                    >
-                      <FaTrash /> Delete record
-                    </button>
-                  )}
-                  {isCreating && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreating(false);
-                        setSelectedId(null);
-                      }}
-                      className="px-5 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={removeRecord}
+                    className="px-5 py-2 border border-red-200 text-red-700 rounded-lg hover:bg-red-50 font-medium inline-flex items-center gap-2"
+                  >
+                    <FaTrash /> Delete record
+                  </button>
                 </div>
               </div>
             )}
@@ -708,6 +654,300 @@ const CrmPage = ({ user, onLogout }) => {
             )}
           </div>
         </div>
+
+        {provisionModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="crm-provision-title"
+            onClick={() => !provisionSaving && setProvisionModalOpen(false)}
+          >
+            <div
+              className="bg-white rounded-2xl border border-gray-100 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 shrink-0">
+                <h2 id="crm-provision-title" className="text-lg font-semibold text-gray-900">
+                  Create platform company account
+                </h2>
+                <button
+                  type="button"
+                  disabled={provisionSaving}
+                  onClick={() => setProvisionModalOpen(false)}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <FaTimes className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto px-6 py-5">
+                <p className="text-sm text-gray-500 mb-4">
+                  Creates a business user and company profile. A temporary password is derived from their email for first
+                  login; we always send a follow-up email with a secure link to choose a new password.
+                </p>
+                <form onSubmit={provisionCompanyAccount} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Login email *</span>
+                    <input
+                      type="email"
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.email}
+                      onChange={(e) => setProvision((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="contact@theirbusiness.com"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Company display name *</span>
+                    <input
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.company_name}
+                      onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
+                      placeholder="Registered business or DBA"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
+                    <input
+                      type="tel"
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.phone}
+                      onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Industry</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.industry}
+                      onChange={(e) => setProvision((p) => ({ ...p, industry: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Location</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.location}
+                      onChange={(e) => setProvision((p) => ({ ...p, location: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Bio *</span>
+                    <textarea
+                      rows={2}
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.bio}
+                      onChange={(e) => setProvision((p) => ({ ...p, bio: e.target.value }))}
+                    />
+                  </label>
+                  <div className="sm:col-span-2 flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      disabled={provisionSaving}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
+                    >
+                      {provisionSaving ? 'Creating…' : 'Create account & send email'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={provisionSaving}
+                      onClick={() => setProvisionModalOpen(false)}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {newCompanyModalOpen && isCreating ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="crm-new-company-title"
+            onClick={() => {
+              if (!saving) {
+                setNewCompanyModalOpen(false);
+                setIsCreating(false);
+              }
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl border border-gray-100 shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 shrink-0">
+                <h2 id="crm-new-company-title" className="text-lg font-semibold text-gray-900">
+                  New company
+                </h2>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setNewCompanyModalOpen(false);
+                    setIsCreating(false);
+                  }}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <FaTimes className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto px-6 py-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Company name *</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.name ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Contact</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.contact_name ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Status</span>
+                    <select
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm capitalize"
+                      value={form.status ?? 'lead'}
+                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    >
+                      {CRM_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Email</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      type="email"
+                      value={form.email ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Phone</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.phone ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Website</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.website ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Notes</span>
+                    <textarea
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[88px]"
+                      value={form.notes ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    <FaBuilding className="text-amber-600" /> Link platform account
+                  </h3>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Search by company login email, then select the account. Only company accounts can be linked. One CRM
+                    record can link to one company user.
+                  </p>
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white">
+                      <FaSearch className="text-gray-400 shrink-0" />
+                      <input
+                        className="flex-1 text-sm outline-none"
+                        placeholder="Type at least 2 characters of email…"
+                        value={searchQ}
+                        onChange={(e) => setSearchQ(e.target.value)}
+                      />
+                      {searchBusy && <span className="text-xs text-gray-400">Searching…</span>}
+                    </div>
+                    {searchHits.length > 0 && (
+                      <ul className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
+                        {searchHits.map((u) => (
+                          <li key={u.id}>
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                              onClick={() => {
+                                setForm((f) => ({ ...f, linked_user_id: u.id }));
+                                setSearchQ('');
+                                setSearchHits([]);
+                              }}
+                            >
+                              <span className="font-medium text-gray-900">{u.email}</span>
+                              {u.company_name && <span className="text-gray-500"> — {u.company_name}</span>}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {form.linked_user_id != null && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                      <span className="text-emerald-700 font-medium">Linked user id {form.linked_user_id}</span>
+                      <button
+                        type="button"
+                        className="text-red-600 hover:underline inline-flex items-center gap-1"
+                        onClick={() => setForm((f) => ({ ...f, linked_user_id: null }))}
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={saveRecord}
+                    className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      setNewCompanyModalOpen(false);
+                      setIsCreating(false);
+                    }}
+                    className="px-5 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
 
       <AlertModal
