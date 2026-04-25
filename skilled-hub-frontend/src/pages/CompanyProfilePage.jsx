@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import AdminCreateUserModal from '../components/AdminCreateUserModal';
 import AlertModal from '../components/AlertModal';
-import { profilesAPI } from '../api/api';
+import { profilesAPI, crmAPI } from '../api/api';
 
 const CompanyProfilePage = ({ user, onLogout }) => {
   const { id } = useParams();
@@ -12,6 +12,11 @@ const CompanyProfilePage = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState('');
+  const [mergeOptions, setMergeOptions] = useState([]);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeSaving, setMergeSaving] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState(null);
   const [alertModal, setAlertModal] = useState({
     isOpen: false,
     title: '',
@@ -38,6 +43,34 @@ const CompanyProfilePage = ({ user, onLogout }) => {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  useEffect(() => {
+    if (user?.role !== 'admin') return undefined;
+    const q = mergeQuery.trim();
+    if (q.length < 2) {
+      setMergeOptions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setMergeBusy(true);
+      try {
+        const res = await crmAPI.searchCompanies(q);
+        if (!cancelled) {
+          const options = (res.companies || []).filter((c) => Number(c.id) !== Number(id));
+          setMergeOptions(options);
+        }
+      } catch {
+        if (!cancelled) setMergeOptions([]);
+      } finally {
+        if (!cancelled) setMergeBusy(false);
+      }
+    }, 280);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mergeQuery, id, user?.role]);
+
   const refreshCompanyProfile = useCallback(async () => {
     if (!id) return;
     try {
@@ -52,6 +85,39 @@ const CompanyProfilePage = ({ user, onLogout }) => {
       });
     }
   }, [id]);
+
+  const mergeCompany = async () => {
+    if (!mergeTarget?.id) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Target required',
+        message: 'Select the company to keep before merging.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (!window.confirm(`Merge this company into "${mergeTarget.company_name || `Company #${mergeTarget.id}`}"? This cannot be undone.`)) return;
+    setMergeSaving(true);
+    try {
+      await profilesAPI.mergeCompanyProfile(id, mergeTarget.id);
+      setAlertModal({
+        isOpen: true,
+        title: 'Merge complete',
+        message: 'Duplicate company was merged successfully.',
+        variant: 'success',
+      });
+      navigate(`/companies/${mergeTarget.id}`, { replace: true });
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Merge failed',
+        message: e.message || 'Could not merge company profiles.',
+        variant: 'error',
+      });
+    } finally {
+      setMergeSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -165,6 +231,55 @@ const CompanyProfilePage = ({ user, onLogout }) => {
                   ))}
                 </ul>
               )}
+            </div>
+          )}
+
+          {user?.role === 'admin' && (
+            <div className="p-6 border-b border-gray-200 bg-amber-50/40">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Duplicate / Merge</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                If this company is a duplicate, choose the company to keep and merge this profile into it.
+              </p>
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="Search company to keep..."
+                value={mergeQuery}
+                onChange={(e) => {
+                  setMergeQuery(e.target.value);
+                  setMergeTarget(null);
+                }}
+              />
+              <div className="mt-2 border border-gray-200 rounded-lg bg-white max-h-44 overflow-auto">
+                {mergeBusy ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">Searching…</div>
+                ) : mergeOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">No matches yet.</div>
+                ) : (
+                  mergeOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setMergeTarget(opt)}
+                      className={`w-full text-left px-3 py-2 border-b border-gray-100 last:border-b-0 ${
+                        Number(mergeTarget?.id) === Number(opt.id) ? 'bg-blue-50 text-blue-800' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{opt.company_name || `Company #${opt.id}`}</div>
+                      <div className="text-xs text-gray-500">{opt.company_users_count || 0} login account(s)</div>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  disabled={mergeSaving || !mergeTarget}
+                  onClick={mergeCompany}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {mergeSaving ? 'Merging…' : 'Merge into selected company'}
+                </button>
+              </div>
             </div>
           )}
 

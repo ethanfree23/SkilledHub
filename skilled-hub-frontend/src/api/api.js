@@ -148,6 +148,16 @@ export const crmAPI = {
       method: 'POST',
       body: JSON.stringify({ rows }),
     }),
+  createNote: (crmLeadId, data) =>
+    apiRequest(`/admin/crm_leads/${crmLeadId}/crm_notes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateNote: (crmLeadId, noteId, data) =>
+    apiRequest(`/admin/crm_leads/${crmLeadId}/crm_notes/${noteId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
 };
 
 // US city autocomplete (Nominatim via Rails) — admin only
@@ -441,12 +451,22 @@ export const profilesAPI = {
   
   getTechnicianById: (id) =>
     apiRequest(`/technicians/${id}`),
+  mergeTechnicianProfile: (sourceId, targetTechnicianProfileId) =>
+    apiRequest(`/technicians/${sourceId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ target_technician_profile_id: targetTechnicianProfileId }),
+    }),
 
   getCompanyProfile: () => 
     apiRequest('/company_profiles/profile'),
 
   getCompanyById: (id) =>
     apiRequest(`/company_profiles/${id}`),
+  mergeCompanyProfile: (sourceId, targetCompanyProfileId) =>
+    apiRequest(`/company_profiles/${sourceId}/merge`, {
+      method: 'POST',
+      body: JSON.stringify({ target_company_profile_id: targetCompanyProfileId }),
+    }),
   
   updateCompanyProfile: (id, profileData) => {
     const body = profileData instanceof FormData ? profileData : JSON.stringify(profileData);

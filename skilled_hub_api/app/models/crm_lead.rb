@@ -19,6 +19,7 @@ class CrmLead < ApplicationRecord
 
   belongs_to :linked_user, class_name: "User", optional: true, inverse_of: :crm_leads
   belongs_to :linked_company_profile, class_name: "CompanyProfile", optional: true
+  has_many :crm_notes, -> { order(created_at: :asc) }, dependent: :destroy
 
   validates :name, presence: true
   validates :status, inclusion: { in: STATUSES }

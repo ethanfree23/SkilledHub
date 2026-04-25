@@ -82,11 +82,12 @@ module Api
         def search_companies
           q = params[:q].to_s.strip
           scope = CompanyProfile.includes(:company_users)
-          if q.present?
-            like = "%#{ActiveRecord::Base.sanitize_sql_like(q.downcase)}%"
-            scope = scope.where("LOWER(company_profiles.company_name) LIKE ?", like)
-          end
-          companies = scope.order(:company_name).limit(30)
+          companies =
+            if q.present?
+              rank_company_matches(scope, q).first(30).map { |entry| entry[:company] }
+            else
+              scope.order(:company_name).limit(30)
+            end
           render json: {
             companies: companies.map do |cp|
               {
@@ -106,6 +107,54 @@ module Api
             :facebook_url, :instagram_url, :linkedin_url, :contact_name, :first_name, :last_name,
             service_cities: []
           )
+        end
+
+        def rank_company_matches(scope, query)
+          q_normalized = normalize_company_name(query)
+          like = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
+          candidate_scope = scope.where("LOWER(company_profiles.company_name) LIKE ?", like)
+          # Pull extra candidates for typo/case-insensitive fuzzy matching.
+          candidate_scope = scope if candidate_scope.limit(1).empty?
+          candidates = candidate_scope.order(:company_name).limit(300).to_a
+
+          candidates.map do |cp|
+            name = cp.company_name.to_s
+            normalized = normalize_company_name(name)
+            dist = levenshtein_distance(q_normalized, normalized)
+            max_len = [q_normalized.length, normalized.length, 1].max
+            distance_score = 1.0 - (dist.to_f / max_len)
+
+            starts_with = normalized.start_with?(q_normalized) ? 1.0 : 0.0
+            includes = normalized.include?(q_normalized) ? 1.0 : 0.0
+
+            {
+              company: cp,
+              score: (starts_with * 3.0) + (includes * 1.5) + distance_score
+            }
+          end.sort_by { |entry| [-entry[:score], entry[:company].company_name.to_s.downcase] }
+        end
+
+        def normalize_company_name(value)
+          value.to_s.downcase.gsub(/[^a-z0-9]/, "")
+        end
+
+        def levenshtein_distance(a, b)
+          return b.length if a.empty?
+          return a.length if b.empty?
+
+          prev = (0..b.length).to_a
+          curr = Array.new(b.length + 1, 0)
+
+          a.each_char.with_index(1) do |a_char, i|
+            curr[0] = i
+            b.each_char.with_index(1) do |b_char, j|
+              cost = a_char == b_char ? 0 : 1
+              curr[j] = [curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost].min
+            end
+            prev, curr = curr, prev
+          end
+
+          prev[b.length]
         end
       end
     end

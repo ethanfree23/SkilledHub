@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FaBuilding, FaTimes, FaUserPlus, FaWrench } from 'react-icons/fa';
 import { adminUsersAPI, crmAPI } from '../api/api';
 import { IndustryMultiSelect, ServiceCityPicker } from './admin/AdminUserFormPickers';
+import { formatPhoneInput } from '../utils/phone';
 
 const DEFAULT_CONTACT_PASSWORD = 'Password123$';
 
@@ -559,7 +560,7 @@ export default function AdminCreateUserModal({
                     required
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
                     placeholder="(555) 555-5555"
                   />
                 </label>
@@ -630,7 +631,7 @@ export default function AdminCreateUserModal({
                     required
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     value={createForm.phone}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
                   />
                 </label>
                 <label className="block">

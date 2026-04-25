@@ -8,6 +8,7 @@ import { adminUsersAPI, adminReferralsAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
 import { auth } from '../auth';
 import { FaEye } from 'react-icons/fa';
+import { formatPhoneInput } from '../utils/phone';
 
 const PERIODS = [
   { id: '24h', label: '24h' },
@@ -512,7 +513,7 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                       <input
                         className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                         value={profileDraft.phone || ''}
-                        onChange={(e) => setProfileDraft((d) => ({ ...d, phone: e.target.value }))}
+                        onChange={(e) => setProfileDraft((d) => ({ ...d, phone: formatPhoneInput(e.target.value) }))}
                       />
                     </label>
                     <label className="block">

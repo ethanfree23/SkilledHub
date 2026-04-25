@@ -3,6 +3,7 @@ module Api
     class CompanyProfilesController < ApplicationController
       before_action :authenticate_user
       before_action :require_company, only: [:update]
+      before_action :require_admin, only: [:merge]
       
       def index
         company_profiles = CompanyProfile.all
@@ -47,6 +48,41 @@ module Api
         company_profile = CompanyProfile.find(params[:id])
         company_profile.destroy
         head :no_content
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: "Company profile not found" }, status: :not_found
+      end
+
+      # POST /api/v1/company_profiles/:id/merge
+      # Admin only: merges the source company profile into a target company profile.
+      def merge
+        source = CompanyProfile.find(params[:id])
+        target = CompanyProfile.find(params[:target_company_profile_id])
+        return render json: { error: "Target must be different from source" }, status: :unprocessable_entity if source.id == target.id
+
+        now = Time.current
+        ActiveRecord::Base.transaction do
+          User.where(company_profile_id: source.id).update_all(company_profile_id: target.id, updated_at: now)
+          Job.where(company_profile_id: source.id).update_all(company_profile_id: target.id, updated_at: now)
+          Conversation.where(company_profile_id: source.id).update_all(company_profile_id: target.id, updated_at: now)
+          Rating.where(reviewee_type: "CompanyProfile", reviewee_id: source.id).update_all(reviewee_id: target.id, updated_at: now)
+          CrmLead.where(linked_company_profile_id: source.id).update_all(linked_company_profile_id: target.id, updated_at: now)
+
+          source.favorite_technician_entries.find_each do |fav|
+            FavoriteTechnician.find_or_create_by!(
+              company_profile_id: target.id,
+              technician_profile_id: fav.technician_profile_id
+            )
+          end
+          source.favorite_technician_entries.delete_all
+
+          source.destroy!
+        end
+
+        render json: {
+          message: "Company profile merged",
+          source_company_profile_id: source.id,
+          target_company_profile_id: target.id
+        }, status: :ok
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Company profile not found" }, status: :not_found
       end

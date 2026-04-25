@@ -50,8 +50,16 @@ Rails.application.routes.draw do
           get :reviewed_job_ids
         end
       end
-      resources :company_profiles
-      resources :technicians
+      resources :company_profiles do
+        member do
+          post :merge
+        end
+      end
+      resources :technicians do
+        member do
+          post :merge
+        end
+      end
       resources :job_seekers
       resources :auth, only: [:index]
       resources :referrals, only: [:create]
@@ -91,6 +99,7 @@ Rails.application.routes.draw do
           collection do
             post :import
           end
+          resources :crm_notes, only: %i[create update]
         end
         patch "referrals/:id/issue_reward", to: "referrals#issue_reward"
       end

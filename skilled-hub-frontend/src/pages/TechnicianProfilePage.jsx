@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import { profilesAPI, favoriteTechniciansAPI } from '../api/api';
+import { profilesAPI, favoriteTechniciansAPI, adminUsersAPI } from '../api/api';
 import ReferralModal from '../components/ReferralModal';
+import AlertModal from '../components/AlertModal';
 
 const TechnicianProfilePage = ({ user, onLogout }) => {
   const { id } = useParams();
@@ -12,6 +13,12 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
   const [favoriteIds, setFavoriteIds] = useState([]);
   const [favBusy, setFavBusy] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [mergeQuery, setMergeQuery] = useState('');
+  const [mergeOptions, setMergeOptions] = useState([]);
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [mergeSaving, setMergeSaving] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState(null);
+  const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
 
   useEffect(() => {
     if (id) {
@@ -31,6 +38,33 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
     }
   }, [user?.role, id]);
 
+  useEffect(() => {
+    if (user?.role !== 'admin') return undefined;
+    const q = mergeQuery.trim();
+    if (q.length < 2) {
+      setMergeOptions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setMergeBusy(true);
+      try {
+        const res = await adminUsersAPI.list({ q, role: 'technician' });
+        const options = (res.users || [])
+          .filter((u) => u.technician_profile_id != null && Number(u.technician_profile_id) !== Number(id));
+        if (!cancelled) setMergeOptions(options);
+      } catch {
+        if (!cancelled) setMergeOptions([]);
+      } finally {
+        if (!cancelled) setMergeBusy(false);
+      }
+    }, 280);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mergeQuery, id, user?.role]);
+
   const toggleFavorite = async () => {
     if (user?.role !== 'company' || !profile?.id) return;
     setFavBusy(true);
@@ -47,6 +81,33 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
       console.error(e);
     } finally {
       setFavBusy(false);
+    }
+  };
+
+  const mergeTechnician = async () => {
+    if (!mergeTarget?.technician_profile_id) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Target required',
+        message: 'Select the technician profile to keep before merging.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (!window.confirm(`Merge this technician into "${mergeTarget.user_name || mergeTarget.email}"? This cannot be undone.`)) return;
+    setMergeSaving(true);
+    try {
+      await profilesAPI.mergeTechnicianProfile(id, mergeTarget.technician_profile_id);
+      window.location.assign(`/technicians/${mergeTarget.technician_profile_id}`);
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Merge failed',
+        message: e.message || 'Could not merge technician profiles.',
+        variant: 'error',
+      });
+    } finally {
+      setMergeSaving(false);
     }
   };
 
@@ -166,6 +227,55 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
             </div>
           )}
 
+          {user?.role === 'admin' && (
+            <div className="p-6 border-b border-gray-200 bg-amber-50/40">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Duplicate / Merge</h2>
+              <p className="text-sm text-gray-600 mb-3">
+                If this technician is a duplicate, choose the profile to keep and merge this one into it.
+              </p>
+              <input
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="Search technician name/email..."
+                value={mergeQuery}
+                onChange={(e) => {
+                  setMergeQuery(e.target.value);
+                  setMergeTarget(null);
+                }}
+              />
+              <div className="mt-2 border border-gray-200 rounded-lg bg-white max-h-44 overflow-auto">
+                {mergeBusy ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">Searching…</div>
+                ) : mergeOptions.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-gray-500">No matches yet.</div>
+                ) : (
+                  mergeOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setMergeTarget(opt)}
+                      className={`w-full text-left px-3 py-2 border-b border-gray-100 last:border-b-0 ${
+                        Number(mergeTarget?.technician_profile_id) === Number(opt.technician_profile_id) ? 'bg-blue-50 text-blue-800' : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{opt.user_name || opt.email}</div>
+                      <div className="text-xs text-gray-500">Tech profile #{opt.technician_profile_id}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  disabled={mergeSaving || !mergeTarget}
+                  onClick={mergeTechnician}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {mergeSaving ? 'Merging…' : 'Merge into selected technician'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Past Reviews</h2>
             {ratings.length === 0 ? (
@@ -210,6 +320,13 @@ const TechnicianProfilePage = ({ user, onLogout }) => {
           email: profile?.user?.email || '',
           location: profile?.location || '',
         }}
+      />
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={() => setAlertModal((m) => ({ ...m, isOpen: false }))}
+        title={alertModal.title}
+        message={alertModal.message}
+        variant={alertModal.variant}
       />
     </div>
   );

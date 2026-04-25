@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { crmAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
+import { formatPhoneInput } from '../utils/phone';
 import {
   FaBuilding,
   FaChartLine,
@@ -47,6 +48,7 @@ const CRM_COMPANY_TYPES = [
 ];
 
 const CRM_IMPORT_HEADERS = ['name', 'contact_name', 'email', 'phone', 'website', 'company_types', 'status', 'notes'];
+const CRM_NOTE_CONTACT_METHODS = ['call', 'text', 'email', 'in_person', 'note'];
 
 const parseCsv = (text) => {
   const rows = [];
@@ -91,6 +93,13 @@ const formatCurrency = (cents) => {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 };
 
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString();
+};
+
 const CrmPage = ({ user, onLogout }) => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -130,6 +139,18 @@ const CrmPage = ({ user, onLogout }) => {
   const [companyHits, setCompanyHits] = useState([]);
   const [companySearchBusy, setCompanySearchBusy] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [newCompanyHits, setNewCompanyHits] = useState([]);
+  const [newCompanySearchBusy, setNewCompanySearchBusy] = useState(false);
+  const [crmNotes, setCrmNotes] = useState([]);
+  const [noteDraft, setNoteDraft] = useState({
+    id: null,
+    parent_note_id: null,
+    contact_method: 'note',
+    made_contact: false,
+    title: '',
+    body: '',
+  });
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -162,6 +183,7 @@ const CrmPage = ({ user, onLogout }) => {
     try {
       const res = await crmAPI.get(id);
       setDetail(res);
+      setCrmNotes(res.crm_notes || []);
       const c = res.crm_lead;
       setForm({
         name: c.name || '',
@@ -190,6 +212,7 @@ const CrmPage = ({ user, onLogout }) => {
   useEffect(() => {
     if (isCreating) {
       setDetail(null);
+      setCrmNotes([]);
       setForm({
         name: '',
         contact_name: '',
@@ -208,8 +231,13 @@ const CrmPage = ({ user, onLogout }) => {
     else {
       setDetail(null);
       setForm({});
+      setCrmNotes([]);
     }
   }, [selectedId, isCreating, loadDetail]);
+
+  useEffect(() => {
+    resetNoteDraft();
+  }, [selectedId, isCreating]);
 
   useEffect(() => {
     if (companySearchTimer.current) clearTimeout(companySearchTimer.current);
@@ -253,6 +281,31 @@ const CrmPage = ({ user, onLogout }) => {
     }, 300);
     return () => clearTimeout(companySearchTimer.current);
   }, [companySearchQ, provisionMode, provisionModalOpen]);
+
+  useEffect(() => {
+    if (!provisionModalOpen || provisionMode !== 'new') return undefined;
+    const q = provision.company_name?.trim() || '';
+    if (q.length < 2) {
+      setNewCompanyHits([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setNewCompanySearchBusy(true);
+      try {
+        const res = await crmAPI.searchCompanies(q);
+        if (!cancelled) setNewCompanyHits(res.companies || []);
+      } catch {
+        if (!cancelled) setNewCompanyHits([]);
+      } finally {
+        if (!cancelled) setNewCompanySearchBusy(false);
+      }
+    }, 280);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [provision.company_name, provisionMode, provisionModalOpen]);
 
   useEffect(() => {
     const modalOpen = provisionModalOpen || newCompanyModalOpen;
@@ -407,6 +460,7 @@ const CrmPage = ({ user, onLogout }) => {
       setCompanySearchQ('');
       setCompanyHits([]);
       setSelectedCompany(null);
+      setNewCompanyHits([]);
       setProvisionModalOpen(false);
       setAlertModal({
         isOpen: true,
@@ -524,6 +578,80 @@ const CrmPage = ({ user, onLogout }) => {
       });
     } finally {
       setImportBusy(false);
+    }
+  };
+
+  function resetNoteDraft() {
+    setNoteDraft({
+      id: null,
+      parent_note_id: null,
+      contact_method: 'note',
+      made_contact: false,
+      title: '',
+      body: '',
+    });
+  }
+
+  const startAddNote = () => {
+    resetNoteDraft();
+  };
+
+  const startReply = (parentNoteId) => {
+    setNoteDraft({
+      id: null,
+      parent_note_id: parentNoteId,
+      contact_method: 'note',
+      made_contact: false,
+      title: '',
+      body: '',
+    });
+  };
+
+  const startEditNote = (note) => {
+    setNoteDraft({
+      id: note.id,
+      parent_note_id: note.parent_note_id ?? null,
+      contact_method: note.contact_method || 'note',
+      made_contact: Boolean(note.made_contact),
+      title: note.title || '',
+      body: note.body || '',
+    });
+  };
+
+  const saveNote = async () => {
+    if (!selectedId) return;
+    if (!noteDraft.body?.trim()) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Note required',
+        message: 'Enter note details before saving.',
+        variant: 'error',
+      });
+      return;
+    }
+    setNoteSaving(true);
+    try {
+      const payload = {
+        contact_method: noteDraft.contact_method || 'note',
+        made_contact: Boolean(noteDraft.made_contact),
+        title: noteDraft.title?.trim() || undefined,
+        body: noteDraft.body.trim(),
+        parent_note_id: noteDraft.parent_note_id ?? undefined,
+      };
+      const res = noteDraft.id
+        ? await crmAPI.updateNote(selectedId, noteDraft.id, payload)
+        : await crmAPI.createNote(selectedId, payload);
+      setCrmNotes(res.crm_notes || []);
+      resetNoteDraft();
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not save note',
+        message: e.message || 'Save failed',
+        variant: 'error',
+      });
+    } finally {
+      setNoteSaving(false);
     }
   };
 
@@ -707,7 +835,7 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.phone ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
                     />
                   </label>
                   <label className="block sm:col-span-2">
@@ -823,6 +951,137 @@ const CrmPage = ({ user, onLogout }) => {
                     <FaTrash /> Delete record
                   </button>
                 </div>
+              </div>
+            )}
+
+            {selectedId && !isCreating && (
+              <div className="bg-white rounded-2xl shadow border border-gray-100 p-6">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Notes Timeline</h2>
+                  <button
+                    type="button"
+                    onClick={startAddNote}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                  >
+                    <FaPlus className="w-3.5 h-3.5" /> Add note
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4 bg-gray-50 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Type</span>
+                      <select
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm capitalize"
+                        value={noteDraft.contact_method}
+                        onChange={(e) => setNoteDraft((n) => ({ ...n, contact_method: e.target.value }))}
+                      >
+                        {CRM_NOTE_CONTACT_METHODS.map((method) => (
+                          <option key={method} value={method}>
+                            {method.replace(/_/g, ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block sm:col-span-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Title (optional)</span>
+                      <input
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        value={noteDraft.title}
+                        onChange={(e) => setNoteDraft((n) => ({ ...n, title: e.target.value }))}
+                        placeholder={noteDraft.parent_note_id ? 'Comment title' : 'Quick summary'}
+                      />
+                    </label>
+                    <label className="block sm:col-span-3">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Note details *</span>
+                      <textarea
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[96px]"
+                        value={noteDraft.body}
+                        onChange={(e) => setNoteDraft((n) => ({ ...n, body: e.target.value }))}
+                        placeholder={noteDraft.parent_note_id ? 'Add your follow-up comment...' : 'Enter call/email/text/in-person details...'}
+                      />
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 sm:col-span-3">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(noteDraft.made_contact)}
+                        onChange={(e) => setNoteDraft((n) => ({ ...n, made_contact: e.target.checked }))}
+                      />
+                      I made contact
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={noteSaving}
+                      onClick={saveNote}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+                    >
+                      {noteSaving ? 'Saving…' : noteDraft.id ? 'Update note' : noteDraft.parent_note_id ? 'Save comment' : 'Save note'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={noteSaving}
+                      onClick={resetNoteDraft}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 text-sm font-medium disabled:opacity-50"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {crmNotes.length === 0 ? (
+                  <p className="text-sm text-gray-500">No notes yet. Click "Add note" to log the first activity.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {crmNotes.map((note) => {
+                      const wasEdited = note.updated_at && note.created_at && new Date(note.updated_at).getTime() > new Date(note.created_at).getTime();
+                      return (
+                        <div key={note.id} className="rounded-xl border border-gray-200 bg-white p-4">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            <span className="capitalize px-2 py-0.5 rounded bg-gray-100 text-gray-700">{(note.contact_method || 'note').replace(/_/g, ' ')}</span>
+                            <span>{note.made_contact ? 'Contact made' : 'No contact made'}</span>
+                            <span>Posted {formatDateTime(note.created_at)}</span>
+                            {wasEdited && <span className="text-amber-700">Updated {formatDateTime(note.updated_at)}</span>}
+                          </div>
+                          {note.title && <h4 className="mt-2 font-semibold text-gray-900">{note.title}</h4>}
+                          <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{note.body}</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => startEditNote(note)} className="text-xs text-blue-700 hover:underline">
+                              Edit
+                            </button>
+                            <button type="button" onClick={() => startReply(note.id)} className="text-xs text-indigo-700 hover:underline">
+                              Comment
+                            </button>
+                          </div>
+
+                          {(note.comments || []).length > 0 && (
+                            <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
+                              {note.comments.map((comment) => {
+                                const commentEdited = comment.updated_at && comment.created_at && new Date(comment.updated_at).getTime() > new Date(comment.created_at).getTime();
+                                return (
+                                  <div key={comment.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                                      <span className="capitalize px-2 py-0.5 rounded bg-white text-gray-700">{(comment.contact_method || 'note').replace(/_/g, ' ')}</span>
+                                      <span>{comment.made_contact ? 'Contact made' : 'No contact made'}</span>
+                                      <span>Posted {formatDateTime(comment.created_at)}</span>
+                                      {commentEdited && <span className="text-amber-700">Updated {formatDateTime(comment.updated_at)}</span>}
+                                    </div>
+                                    {comment.title && <h5 className="mt-1 font-medium text-gray-900">{comment.title}</h5>}
+                                    <p className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.body}</p>
+                                    <button type="button" onClick={() => startEditNote(comment)} className="mt-2 text-xs text-blue-700 hover:underline">
+                                      Edit comment
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1053,6 +1312,7 @@ const CrmPage = ({ user, onLogout }) => {
                         onClick={() => {
                           setProvisionMode('new');
                           setSelectedCompany(null);
+                          setNewCompanyHits([]);
                         }}
                         className={`px-3 py-2 rounded-lg text-sm font-medium border ${
                           provisionMode === 'new' ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-700'
@@ -1108,7 +1368,7 @@ const CrmPage = ({ user, onLogout }) => {
                       required
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={provision.phone}
-                      onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
+                      onChange={(e) => setProvision((p) => ({ ...p, phone: formatPhoneInput(e.target.value) }))}
                     />
                   </label>
                   {provisionMode === 'existing' && (
@@ -1164,6 +1424,30 @@ const CrmPage = ({ user, onLogout }) => {
                       onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
                       placeholder="Registered business or DBA"
                     />
+                    <div className="mt-2 border border-gray-200 rounded-lg max-h-40 overflow-auto bg-white">
+                      {newCompanySearchBusy ? (
+                        <div className="px-3 py-2 text-xs text-gray-500">Checking for possible duplicates…</div>
+                      ) : newCompanyHits.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-gray-500">No likely duplicates found.</div>
+                      ) : (
+                        newCompanyHits.map((cp) => (
+                          <button
+                            key={cp.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-amber-50"
+                            onClick={() => {
+                              setProvisionMode('existing');
+                              setSelectedCompany(cp);
+                              setCompanySearchQ(cp.company_name || `Company #${cp.id}`);
+                              setCompanyHits([]);
+                            }}
+                          >
+                            <div className="text-sm font-medium text-gray-900">{cp.company_name || `Company #${cp.id}`}</div>
+                            <div className="text-xs text-amber-700">Possible duplicate - {cp.company_users_count || 0} login account(s)</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </label>
                   <label className="block">
                     <span className="text-xs font-medium text-gray-500 uppercase">Industry</span>
@@ -1296,7 +1580,7 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.phone ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
                     />
                   </label>
                   <label className="block sm:col-span-2">

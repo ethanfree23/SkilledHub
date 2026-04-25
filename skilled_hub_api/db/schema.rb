@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_25_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_25_125500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -96,6 +96,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_25_121000) do
     t.index ["linked_company_profile_id"], name: "index_crm_leads_on_linked_company_profile_id"
     t.index ["linked_user_id"], name: "index_crm_leads_on_linked_user_id"
     t.index ["status"], name: "index_crm_leads_on_status"
+  end
+
+  create_table "crm_notes", force: :cascade do |t|
+    t.integer "crm_lead_id", null: false
+    t.integer "parent_note_id"
+    t.string "contact_method", default: "note", null: false
+    t.string "title"
+    t.text "body", null: false
+    t.boolean "made_contact", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["crm_lead_id", "created_at"], name: "index_crm_notes_on_crm_lead_id_and_created_at"
+    t.index ["crm_lead_id"], name: "index_crm_notes_on_crm_lead_id"
+    t.index ["parent_note_id"], name: "index_crm_notes_on_parent_note_id"
   end
 
   create_table "documents", force: :cascade do |t|
@@ -357,6 +371,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_25_121000) do
   add_foreign_key "conversations", "technician_profiles"
   add_foreign_key "crm_leads", "company_profiles", column: "linked_company_profile_id"
   add_foreign_key "crm_leads", "users", column: "linked_user_id"
+  add_foreign_key "crm_notes", "crm_leads"
+  add_foreign_key "crm_notes", "crm_notes", column: "parent_note_id"
   add_foreign_key "favorite_technicians", "company_profiles"
   add_foreign_key "favorite_technicians", "technician_profiles"
   add_foreign_key "feedback_submissions", "users"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AlertModal from './AlertModal';
 import { referralsAPI } from '../api/api';
+import { formatPhoneInput } from '../utils/phone';
 
 const EMPTY_FORM = {
   first_name: '',
@@ -64,7 +65,7 @@ export default function ReferralModal({ isOpen, onClose, prefill = {}, triggerLa
             </label>
             <label className="block">
               <span className="text-xs font-medium text-gray-500 uppercase">Cell phone</span>
-              <input className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={form.cell_phone} onChange={(e) => update('cell_phone', e.target.value)} />
+              <input className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value={form.cell_phone} onChange={(e) => update('cell_phone', formatPhoneInput(e.target.value))} />
             </label>
             <label className="block">
               <span className="text-xs font-medium text-gray-500 uppercase">Type *</span>

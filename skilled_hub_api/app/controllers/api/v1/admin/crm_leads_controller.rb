@@ -16,6 +16,7 @@ module Api
         def show
           payload = { crm_lead: lead_json(@lead) }
           append_linked_payload(payload, @lead)
+          payload[:crm_notes] = crm_notes_payload(@lead)
           render json: payload, status: :ok
         end
 
@@ -116,6 +117,35 @@ module Api
             updated_at: lead.updated_at,
             linked_account: linked_account_json(lu, linked_profile)
           }
+        end
+
+        def crm_notes_payload(lead)
+          lead.crm_notes.where(parent_note_id: nil).order(created_at: :asc).map do |note|
+            {
+              id: note.id,
+              crm_lead_id: note.crm_lead_id,
+              parent_note_id: note.parent_note_id,
+              contact_method: note.contact_method,
+              title: note.title,
+              body: note.body,
+              made_contact: note.made_contact,
+              created_at: note.created_at,
+              updated_at: note.updated_at,
+              comments: note.comments.order(created_at: :asc).map do |comment|
+                {
+                  id: comment.id,
+                  crm_lead_id: comment.crm_lead_id,
+                  parent_note_id: comment.parent_note_id,
+                  contact_method: comment.contact_method,
+                  title: comment.title,
+                  body: comment.body,
+                  made_contact: comment.made_contact,
+                  created_at: comment.created_at,
+                  updated_at: comment.updated_at
+                }
+              end
+            }
+          end
         end
 
         def linked_account_json(user, company_profile)
