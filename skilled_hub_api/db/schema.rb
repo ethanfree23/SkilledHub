@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_25_125500) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_25_203500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -93,6 +93,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_25_125500) do
     t.datetime "updated_at", null: false
     t.integer "linked_company_profile_id"
     t.json "company_types", default: [], null: false
+    t.string "street_address"
+    t.string "city"
+    t.string "state"
+    t.string "zip"
+    t.string "instagram_url"
+    t.string "facebook_url"
+    t.string "linkedin_url"
+    t.json "contacts", default: [], null: false
     t.index ["linked_company_profile_id"], name: "index_crm_leads_on_linked_company_profile_id"
     t.index ["linked_user_id"], name: "index_crm_leads_on_linked_user_id"
     t.index ["status"], name: "index_crm_leads_on_status"

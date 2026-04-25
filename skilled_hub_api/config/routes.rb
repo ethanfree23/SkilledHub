@@ -98,6 +98,7 @@ Rails.application.routes.draw do
         resources :crm_leads, only: %i[index show create update destroy] do
           collection do
             post :import
+            post :bulk_destroy
           end
           resources :crm_notes, only: %i[create update]
         end

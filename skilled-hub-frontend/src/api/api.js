@@ -148,6 +148,11 @@ export const crmAPI = {
       method: 'POST',
       body: JSON.stringify({ rows }),
     }),
+  bulkDelete: (ids) =>
+    apiRequest('/admin/crm_leads/bulk_destroy', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
   createNote: (crmLeadId, data) =>
     apiRequest(`/admin/crm_leads/${crmLeadId}/crm_notes`, {
       method: 'POST',

@@ -26,8 +26,10 @@ class CrmLead < ApplicationRecord
   validate :company_types_must_be_supported
 
   validate :linked_target_must_be_company
+  validate :contacts_must_be_supported
 
   before_validation :normalize_company_types!
+  before_validation :normalize_contacts!
 
   private
 
@@ -72,6 +74,24 @@ class CrmLead < ApplicationRecord
     errors.add(:company_types, "contains unsupported values: #{invalid.join(', ')}")
   end
 
+  def contacts_must_be_supported
+    return if contacts.blank?
+    unless contacts.is_a?(Array)
+      errors.add(:contacts, "must be an array")
+      return
+    end
+
+    contacts.each_with_index do |contact, idx|
+      unless contact.is_a?(Hash)
+        errors.add(:contacts, "entry #{idx + 1} must be an object")
+        next
+      end
+
+      unsupported = contact.keys.map(&:to_s) - %w[name email phone]
+      errors.add(:contacts, "entry #{idx + 1} has unsupported keys: #{unsupported.join(', ')}") if unsupported.any?
+    end
+  end
+
   def normalize_company_types!
     normalized =
       case company_types
@@ -84,5 +104,31 @@ class CrmLead < ApplicationRecord
       end
 
     self.company_types = normalized.map { |v| v.to_s.strip.downcase }.reject(&:blank?).uniq
+  end
+
+  def normalize_contacts!
+    normalized =
+      case contacts
+      when String
+        begin
+          JSON.parse(contacts)
+        rescue JSON::ParserError
+          []
+        end
+      when Array
+        contacts
+      else
+        []
+      end
+
+    self.contacts = normalized.filter_map do |entry|
+      hash = entry.respond_to?(:to_h) ? entry.to_h : {}
+      name = hash["name"].to_s.strip.presence || hash[:name].to_s.strip.presence
+      email = hash["email"].to_s.strip.presence || hash[:email].to_s.strip.presence
+      phone = hash["phone"].to_s.strip.presence || hash[:phone].to_s.strip.presence
+      next if name.blank? && email.blank? && phone.blank?
+
+      { name: name, email: email, phone: phone }.compact
+    end
   end
 end

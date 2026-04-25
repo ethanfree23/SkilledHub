@@ -72,6 +72,24 @@ const formatDateTime = (value) => {
   return d.toLocaleString();
 };
 
+const normalizeContactEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  const name = String(entry.name || '').trim();
+  const email = String(entry.email || '').trim();
+  const phone = formatPhoneInput(String(entry.phone || '').trim());
+  if (!name && !email && !phone) return null;
+  return { name, email, phone };
+};
+
+const normalizeContacts = (contacts, fallback = null) => {
+  const normalized = Array.isArray(contacts)
+    ? contacts.map((entry) => normalizeContactEntry(entry)).filter(Boolean)
+    : [];
+  if (normalized.length > 0) return normalized;
+  const fallbackNormalized = normalizeContactEntry(fallback);
+  return fallbackNormalized ? [fallbackNormalized] : [];
+};
+
 const CrmPage = ({ user, onLogout }) => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +112,7 @@ const CrmPage = ({ user, onLogout }) => {
   const [importSummary, setImportSummary] = useState(null);
   const [pasteImportText, setPasteImportText] = useState('');
   const [importDraftRows, setImportDraftRows] = useState([]);
+  const [importRowFilter, setImportRowFilter] = useState('all');
 
   const [provision, setProvision] = useState({
     email: '',
@@ -119,6 +138,7 @@ const CrmPage = ({ user, onLogout }) => {
   const [noteDraft, setNoteDraft] = useState(emptyNoteDraft());
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteComposerOpen, setNoteComposerOpen] = useState(false);
+  const [isRecordEditing, setIsRecordEditing] = useState(false);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -153,12 +173,26 @@ const CrmPage = ({ user, onLogout }) => {
       setDetail(res);
       setCrmNotes(res.crm_notes || []);
       const c = res.crm_lead;
-      setForm({
-        name: c.name || '',
-        contact_name: c.contact_name || '',
+      const contacts = normalizeContacts(c.contacts, {
+        name: c.contact_name || '',
         email: c.email || '',
         phone: c.phone || '',
+      });
+      const primaryContact = contacts[0] || { name: '', email: '', phone: '' };
+      setForm({
+        name: c.name || '',
+        contact_name: primaryContact.name || '',
+        email: primaryContact.email || '',
+        phone: primaryContact.phone || '',
+        contacts,
         website: c.website || '',
+        street_address: c.street_address || '',
+        city: c.city || '',
+        state: c.state || '',
+        zip: c.zip || '',
+        instagram_url: c.instagram_url || '',
+        facebook_url: c.facebook_url || '',
+        linkedin_url: c.linkedin_url || '',
         company_types: c.company_types || [],
         status: c.status || 'lead',
         notes: c.notes || '',
@@ -186,7 +220,15 @@ const CrmPage = ({ user, onLogout }) => {
         contact_name: '',
         email: '',
         phone: '',
+        contacts: [],
         website: '',
+        street_address: '',
+        city: '',
+        state: '',
+        zip: '',
+        instagram_url: '',
+        facebook_url: '',
+        linkedin_url: '',
         company_types: [],
         status: 'lead',
         notes: '',
@@ -206,6 +248,10 @@ const CrmPage = ({ user, onLogout }) => {
   useEffect(() => {
     resetNoteDraft();
     setNoteComposerOpen(false);
+  }, [selectedId, isCreating]);
+
+  useEffect(() => {
+    if (!isCreating) setIsRecordEditing(false);
   }, [selectedId, isCreating]);
 
   useEffect(() => {
@@ -309,12 +355,26 @@ const CrmPage = ({ user, onLogout }) => {
   };
 
   const saveRecord = async () => {
+    const normalizedContacts = normalizeContacts(form.contacts, {
+      name: form.contact_name || '',
+      email: form.email || '',
+      phone: form.phone || '',
+    });
+    const primaryContact = normalizedContacts[0] || {};
     const payload = {
       name: form.name?.trim(),
-      contact_name: form.contact_name?.trim() || undefined,
-      email: form.email?.trim() || undefined,
-      phone: form.phone?.trim() || undefined,
+      contact_name: (primaryContact.name || form.contact_name || '').trim() || undefined,
+      email: (primaryContact.email || form.email || '').trim() || undefined,
+      phone: formatPhoneInput((primaryContact.phone || form.phone || '').trim()) || undefined,
+      contacts: normalizedContacts,
       website: form.website?.trim() || undefined,
+      street_address: form.street_address?.trim() || undefined,
+      city: form.city?.trim() || undefined,
+      state: form.state?.trim() || undefined,
+      zip: form.zip?.trim() || undefined,
+      instagram_url: form.instagram_url?.trim() || undefined,
+      facebook_url: form.facebook_url?.trim() || undefined,
+      linkedin_url: form.linkedin_url?.trim() || undefined,
       company_types: form.company_types || [],
       status: form.status || 'lead',
       notes: form.notes || undefined,
@@ -343,6 +403,7 @@ const CrmPage = ({ user, onLogout }) => {
         const res = await crmAPI.update(selectedId, payload);
         setDetail(res);
         await loadList();
+        setIsRecordEditing(false);
       }
     } catch (e) {
       setAlertModal({
@@ -476,6 +537,150 @@ const CrmPage = ({ user, onLogout }) => {
     });
   };
 
+  const updatePrimaryContactField = (field, value) => {
+    setForm((f) => {
+      const contacts = normalizeContacts(f.contacts, {
+        name: f.contact_name || '',
+        email: f.email || '',
+        phone: f.phone || '',
+      });
+      const first = contacts[0] || { name: '', email: '', phone: '' };
+      const formattedValue = field === 'phone' ? formatPhoneInput(value) : value;
+      const nextContacts = [{ ...first, [field]: formattedValue }, ...contacts.slice(1)];
+      return {
+        ...f,
+        contacts: nextContacts,
+        contact_name: field === 'name' ? formattedValue : f.contact_name,
+        email: field === 'email' ? formattedValue : f.email,
+        phone: field === 'phone' ? formattedValue : f.phone,
+      };
+    });
+  };
+
+  const addAdditionalContact = () => {
+    setForm((f) => {
+      const contacts = normalizeContacts(f.contacts, {
+        name: f.contact_name || '',
+        email: f.email || '',
+        phone: f.phone || '',
+      });
+      const baseContacts = contacts.length > 0 ? contacts : [{ name: '', email: '', phone: '' }];
+      return { ...f, contacts: [...baseContacts, { name: '', email: '', phone: '' }] };
+    });
+  };
+
+  const updateAdditionalContactField = (contactIdx, field, value) => {
+    setForm((f) => {
+      const contacts = normalizeContacts(f.contacts, {
+        name: f.contact_name || '',
+        email: f.email || '',
+        phone: f.phone || '',
+      });
+      if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
+      const formattedValue = field === 'phone' ? formatPhoneInput(value) : value;
+      const nextContacts = contacts.map((contact, idx) =>
+        idx === contactIdx ? { ...contact, [field]: formattedValue } : contact,
+      );
+      return { ...f, contacts: nextContacts };
+    });
+  };
+
+  const removeAdditionalContact = (contactIdx) => {
+    setForm((f) => {
+      const contacts = normalizeContacts(f.contacts, {
+        name: f.contact_name || '',
+        email: f.email || '',
+        phone: f.phone || '',
+      });
+      if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
+      return { ...f, contacts: contacts.filter((_, idx) => idx !== contactIdx) };
+    });
+  };
+
+  const normalizeMatchValue = (value) => String(value || '').trim().toLowerCase();
+
+  const normalizePhoneMatch = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  };
+
+  const normalizeWebsiteMatch = (value) => {
+    const normalized = normalizeMatchValue(value);
+    if (!normalized) return '';
+    return normalized.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+  };
+
+  const buildRowSignatures = (row) => {
+    const signatures = [];
+    const name = normalizeMatchValue(row.name);
+    const email = normalizeMatchValue(row.email);
+    const phone = normalizePhoneMatch(row.phone);
+    const website = normalizeWebsiteMatch(row.website);
+    if (name) signatures.push({ key: `name:${name}`, label: 'name' });
+    if (email) signatures.push({ key: `email:${email}`, label: 'email' });
+    if (phone) signatures.push({ key: `phone:${phone}`, label: 'phone' });
+    if (website) signatures.push({ key: `website:${website}`, label: 'website' });
+    return signatures;
+  };
+
+  const withDuplicateMetadata = useCallback((rows) => {
+    if (!rows.length) return [];
+
+    const crmSignatureMap = new Map();
+    leads.forEach((lead) => {
+      buildRowSignatures(lead).forEach((sig) => {
+        const entries = crmSignatureMap.get(sig.key) || [];
+        entries.push(sig.label);
+        crmSignatureMap.set(sig.key, entries);
+      });
+    });
+
+    const batchSignatureMap = new Map();
+    rows.forEach((row, idx) => {
+      buildRowSignatures(row).forEach((sig) => {
+        const entries = batchSignatureMap.get(sig.key) || [];
+        entries.push(idx);
+        batchSignatureMap.set(sig.key, entries);
+      });
+    });
+
+    return rows.map((row) => {
+      const duplicateReasons = [];
+      buildRowSignatures(row).forEach((sig) => {
+        const batchHits = batchSignatureMap.get(sig.key) || [];
+        if (batchHits.length > 1) {
+          duplicateReasons.push(`Duplicate ${sig.label} in this import list`);
+        }
+        if (crmSignatureMap.has(sig.key)) {
+          duplicateReasons.push(`Matches existing CRM record by ${sig.label}`);
+        }
+      });
+
+      const isDuplicate = duplicateReasons.length > 0;
+      return {
+        ...row,
+        _isDuplicate: isDuplicate,
+        _duplicateReasons: [...new Set(duplicateReasons)],
+        _duplicateVerified: isDuplicate ? Boolean(row._duplicateVerified) : false,
+      };
+    });
+  }, [leads]);
+
+  const setImportRowsWithDuplicateMetadata = useCallback(
+    (nextRowsOrUpdater) => {
+      setImportDraftRows((prevRows) => {
+        const nextRows = typeof nextRowsOrUpdater === 'function' ? nextRowsOrUpdater(prevRows) : nextRowsOrUpdater;
+        return withDuplicateMetadata(nextRows);
+      });
+    },
+    [withDuplicateMetadata],
+  );
+
+  useEffect(() => {
+    setImportDraftRows((rows) => withDuplicateMetadata(rows));
+  }, [withDuplicateMetadata]);
+
   const importRows = async (rows) => {
     if (!rows.length) {
       setAlertModal({
@@ -494,6 +699,7 @@ const CrmPage = ({ user, onLogout }) => {
         importedCount: res.imported_count || 0,
         failedCount: res.failed_count || 0,
         errors: res.errors || [],
+        importedLeadIds: (res.crm_leads || []).map((lead) => lead.id).filter(Boolean),
       });
       await loadList();
       setAlertModal({
@@ -502,6 +708,7 @@ const CrmPage = ({ user, onLogout }) => {
         message: `Imported ${res.imported_count || 0} rows. Failed ${res.failed_count || 0}.`,
         variant: (res.failed_count || 0) > 0 ? 'error' : 'success',
       });
+      return res;
     } catch (e) {
       setAlertModal({
         isOpen: true,
@@ -509,6 +716,7 @@ const CrmPage = ({ user, onLogout }) => {
         message: e.message || 'Could not import CSV',
         variant: 'error',
       });
+      return null;
     } finally {
       setImportBusy(false);
     }
@@ -531,7 +739,7 @@ const CrmPage = ({ user, onLogout }) => {
       });
       return;
     }
-    setImportDraftRows(draft);
+    setImportRowsWithDuplicateMetadata(draft);
     setImportSummary(null);
   };
 
@@ -555,26 +763,26 @@ const CrmPage = ({ user, onLogout }) => {
       });
       return;
     }
-    setImportDraftRows(draft);
+    setImportRowsWithDuplicateMetadata(draft);
     setImportSummary(null);
   };
 
   const updateDraftRow = (idx, key, value) => {
-    setImportDraftRows((rows) =>
+    setImportRowsWithDuplicateMetadata((rows) =>
       rows.map((row, i) => {
         if (i !== idx) return row;
         const updated = makeDraftRow({ ...row, [key]: value }, row._rowNum - 1, CRM_STATUSES, CRM_COMPANY_TYPES);
-        return { ...updated, _rowNum: row._rowNum };
+        return { ...updated, _rowNum: row._rowNum, _duplicateVerified: row._duplicateVerified };
       }),
     );
   };
 
   const removeDraftRow = (idx) => {
-    setImportDraftRows((rows) => rows.filter((_, i) => i !== idx));
+    setImportRowsWithDuplicateMetadata((rows) => rows.filter((_, i) => i !== idx));
   };
 
   const autoFixDraftRows = () => {
-    setImportDraftRows((rows) => autoFixImportDraftRows(rows, CRM_STATUSES, CRM_COMPANY_TYPES));
+    setImportRowsWithDuplicateMetadata((rows) => autoFixImportDraftRows(rows, CRM_STATUSES, CRM_COMPANY_TYPES));
   };
 
   const importCleanedRows = async () => {
@@ -599,8 +807,90 @@ const CrmPage = ({ user, onLogout }) => {
       return;
     }
 
-    const rows = importDraftRows.map(({ _errors, _rowNum, ...row }) => row).filter((r) => r.name);
-    await importRows(rows);
+    const unverifiedDuplicateCount = importDraftRows.filter((r) => r._isDuplicate && !r._duplicateVerified).length;
+    if (unverifiedDuplicateCount > 0) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Review duplicate rows first',
+        message:
+          `${unverifiedDuplicateCount} duplicate row(s) still need verification. Verify in-line or filter to "Unverified duplicates" and review those rows first.`,
+        variant: 'error',
+      });
+      return;
+    }
+
+    const submitRows = [];
+    const submitDraftIndexes = [];
+    importDraftRows.forEach((row, draftIdx) => {
+      if (!row.name) return;
+      const payload = { ...row };
+      delete payload._errors;
+      delete payload._rowNum;
+      delete payload._isDuplicate;
+      delete payload._duplicateReasons;
+      delete payload._duplicateVerified;
+      submitRows.push(payload);
+      submitDraftIndexes.push(draftIdx);
+    });
+
+    const result = await importRows(submitRows);
+    if (!result) return;
+
+    const failedRowNumbers = new Set((result.errors || []).map((err) => Number(err.row)).filter((n) => Number.isFinite(n) && n > 0));
+    const importedDraftIndexes = submitDraftIndexes.filter((_, submitIdx) => !failedRowNumbers.has(submitIdx + 1));
+    if (importedDraftIndexes.length > 0) {
+      const importedSet = new Set(importedDraftIndexes);
+      setImportRowsWithDuplicateMetadata((rows) => rows.filter((_, idx) => !importedSet.has(idx)));
+    }
+  };
+
+  const undoImportedRows = async () => {
+    const importedLeadIds = importSummary?.importedLeadIds || [];
+    if (!importedLeadIds.length) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Nothing to undo',
+        message: 'No imported CRM records are available for rollback in this session.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (!window.confirm(`Undo last import by deleting ${importedLeadIds.length} imported CRM record(s)?`)) return;
+
+    setImportBusy(true);
+    try {
+      const res = await crmAPI.bulkDelete(importedLeadIds);
+      await loadList();
+      setImportSummary((prev) => ({
+        ...(prev || {}),
+        importedLeadIds: [],
+        importedCount: 0,
+        undoResult: {
+          deletedCount: res?.deleted_count || 0,
+          requestedCount: res?.requested_count || importedLeadIds.length,
+          alreadyRemovedCount: (res?.not_found_ids || []).length,
+        },
+      }));
+      const alreadyRemovedCount = (res?.not_found_ids || []).length;
+      setAlertModal({
+        isOpen: true,
+        title: 'Import rollback complete',
+        message:
+          alreadyRemovedCount > 0
+            ? `Deleted ${res?.deleted_count || 0} CRM record(s). ${alreadyRemovedCount} were already removed earlier, so they were skipped automatically.`
+            : `Deleted ${res?.deleted_count || 0} CRM record(s) from the last import batch.`,
+        variant: 'success',
+      });
+    } catch (e) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not undo import',
+        message: e.message || 'Rollback failed',
+        variant: 'error',
+      });
+    } finally {
+      setImportBusy(false);
+    }
   };
 
   function resetNoteDraft() {
@@ -690,6 +980,7 @@ const CrmPage = ({ user, onLogout }) => {
                 setImportSummary(null);
                 setPasteImportText('');
                 setImportDraftRows([]);
+                setImportRowFilter('all');
                 setImportModalOpen(true);
               }}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 shadow-sm"
@@ -793,7 +1084,32 @@ const CrmPage = ({ user, onLogout }) => {
 
             {selectedId && !isCreating && (
               <div className="bg-white rounded-2xl shadow border border-gray-100 p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit record</h2>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold text-gray-900">Edit record</h2>
+                  <div className="flex items-center gap-2">
+                    {isRecordEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRecordEditing(false);
+                          if (selectedId) loadDetail(selectedId);
+                        }}
+                        className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsRecordEditing((v) => !v)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                        isRecordEditing ? 'bg-gray-800 text-white hover:bg-gray-900' : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {isRecordEditing ? 'DONE' : 'EDIT'}
+                    </button>
+                  </div>
+                </div>
                 {detailLoading && (
                   <p className="text-sm text-gray-500 mb-4">Loading details…</p>
                 )}
@@ -804,6 +1120,7 @@ const CrmPage = ({ user, onLogout }) => {
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.name ?? ''}
                       onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
                   <label className="block">
@@ -811,7 +1128,8 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.contact_name ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                      onChange={(e) => updatePrimaryContactField('name', e.target.value)}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
                   <label className="block">
@@ -820,6 +1138,7 @@ const CrmPage = ({ user, onLogout }) => {
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm capitalize"
                       value={form.status ?? 'lead'}
                       onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                      disabled={!isRecordEditing}
                     >
                       {CRM_STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -834,7 +1153,8 @@ const CrmPage = ({ user, onLogout }) => {
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       type="email"
                       value={form.email ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                      onChange={(e) => updatePrimaryContactField('email', e.target.value)}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
                   <label className="block">
@@ -842,15 +1162,137 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.phone ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
+                      onChange={(e) => updatePrimaryContactField('phone', e.target.value)}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
+                  <div className="block sm:col-span-2 rounded-lg border border-gray-200 p-3 bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
+                      <button
+                        type="button"
+                        disabled={!isRecordEditing}
+                        onClick={addAdditionalContact}
+                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Add contact
+                      </button>
+                    </div>
+                    {normalizeContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
+                      .slice(1)
+                      .map((contact, idx) => {
+                        const contactIndex = idx + 1;
+                        return (
+                          <div key={`extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <input
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Name"
+                              value={contact.name || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'name', e.target.value)}
+                              readOnly={!isRecordEditing}
+                            />
+                            <input
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Email"
+                              value={contact.email || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'email', e.target.value)}
+                              readOnly={!isRecordEditing}
+                            />
+                            <div className="flex gap-2">
+                              <input
+                                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                placeholder="Phone"
+                                value={contact.phone || ''}
+                                onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
+                                readOnly={!isRecordEditing}
+                              />
+                              <button
+                                type="button"
+                                disabled={!isRecordEditing}
+                                onClick={() => removeAdditionalContact(contactIndex)}
+                                className="px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {normalizeContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
+                      <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
+                    )}
+                  </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Website</span>
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.website ?? ''}
                       onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Street address</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.street_address ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, street_address: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">City</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.city ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">State</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.state ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">ZIP</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.zip ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <div className="hidden sm:block" aria-hidden />
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Instagram URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.instagram_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, instagram_url: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Facebook URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.facebook_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, facebook_url: e.target.value }))}
+                      readOnly={!isRecordEditing}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">LinkedIn URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.linkedin_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
                   <div className="block sm:col-span-2">
@@ -862,6 +1304,7 @@ const CrmPage = ({ user, onLogout }) => {
                           <button
                             key={type}
                             type="button"
+                            disabled={!isRecordEditing}
                             onClick={() => toggleCompanyType(type)}
                             className={`px-2.5 py-1 rounded-full border text-xs capitalize ${
                               active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
@@ -879,6 +1322,7 @@ const CrmPage = ({ user, onLogout }) => {
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm min-h-[88px]"
                       value={form.notes ?? ''}
                       onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                      readOnly={!isRecordEditing}
                     />
                   </label>
                 </div>
@@ -899,6 +1343,7 @@ const CrmPage = ({ user, onLogout }) => {
                         placeholder="Type at least 2 characters of email…"
                         value={searchQ}
                         onChange={(e) => setSearchQ(e.target.value)}
+                        readOnly={!isRecordEditing}
                       />
                       {searchBusy && <span className="text-xs text-gray-400">Searching…</span>}
                     </div>
@@ -944,11 +1389,11 @@ const CrmPage = ({ user, onLogout }) => {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={saving || !isRecordEditing}
                     onClick={saveRecord}
                     className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
                   >
-                    {saving ? 'Saving…' : 'Save'}
+                    {saving ? 'Saving…' : isRecordEditing ? 'Save' : 'Enable EDIT to save'}
                   </button>
                   <button
                     type="button"
@@ -1239,6 +1684,7 @@ const CrmPage = ({ user, onLogout }) => {
               <div className="overflow-y-auto px-6 py-5 space-y-4">
                 <p className="text-sm text-gray-600">
                   Build your list in Excel/Google Sheets or paste raw rows, then review and fix data before importing.
+                  Rows for the same company are consolidated into one CRM company record.
                 </p>
                 <code className="block p-3 rounded-lg bg-gray-100 text-xs text-gray-800 break-words">
                   name,contact_name,email,phone,website,company_types,status,notes
@@ -1249,6 +1695,10 @@ const CrmPage = ({ user, onLogout }) => {
                 <p className="text-xs text-gray-500">
                   company_types can include multiple values separated by pipe/comma/semicolon (example:
                   hvac|plumbing|electrical).
+                </p>
+                <p className="text-xs text-gray-500">
+                  If the same company appears on multiple rows with different contacts, the first contact stays as the
+                  primary contact and additional contacts are saved in notes.
                 </p>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-500 uppercase">CSV file</span>
@@ -1299,9 +1749,21 @@ const CrmPage = ({ user, onLogout }) => {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-medium text-gray-900">
                         Parsed rows: {importDraftRows.length} | Issues:{' '}
-                        {importDraftRows.reduce((sum, r) => sum + (r._errors?.length || 0), 0)}
+                        {importDraftRows.reduce((sum, r) => sum + (r._errors?.length || 0), 0)} | Duplicates:{' '}
+                        {importDraftRows.filter((r) => r._isDuplicate).length} | Unverified duplicates:{' '}
+                        {importDraftRows.filter((r) => r._isDuplicate && !r._duplicateVerified).length}
                       </p>
                       <div className="flex flex-wrap gap-2">
+                        <select
+                          value={importRowFilter}
+                          onChange={(e) => setImportRowFilter(e.target.value)}
+                          className="px-2 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 bg-white"
+                        >
+                          <option value="all">Show all rows</option>
+                          <option value="duplicates">Show duplicates only</option>
+                          <option value="duplicates_unverified">Unverified duplicates</option>
+                          <option value="clean">Show non-duplicates only</option>
+                        </select>
                         <button
                           type="button"
                           onClick={autoFixDraftRows}
@@ -1336,7 +1798,15 @@ const CrmPage = ({ user, onLogout }) => {
                           </tr>
                         </thead>
                         <tbody>
-                          {importDraftRows.map((row, idx) => (
+                          {importDraftRows
+                            .map((row, idx) => ({ row, idx }))
+                            .filter(({ row }) => {
+                              if (importRowFilter === 'duplicates') return row._isDuplicate;
+                              if (importRowFilter === 'duplicates_unverified') return row._isDuplicate && !row._duplicateVerified;
+                              if (importRowFilter === 'clean') return !row._isDuplicate;
+                              return true;
+                            })
+                            .map(({ row, idx }) => (
                             <tr key={`${row._rowNum}-${idx}`} className="border-t border-gray-100 align-top">
                               <td className="px-2 py-1 text-gray-500">{row._rowNum}</td>
                               <td className="px-2 py-1"><input className="w-36 border rounded px-1 py-0.5" value={row.name} onChange={(e) => updateDraftRow(idx, 'name', e.target.value)} /></td>
@@ -1352,6 +1822,24 @@ const CrmPage = ({ user, onLogout }) => {
                               <td className="px-2 py-1"><input className="w-48 border rounded px-1 py-0.5" value={row.notes} onChange={(e) => updateDraftRow(idx, 'notes', e.target.value)} /></td>
                               <td className="px-2 py-1">
                                 <button type="button" onClick={() => removeDraftRow(idx)} className="text-red-700 hover:underline">Remove</button>
+                                {row._isDuplicate && (
+                                  <div className="mt-1 space-y-1">
+                                    <div className="text-amber-700 whitespace-pre-wrap">{row._duplicateReasons.join('; ')}</div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setImportRowsWithDuplicateMetadata((rows) =>
+                                          rows.map((draftRow, rowIdx) =>
+                                            rowIdx === idx ? { ...draftRow, _duplicateVerified: !draftRow._duplicateVerified } : draftRow,
+                                          ),
+                                        );
+                                      }}
+                                      className={`hover:underline ${row._duplicateVerified ? 'text-emerald-700' : 'text-amber-700'}`}
+                                    >
+                                      {row._duplicateVerified ? 'Verified duplicate (click to unverify)' : 'Mark duplicate as verified'}
+                                    </button>
+                                  </div>
+                                )}
                                 {row._errors?.length > 0 && (
                                   <div className="mt-1 text-red-700 whitespace-pre-wrap">{row._errors.join('; ')}</div>
                                 )}
@@ -1368,6 +1856,25 @@ const CrmPage = ({ user, onLogout }) => {
                     <p className="font-medium text-gray-900">
                       Imported {importSummary.importedCount}, failed {importSummary.failedCount}.
                     </p>
+                    {importSummary.undoResult && (
+                      <p className="mt-1 text-xs text-emerald-700">
+                        {importSummary.undoResult.alreadyRemovedCount > 0
+                          ? `Rollback removed ${importSummary.undoResult.deletedCount} record(s); ${importSummary.undoResult.alreadyRemovedCount} were already deleted and skipped.`
+                          : `Rollback removed ${importSummary.undoResult.deletedCount} of ${importSummary.undoResult.requestedCount} imported record(s).`}
+                      </p>
+                    )}
+                    {(importSummary.importedLeadIds || []).length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          disabled={importBusy}
+                          onClick={undoImportedRows}
+                          className="px-3 py-1.5 text-xs rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {importBusy ? 'Undoing…' : `Undo last import (${importSummary.importedLeadIds.length})`}
+                        </button>
+                      </div>
+                    )}
                     {importSummary.errors.length > 0 && (
                       <ul className="mt-2 text-xs text-red-700 space-y-1 max-h-40 overflow-y-auto">
                         {importSummary.errors.map((err) => (
@@ -1660,7 +2167,7 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.contact_name ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, contact_name: e.target.value }))}
+                      onChange={(e) => updatePrimaryContactField('name', e.target.value)}
                     />
                   </label>
                   <label className="block">
@@ -1683,7 +2190,7 @@ const CrmPage = ({ user, onLogout }) => {
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       type="email"
                       value={form.email ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                      onChange={(e) => updatePrimaryContactField('email', e.target.value)}
                     />
                   </label>
                   <label className="block">
@@ -1691,15 +2198,123 @@ const CrmPage = ({ user, onLogout }) => {
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.phone ?? ''}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
+                      onChange={(e) => updatePrimaryContactField('phone', e.target.value)}
                     />
                   </label>
+                  <div className="block sm:col-span-2 rounded-lg border border-gray-200 p-3 bg-gray-50">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
+                      <button
+                        type="button"
+                        onClick={addAdditionalContact}
+                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      >
+                        Add contact
+                      </button>
+                    </div>
+                    {normalizeContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
+                      .slice(1)
+                      .map((contact, idx) => {
+                        const contactIndex = idx + 1;
+                        return (
+                          <div key={`new-extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <input
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Name"
+                              value={contact.name || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'name', e.target.value)}
+                            />
+                            <input
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Email"
+                              value={contact.email || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'email', e.target.value)}
+                            />
+                            <div className="flex gap-2">
+                              <input
+                                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                placeholder="Phone"
+                                value={contact.phone || ''}
+                                onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeAdditionalContact(contactIndex)}
+                                className="px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {normalizeContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
+                      <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
+                    )}
+                  </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Website</span>
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       value={form.website ?? ''}
                       onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Street address</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.street_address ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, street_address: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">City</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.city ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">State</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.state ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">ZIP</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.zip ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))}
+                    />
+                  </label>
+                  <div className="hidden sm:block" aria-hidden />
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Instagram URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.instagram_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, instagram_url: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Facebook URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.facebook_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, facebook_url: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">LinkedIn URL</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.linkedin_url ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
                     />
                   </label>
                   <div className="block sm:col-span-2">

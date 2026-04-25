@@ -52,19 +52,21 @@ module Api
             return render json: { error: "rows must be an array" }, status: :unprocessable_entity
           end
 
+          consolidated_rows = consolidate_import_rows(rows)
           created = []
           errors = []
 
-          rows.each_with_index do |raw_row, idx|
-            row = normalize_import_row(raw_row)
+          consolidated_rows.each do |entry|
+            row = entry[:row]
             lead = CrmLead.new(row)
 
             if lead.save
               created << lead
             else
               errors << {
-                row: idx + 1,
+                row: entry[:row_numbers].first,
                 name: row[:name],
+                source_rows: entry[:row_numbers],
                 errors: lead.errors.full_messages
               }
             end
@@ -78,6 +80,23 @@ module Api
           }, status: :ok
         end
 
+        def bulk_destroy
+          ids = Array(params[:ids]).map(&:to_i).select(&:positive?).uniq
+          if ids.empty?
+            return render json: { error: "ids must be a non-empty array" }, status: :unprocessable_entity
+          end
+
+          existing_ids = CrmLead.where(id: ids).pluck(:id)
+          deleted_count = CrmLead.where(id: existing_ids).delete_all
+          not_found_ids = ids - existing_ids
+
+          render json: {
+            deleted_count: deleted_count,
+            requested_count: ids.count,
+            not_found_ids: not_found_ids
+          }, status: :ok
+        end
+
         private
 
         def set_lead
@@ -87,7 +106,26 @@ module Api
         end
 
         def lead_params
-          p = params.permit(:name, :contact_name, :email, :phone, :website, :status, :notes, :linked_user_id, :linked_company_profile_id, company_types: [])
+          p = params.permit(
+            :name,
+            :contact_name,
+            :email,
+            :phone,
+            :website,
+            :street_address,
+            :city,
+            :state,
+            :zip,
+            :instagram_url,
+            :facebook_url,
+            :linkedin_url,
+            :status,
+            :notes,
+            :linked_user_id,
+            :linked_company_profile_id,
+            company_types: [],
+            contacts: %i[name email phone]
+          )
           p[:linked_user_id] = nil if p.key?(:linked_user_id) && p[:linked_user_id].blank?
           p[:linked_company_profile_id] = nil if p.key?(:linked_company_profile_id) && p[:linked_company_profile_id].blank?
           if p[:linked_company_profile_id].present? && p[:linked_user_id].blank?
@@ -108,8 +146,16 @@ module Api
             email: lead.email,
             phone: lead.phone,
             website: lead.website,
+            street_address: lead.street_address,
+            city: lead.city,
+            state: lead.state,
+            zip: lead.zip,
+            instagram_url: lead.instagram_url,
+            facebook_url: lead.facebook_url,
+            linkedin_url: lead.linkedin_url,
             status: lead.status,
             company_types: lead.company_types || [],
+            contacts: lead.contacts || [],
             notes: lead.notes,
             linked_user_id: lead.linked_user_id,
             linked_company_profile_id: linked_profile&.id,
@@ -187,7 +233,10 @@ module Api
           row = row.respond_to?(:to_h) ? row.to_h : {}
           normalized = row.transform_keys(&:to_s)
 
-          allowed = %w[name contact_name email phone website status notes linked_user_id linked_company_profile_id company_types]
+          allowed = %w[
+            name contact_name email phone website street_address city state zip instagram_url facebook_url linkedin_url
+            status notes linked_user_id linked_company_profile_id company_types contacts
+          ]
           payload = normalized.slice(*allowed).symbolize_keys
 
           payload[:status] = payload[:status].presence || "lead"
@@ -202,7 +251,121 @@ module Api
             end
           payload[:linked_user_id] = payload[:linked_user_id].presence
           payload[:linked_company_profile_id] = payload[:linked_company_profile_id].presence
+          payload[:contacts] = normalize_contacts_payload(payload[:contacts], payload)
           payload
+        end
+
+        def consolidate_import_rows(rows)
+          grouped = {}
+
+          rows.each_with_index do |raw_row, idx|
+            row = normalize_import_row(raw_row)
+            key = import_company_key(row)
+            grouped[key] ||= { rows: [], row_numbers: [] }
+            grouped[key][:rows] << row
+            grouped[key][:row_numbers] << (idx + 1)
+          end
+
+          grouped.values.map do |group|
+            merged = merge_import_company_rows(group[:rows], group[:row_numbers])
+            { row: merged, row_numbers: group[:row_numbers] }
+          end
+        end
+
+        def import_company_key(row)
+          name_key = row[:name].to_s.strip.downcase
+          website_key = row[:website].to_s.strip.downcase.gsub(%r{\Ahttps?://}, "").gsub(%r{\Awww\.}, "").chomp("/")
+          website_key.present? ? "#{name_key}|#{website_key}" : name_key
+        end
+
+        def merge_import_company_rows(company_rows, row_numbers)
+          merged = company_rows.first.dup
+          company_rows.drop(1).each do |row|
+            %i[
+              name contact_name email phone website street_address city state zip instagram_url facebook_url linkedin_url
+              status notes linked_user_id linked_company_profile_id
+            ].each do |field|
+              merged[field] = row[field] if merged[field].blank? && row[field].present?
+            end
+            merged[:company_types] = Array(merged[:company_types]) | Array(row[:company_types])
+          end
+
+          merged = apply_contacts_from_company_rows(merged, company_rows)
+          merged
+        end
+
+        def apply_contacts_from_company_rows(merged_row, company_rows)
+          contacts = company_rows.flat_map do |row|
+            from_contacts = Array(row[:contacts]).filter_map do |entry|
+              hash = entry.respond_to?(:to_h) ? entry.to_h : {}
+              name = hash["name"].to_s.strip.presence || hash[:name].to_s.strip.presence
+              email = hash["email"].to_s.strip.presence || hash[:email].to_s.strip.presence
+              phone = hash["phone"].to_s.strip.presence || hash[:phone].to_s.strip.presence
+              next if name.blank? && email.blank? && phone.blank?
+
+              { name: name, email: email, phone: phone }.compact
+            end
+            next from_contacts if from_contacts.any?
+
+            name = row[:contact_name].to_s.strip
+            email = row[:email].to_s.strip
+            phone = row[:phone].to_s.strip
+            next [] if name.blank? && email.blank? && phone.blank?
+
+            [{ name: name, email: email, phone: phone }]
+          end
+
+          primary_contact = contacts.first
+          if primary_contact
+            merged_row[:contact_name] = primary_contact[:name].presence || merged_row[:contact_name]
+            merged_row[:email] = primary_contact[:email].presence || merged_row[:email]
+            merged_row[:phone] = primary_contact[:phone].presence || merged_row[:phone]
+          end
+          merged_row[:contacts] = contacts
+          merged_row
+        end
+
+        def normalize_contacts_payload(raw_contacts, row_payload)
+          contacts =
+            case raw_contacts
+            when String
+              begin
+                JSON.parse(raw_contacts)
+              rescue JSON::ParserError
+                []
+              end
+            when Array
+              raw_contacts
+            else
+              []
+            end
+
+          normalized = contacts.filter_map do |entry|
+            hash = entry.respond_to?(:to_h) ? entry.to_h : {}
+            name = hash["name"].to_s.strip.presence || hash[:name].to_s.strip.presence
+            email = hash["email"].to_s.strip.presence || hash[:email].to_s.strip.presence
+            phone = hash["phone"].to_s.strip.presence || hash[:phone].to_s.strip.presence
+            next if name.blank? && email.blank? && phone.blank?
+
+            { name: name, email: email, phone: phone }.compact
+          end
+
+          if normalized.empty?
+            fallback = {
+              name: row_payload[:contact_name].to_s.strip.presence,
+              email: row_payload[:email].to_s.strip.presence,
+              phone: row_payload[:phone].to_s.strip.presence
+            }.compact
+            normalized = [fallback] if fallback.present?
+          end
+
+          primary = normalized.first
+          if primary
+            row_payload[:contact_name] = primary[:name].presence || row_payload[:contact_name]
+            row_payload[:email] = primary[:email].presence || row_payload[:email]
+            row_payload[:phone] = primary[:phone].presence || row_payload[:phone]
+          end
+          normalized
         end
       end
     end
