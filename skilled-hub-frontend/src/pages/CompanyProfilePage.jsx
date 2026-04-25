@@ -80,7 +80,7 @@ const CompanyProfilePage = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AppHeader user={user} onLogout={onLogout} navPreset="minimal" emailVariant="simple" />
+      <AppHeader user={user} onLogout={onLogout} emailVariant="simple" />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 text-sm">Dashboard</Link>

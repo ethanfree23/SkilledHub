@@ -3,6 +3,8 @@ import { FaBuilding, FaTimes, FaUserPlus, FaWrench } from 'react-icons/fa';
 import { adminUsersAPI, crmAPI } from '../api/api';
 import { IndustryMultiSelect, ServiceCityPicker } from './admin/AdminUserFormPickers';
 
+const DEFAULT_CONTACT_PASSWORD = 'Password123$';
+
 /**
  * Same "Create user" flow as the Admin Users list page.
  * @param {null | { id: number, company_name?: string, company_users_count?: number }} presetCompanyProfile — when set, creates a company login on that profile only (simplified path).
@@ -21,8 +23,8 @@ export default function AdminCreateUserModal({
     email: '',
     first_name: '',
     last_name: '',
-    password: '',
-    password_confirmation: '',
+    password: DEFAULT_CONTACT_PASSWORD,
+    password_confirmation: DEFAULT_CONTACT_PASSWORD,
     company_name: '',
     contact_name: '',
     phone: '',
@@ -44,6 +46,7 @@ export default function AdminCreateUserModal({
   const [companyOptions, setCompanyOptions] = useState([]);
   const [companySearchBusy, setCompanySearchBusy] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [showContactPassword, setShowContactPassword] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -77,8 +80,8 @@ export default function AdminCreateUserModal({
       email: '',
       first_name: '',
       last_name: '',
-      password: '',
-      password_confirmation: '',
+      password: DEFAULT_CONTACT_PASSWORD,
+      password_confirmation: DEFAULT_CONTACT_PASSWORD,
       company_name: '',
       contact_name: '',
       phone: '',
@@ -95,6 +98,7 @@ export default function AdminCreateUserModal({
     setServiceCities([]);
     setSelectedIndustries([]);
     setLogoFile(null);
+    setShowContactPassword(false);
   }, [isOpen, presetCompanyProfile]);
 
   useEffect(() => {
@@ -126,13 +130,29 @@ export default function AdminCreateUserModal({
     };
   }, [companySearch, isOpen, createRole, useExistingCompany, presetCompanyProfile]);
 
+  useEffect(() => {
+    if (createRole === 'company') {
+      setCreateForm((f) => ({
+        ...f,
+        password: f.password || DEFAULT_CONTACT_PASSWORD,
+        password_confirmation: f.password_confirmation || DEFAULT_CONTACT_PASSWORD,
+      }));
+      return;
+    }
+    setCreateForm((f) => ({
+      ...f,
+      password: '',
+      password_confirmation: '',
+    }));
+  }, [createRole]);
+
   const resetAfterSuccess = async (kind, details = {}) => {
     setCreateForm({
       email: '',
       first_name: '',
       last_name: '',
-      password: '',
-      password_confirmation: '',
+      password: DEFAULT_CONTACT_PASSWORD,
+      password_confirmation: DEFAULT_CONTACT_PASSWORD,
       company_name: '',
       contact_name: '',
       phone: '',
@@ -149,6 +169,7 @@ export default function AdminCreateUserModal({
     setServiceCities([]);
     setSelectedIndustries([]);
     setLogoFile(null);
+    setShowContactPassword(false);
     if (!presetCompanyProfile?.id) {
       setUseExistingCompany(false);
       setCompanySearch('');
@@ -177,8 +198,11 @@ export default function AdminCreateUserModal({
       onError?.('Phone number is required.');
       return;
     }
-    const password = createForm.password || '';
-    const passwordConfirmation = createForm.password_confirmation || '';
+    const password = createRole === 'company' ? (createForm.password || DEFAULT_CONTACT_PASSWORD) : (createForm.password || '');
+    const passwordConfirmation =
+      createRole === 'company'
+        ? (createForm.password_confirmation || DEFAULT_CONTACT_PASSWORD)
+        : (createForm.password_confirmation || '');
     if (password || passwordConfirmation) {
       if (!password || !passwordConfirmation) {
         onError?.('Enter and confirm the password.');
@@ -539,29 +563,28 @@ export default function AdminCreateUserModal({
                     placeholder="(555) 555-5555"
                   />
                 </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-xs font-medium text-gray-500 uppercase">Contact name</span>
-                  <input
-                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    value={createForm.contact_name}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, contact_name: e.target.value }))}
-                    placeholder="Primary contact"
-                  />
-                </label>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
-                  <input
-                    type="password"
-                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    value={createForm.password}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
-                    placeholder="Leave blank to send setup email"
-                  />
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type={showContactPassword ? 'text' : 'password'}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowContactPassword((v) => !v)}
+                      className="shrink-0 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      {showContactPassword ? 'Hide' : 'View'}
+                    </button>
+                  </div>
                 </label>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
                   <input
-                    type="password"
+                    type={showContactPassword ? 'text' : 'password'}
                     className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     value={createForm.password_confirmation}
                     onChange={(e) => setCreateForm((f) => ({ ...f, password_confirmation: e.target.value }))}
