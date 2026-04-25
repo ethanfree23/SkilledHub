@@ -3,15 +3,11 @@
 module Api
   module V1
     class SignupPaymentIntentsController < ApplicationController
-      TIER_PRICES_CENTS = {
-        "basic" => 0,
-        "pro" => 1900,
-        "premium" => 4900
-      }.freeze
-
       def create
-        tier = MembershipPolicy.normalized_level(params[:membership_tier])
-        amount = TIER_PRICES_CENTS.fetch(tier, 0)
+        role = %w[company technician].include?(params[:role].to_s) ? params[:role] : "technician"
+        tier = MembershipPolicy.normalized_level(params[:membership_tier], audience: role)
+        rule = MembershipPolicy.rules_for_audience(role)[tier]
+        amount = rule ? rule[:fee_cents].to_i : 0
         return render json: { error: "Selected tier does not require payment" }, status: :unprocessable_entity if amount <= 0
         return render json: { error: "Payments not configured" }, status: :service_unavailable if Stripe.api_key.blank?
 

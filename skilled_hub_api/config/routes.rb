@@ -67,6 +67,11 @@ Rails.application.routes.draw do
       post 'stripe/webhook', to: 'stripe_webhooks#create'
 
       namespace :admin do
+        resources :membership_tier_configs, only: %i[index create update destroy] do
+          member do
+            post :provision_stripe
+          end
+        end
         post "masquerade", to: "masquerades#create"
         get "location_suggestions", to: "location_suggestions#index"
         post "company_accounts", to: "company_accounts#create"

@@ -13,7 +13,11 @@ module AdminAccountProvisioner
     phone: nil, website_url: nil, facebook_url: nil, instagram_url: nil, linkedin_url: nil,
     service_cities: nil,
     logo: nil,
-    contact_name: nil
+    contact_name: nil,
+    first_name: nil,
+    last_name: nil,
+    password: nil,
+    password_confirmation: nil
   )
     # rubocop:enable Metrics/ParameterLists
     email = normalize_email(email)
@@ -22,12 +26,20 @@ module AdminAccountProvisioner
     company_name_clean = company_name.to_s.strip
     phone_clean = phone.to_s.strip
     bio_clean = bio.to_s.strip
+    first_name_clean = first_name.to_s.strip
+    last_name_clean = last_name.to_s.strip
     raise Error, "Company name is required" if company_name_clean.blank?
     raise Error, "Phone number is required" if phone_clean.blank?
     raise Error, "Bio is required" if bio_clean.blank?
+    raise Error, "First name is required" if first_name_clean.blank?
+    raise Error, "Last name is required" if last_name_clean.blank?
 
     cities = normalize_cities(service_cities)
-    pw = User.initial_password_from_email(email)
+    pw, send_reset = resolve_initial_password!(
+      email: email,
+      password: password,
+      password_confirmation: password_confirmation
+    )
     user = nil
     profile = nil
 
@@ -36,7 +48,10 @@ module AdminAccountProvisioner
         email: email,
         password: pw,
         password_confirmation: pw,
-        role: :company
+        role: :company,
+        first_name: first_name_clean,
+        last_name: last_name_clean,
+        phone: phone_clean
       )
       profile = CompanyProfile.create!(
         user: user,
@@ -54,19 +69,43 @@ module AdminAccountProvisioner
       user.update_column(:company_profile_id, profile.id)
       profile.avatar.attach(logo) if logo.respond_to?(:tempfile)
 
-      user.generate_password_reset_token!
-      create_crm_prospect_for_company!(user: user, profile: profile, contact_name: contact_name)
+      user.generate_password_reset_token! if send_reset
+      contact_full_name = [first_name_clean, last_name_clean].join(" ").strip
+      create_crm_prospect_for_company!(user: user, profile: profile, contact_name: contact_name.presence || contact_full_name)
     end
 
-    send_reset_email(user)
+    send_reset_email(user) if send_reset
     { user: user, profile: profile.reload }
   end
 
-  def provision_technician!(email:, trade_type: nil, location: nil, experience_years: nil, availability: nil, bio: nil)
+  def provision_technician!(
+    email:,
+    trade_type: nil,
+    location: nil,
+    experience_years: nil,
+    availability: nil,
+    bio: nil,
+    phone: nil,
+    first_name: nil,
+    last_name: nil,
+    password: nil,
+    password_confirmation: nil
+  )
+    phone_clean = phone.to_s.strip
+    first_name_clean = first_name.to_s.strip
+    last_name_clean = last_name.to_s.strip
+    raise Error, "Phone number is required" if phone_clean.blank?
+    raise Error, "First name is required" if first_name_clean.blank?
+    raise Error, "Last name is required" if last_name_clean.blank?
+
     email = normalize_email(email)
     assert_email_available!(email)
 
-    pw = User.initial_password_from_email(email)
+    pw, send_reset = resolve_initial_password!(
+      email: email,
+      password: password,
+      password_confirmation: password_confirmation
+    )
     user = nil
     profile = nil
 
@@ -75,7 +114,10 @@ module AdminAccountProvisioner
         email: email,
         password: pw,
         password_confirmation: pw,
-        role: :technician
+        role: :technician,
+        first_name: first_name_clean,
+        last_name: last_name_clean,
+        phone: phone_clean
       )
       profile = TechnicianProfile.create!(
         user: user,
@@ -84,23 +126,43 @@ module AdminAccountProvisioner
         location: location.to_s.strip.presence,
         experience_years: experience_years.present? ? experience_years.to_i : nil,
         availability: availability.to_s.strip.presence,
-        bio: bio.to_s.strip.presence
+        bio: bio.to_s.strip.presence,
+        phone: phone_clean
       )
-      user.generate_password_reset_token!
+      user.generate_password_reset_token! if send_reset
     end
 
-    send_reset_email(user)
+    send_reset_email(user) if send_reset
     { user: user, profile: profile }
   end
 
-  def provision_company_login!(email:, company_profile_id:)
+  def provision_company_login!(
+    email:,
+    company_profile_id:,
+    phone: nil,
+    first_name: nil,
+    last_name: nil,
+    password: nil,
+    password_confirmation: nil
+  )
+    phone_clean = phone.to_s.strip
+    first_name_clean = first_name.to_s.strip
+    last_name_clean = last_name.to_s.strip
+    raise Error, "Phone number is required" if phone_clean.blank?
+    raise Error, "First name is required" if first_name_clean.blank?
+    raise Error, "Last name is required" if last_name_clean.blank?
+
     email = normalize_email(email)
     assert_email_available!(email)
 
     profile = CompanyProfile.find_by(id: company_profile_id)
     raise Error, "Company not found" unless profile
 
-    pw = User.initial_password_from_email(email)
+    pw, send_reset = resolve_initial_password!(
+      email: email,
+      password: password,
+      password_confirmation: password_confirmation
+    )
     user = nil
 
     ActiveRecord::Base.transaction do
@@ -109,12 +171,15 @@ module AdminAccountProvisioner
         password: pw,
         password_confirmation: pw,
         role: :company,
-        company_profile_id: profile.id
+        company_profile_id: profile.id,
+        first_name: first_name_clean,
+        last_name: last_name_clean,
+        phone: phone_clean
       )
-      user.generate_password_reset_token!
+      user.generate_password_reset_token! if send_reset
     end
 
-    send_reset_email(user)
+    send_reset_email(user) if send_reset
     { user: user, profile: profile }
   end
 
@@ -156,6 +221,18 @@ module AdminAccountProvisioner
   def strip_or_nil(val)
     s = val.to_s.strip
     s.presence
+  end
+
+  def resolve_initial_password!(email:, password:, password_confirmation:)
+    supplied_password = password.to_s
+    supplied_confirmation = password_confirmation.to_s
+    return [User.initial_password_from_email(email), true] if supplied_password.blank? && supplied_confirmation.blank?
+
+    raise Error, "Password and password confirmation are both required" if supplied_password.blank? || supplied_confirmation.blank?
+    raise Error, "Password confirmation does not match" unless supplied_password == supplied_confirmation
+    raise Error, PasswordStrength::REQUIREMENT_TEXT unless PasswordStrength.valid?(supplied_password)
+
+    [supplied_password, false]
   end
 
   def create_crm_prospect_for_company!(user:, profile:, contact_name: nil)

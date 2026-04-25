@@ -8,6 +8,7 @@ import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeC
 import CountryStateSelect from '../components/CountryStateSelect';
 import AlertModal from '../components/AlertModal';
 import ConfirmModal from '../components/ConfirmModal';
+import SystemControlsPricing from '../components/admin/SystemControlsPricing';
 
 const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [profile, setProfile] = useState(null);
@@ -269,7 +270,9 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} onLogout={onLogout} activePage="settings" emailVariant="simple" />
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main
+        className={`mx-auto px-4 py-8 ${settingsTab === 'system_controls' && isAdmin ? 'max-w-4xl' : 'max-w-2xl'}`}
+      >
         <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
 
         {error && (
@@ -281,7 +284,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           aria-label="Settings sections"
         >
           <div className="flex border-b border-gray-200" role="tablist" aria-label="Settings categories">
-            {['account', 'profile', 'payment'].map((id) => (
+            {['account', 'profile', 'payment', ...(isAdmin ? ['system_controls'] : [])].map((id) => (
               <button
                 key={id}
                 type="button"
@@ -297,7 +300,13 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                     : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                {id === 'account' ? 'Account' : id === 'profile' ? 'Profile' : 'Payment'}
+                {id === 'account'
+                  ? 'Account'
+                  : id === 'profile'
+                    ? 'Profile'
+                    : id === 'payment'
+                      ? 'Payment'
+                      : 'System controls'}
               </button>
             ))}
           </div>
@@ -521,6 +530,16 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           {(isAdmin || (!isCompany && !isTechnician)) && (
             <p className="text-gray-500">Payment settings are available for companies and technicians.</p>
           )}
+              </div>
+            )}
+
+            {isAdmin && settingsTab === 'system_controls' && (
+              <div
+                id="settings-panel-system_controls"
+                role="tabpanel"
+                aria-labelledby="settings-tab-system_controls"
+              >
+                <SystemControlsPricing />
               </div>
             )}
           </div>

@@ -49,9 +49,13 @@ const CrmPage = ({ user, onLogout }) => {
   const searchTimer = useRef(null);
   const companySearchTimer = useRef(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
+  const [pipelineNameFilter, setPipelineNameFilter] = useState('');
+  const [pipelineStatusFilter, setPipelineStatusFilter] = useState('');
 
   const [provision, setProvision] = useState({
     email: '',
+    first_name: '',
+    last_name: '',
     company_name: '',
     phone: '',
     industry: '',
@@ -270,11 +274,32 @@ const CrmPage = ({ user, onLogout }) => {
   const provisionCompanyAccount = async (e) => {
     e.preventDefault();
     const email = provision.email?.trim();
+    const firstName = provision.first_name?.trim();
+    const lastName = provision.last_name?.trim();
+    const phone = provision.phone?.trim();
     if (!email) {
       setAlertModal({
         isOpen: true,
         title: 'Email required',
         message: 'Enter the company login email.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (!firstName || !lastName) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Name required',
+        message: 'First name and last name are required.',
+        variant: 'error',
+      });
+      return;
+    }
+    if (!phone) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Phone required',
+        message: 'Phone number is required.',
         variant: 'error',
       });
       return;
@@ -301,18 +326,20 @@ const CrmPage = ({ user, onLogout }) => {
     try {
       const payload = {
         email,
+        first_name: firstName,
+        last_name: lastName,
+        phone,
       };
       if (provisionMode === 'existing') {
         payload.company_profile_id = selectedCompany.id;
       } else {
         payload.company_name = provision.company_name.trim();
-        payload.phone = provision.phone.trim();
         payload.industry = provision.industry?.trim() || undefined;
         payload.location = provision.location?.trim() || undefined;
         payload.bio = provision.bio.trim();
       }
       await crmAPI.createCompanyAccount(payload);
-      setProvision({ email: '', company_name: '', phone: '', industry: '', location: '', bio: '' });
+      setProvision({ email: '', first_name: '', last_name: '', company_name: '', phone: '', industry: '', location: '', bio: '' });
       setProvisionMode('new');
       setCompanySearchQ('');
       setCompanyHits([]);
@@ -322,7 +349,7 @@ const CrmPage = ({ user, onLogout }) => {
         isOpen: true,
         title: 'Company account created',
         message:
-          'They receive an email with a link to set their password (72-hour link). Until then they can sign in using their email as the temporary password (very short addresses get a short suffix so the password meets minimum length).',
+          'Company account created successfully.',
         variant: 'success',
       });
     } catch (err) {
@@ -359,6 +386,12 @@ const CrmPage = ({ user, onLogout }) => {
   const metrics = detail?.linked_metrics;
   const activity = detail?.activity;
   const recentJobs = detail?.recent_jobs || [];
+  const filteredLeads = leads.filter((row) => {
+    const nameOk =
+      pipelineNameFilter.trim() === '' || (row.name || '').toLowerCase().includes(pipelineNameFilter.trim().toLowerCase());
+    const statusOk = pipelineStatusFilter.trim() === '' || (row.status || '').toLowerCase() === pipelineStatusFilter.trim().toLowerCase();
+    return nameOk && statusOk;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -404,15 +437,36 @@ const CrmPage = ({ user, onLogout }) => {
           <div className="lg:col-span-2 bg-white rounded-2xl shadow border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
               <h2 className="text-sm font-semibold text-gray-700">Pipeline</h2>
+              <div className="mt-2 grid grid-cols-1 gap-2">
+                <input
+                  type="search"
+                  value={pipelineNameFilter}
+                  onChange={(e) => setPipelineNameFilter(e.target.value)}
+                  placeholder="Filter prospect/company name"
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white"
+                />
+                <select
+                  value={pipelineStatusFilter}
+                  onChange={(e) => setPipelineStatusFilter(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white capitalize"
+                >
+                  <option value="">All statuses</option>
+                  {CRM_STATUSES.map((s) => (
+                    <option key={s} value={s} className="capitalize">
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="max-h-[70vh] overflow-y-auto">
               {loading ? (
                 <p className="p-6 text-gray-500 text-sm">Loading…</p>
-              ) : leads.length === 0 ? (
+              ) : filteredLeads.length === 0 ? (
                 <p className="p-6 text-gray-500 text-sm">No companies yet. Click &quot;Add company&quot; to start.</p>
               ) : (
                 <ul className="divide-y divide-gray-100">
-                  {leads.map((row) => (
+                  {filteredLeads.map((row) => (
                     <li key={row.id}>
                       <button
                         type="button"
@@ -737,9 +791,7 @@ const CrmPage = ({ user, onLogout }) => {
               </div>
               <div className="overflow-y-auto px-6 py-5">
                 <p className="text-sm text-gray-500 mb-4">
-                  Create a login for a new company profile or add another login to an existing company. A temporary password
-                  is derived from their email for first login; we always send a follow-up email with a secure link to choose
-                  a new password.
+                  Create a login for a new company profile or add another login to an existing company.
                 </p>
                 <form onSubmit={provisionCompanyAccount} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
@@ -778,6 +830,34 @@ const CrmPage = ({ user, onLogout }) => {
                       onChange={(e) => setProvision((p) => ({ ...p, email: e.target.value }))}
                       placeholder="contact@theirbusiness.com"
                       autoComplete="off"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">First name *</span>
+                    <input
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.first_name}
+                      onChange={(e) => setProvision((p) => ({ ...p, first_name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Last name *</span>
+                    <input
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.last_name}
+                      onChange={(e) => setProvision((p) => ({ ...p, last_name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
+                    <input
+                      type="tel"
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={provision.phone}
+                      onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
                     />
                   </label>
                   {provisionMode === 'existing' && (
@@ -832,16 +912,6 @@ const CrmPage = ({ user, onLogout }) => {
                       value={provision.company_name}
                       onChange={(e) => setProvision((p) => ({ ...p, company_name: e.target.value }))}
                       placeholder="Registered business or DBA"
-                    />
-                  </label>
-                  <label className="block sm:col-span-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
-                    <input
-                      type="tel"
-                      required
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      value={provision.phone}
-                      onChange={(e) => setProvision((p) => ({ ...p, phone: e.target.value }))}
                     />
                   </label>
                   <label className="block">

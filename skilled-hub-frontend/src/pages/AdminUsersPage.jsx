@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { adminUsersAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
@@ -14,7 +14,6 @@ const ROLE_TABS = [
 ];
 
 export default function AdminUsersPage({ user, onLogout }) {
-  const navigate = useNavigate();
   const [roleTab, setRoleTab] = useState('all');
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +28,9 @@ export default function AdminUsersPage({ user, onLogout }) {
   });
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [masqueradeBusyId, setMasqueradeBusyId] = useState(null);
+  const [nameFilter, setNameFilter] = useState('');
+  const [emailFilter, setEmailFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -80,6 +82,16 @@ export default function AdminUsersPage({ user, onLogout }) {
     }
   };
 
+  const filteredList = list.filter((row) => {
+    const rowName = (row.user_name || row.email || '').toLowerCase();
+    const rowEmail = (row.email || '').toLowerCase();
+    const rowCompany = (row.company_name || '').toLowerCase();
+    if (nameFilter.trim() && !rowName.includes(nameFilter.trim().toLowerCase())) return false;
+    if (emailFilter.trim() && !rowEmail.includes(emailFilter.trim().toLowerCase())) return false;
+    if (companyFilter.trim() && !rowCompany.includes(companyFilter.trim().toLowerCase())) return false;
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
@@ -106,15 +118,21 @@ export default function AdminUsersPage({ user, onLogout }) {
           isOpen={createModalOpen}
           onClose={() => setCreateModalOpen(false)}
           presetCompanyProfile={null}
-          onCompleted={async ({ kind }) => {
+          onCompleted={async ({ kind, passwordSet }) => {
             await loadUsers();
             const messages = {
               company_link:
-                'Company contact login created and linked to the selected company account. They were emailed a secure password setup link.',
+                passwordSet
+                  ? 'Company contact login created and linked to the selected company account. The password was set during creation.'
+                  : 'Company contact login created and linked to the selected company account. They were emailed a secure password setup link.',
               company_new:
-                'Company user created. A CRM record was added as Prospect until they post their first job (then it becomes Customer). They were emailed “Welcome aboard” with a link to set a secure password.',
+                passwordSet
+                  ? 'Company user created. A CRM record was added as Prospect until they post their first job (then it becomes Customer). The contact password was set during creation.'
+                  : 'Company user created. A CRM record was added as Prospect until they post their first job (then it becomes Customer). They were emailed “Welcome aboard” with a link to set a secure password.',
               technician:
-                'They receive an email with a link to set their password. Until then they can sign in using their email-derived temporary password.',
+                passwordSet
+                  ? 'Technician account created and password set during creation.'
+                  : 'They receive an email with a link to set their password. Until then they can sign in using their email-derived temporary password.',
             };
             setAlertModal({
               isOpen: true,
@@ -167,38 +185,86 @@ export default function AdminUsersPage({ user, onLogout }) {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">User</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">User email</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Company</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Role</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Label</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Joined</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                </tr>
+                <tr>
+                  <th className="px-4 pb-3">
+                    <input
+                      type="search"
+                      value={nameFilter}
+                      onChange={(e) => setNameFilter(e.target.value)}
+                      placeholder="Filter user name"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-normal"
+                    />
+                  </th>
+                  <th className="px-4 pb-3">
+                    <input
+                      type="search"
+                      value={emailFilter}
+                      onChange={(e) => setEmailFilter(e.target.value)}
+                      placeholder="Filter user email"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-normal"
+                    />
+                  </th>
+                  <th className="px-4 pb-3">
+                    <input
+                      type="search"
+                      value={companyFilter}
+                      onChange={(e) => setCompanyFilter(e.target.value)}
+                      placeholder="Filter company"
+                      className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs font-normal"
+                    />
+                  </th>
+                  <th className="px-4 pb-3" />
+                  <th className="px-4 pb-3" />
+                  <th className="px-4 pb-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm">
                       Loading…
                     </td>
                   </tr>
-                ) : list.length === 0 ? (
+                ) : filteredList.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 text-sm">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-sm">
                       No users match.
                     </td>
                   </tr>
                 ) : (
-                  list.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-gray-50/80 cursor-pointer"
-                      onClick={() => navigate(`/admin/users/${row.id}`)}
-                    >
+                  filteredList.map((row) => (
+                    <tr key={row.id} className="hover:bg-gray-50/80">
                       <td className="px-4 py-3 text-sm">
-                        <div className="font-medium text-gray-900">{row.email}</div>
+                        <Link
+                          to={`/admin/users/${row.id}`}
+                          className="font-medium text-blue-700 hover:text-blue-900 hover:underline"
+                        >
+                          {row.user_name || row.email}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        <div>{row.email}</div>
                         <div className="text-xs text-gray-500">#{row.id}</div>
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {row.company_profile_id ? (
+                          <Link
+                            to={`/companies/${row.company_profile_id}`}
+                            className="text-blue-700 hover:text-blue-900 hover:underline"
+                          >
+                            {row.company_name || `Company #${row.company_profile_id}`}
+                          </Link>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm capitalize text-gray-700">{row.role}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{row.label}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                         {row.created_at
                           ? new Date(row.created_at).toLocaleDateString(undefined, {
@@ -212,7 +278,6 @@ export default function AdminUsersPage({ user, onLogout }) {
                         <div className="flex flex-wrap justify-end gap-2">
                           <Link
                             to={`/admin/users/${row.id}`}
-                            onClick={(e) => e.stopPropagation()}
                             className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                           >
                             View →

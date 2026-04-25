@@ -58,6 +58,9 @@ class AdminUserDetail
     {
       id: user.id,
       email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      phone: user.phone,
       role: user.role,
       created_at: user.created_at&.iso8601,
       profile: profile_payload(user),
@@ -78,8 +81,9 @@ class AdminUserDetail
         experience_years: tp.experience_years,
         availability: tp.availability,
         bio: tp.bio,
+        phone: tp.phone,
         stripe_account_id: tp.stripe_account_id,
-        membership_level: MembershipPolicy.normalized_level(tp.membership_level),
+        membership_level: MembershipPolicy.normalized_level(tp.membership_level, audience: :technician),
         membership_fee_waived: tp.membership_fee_waived,
         membership_fee_override_cents: tp.membership_fee_override_cents,
         commission_override_percent: tp.commission_override_percent,
@@ -106,7 +110,7 @@ class AdminUserDetail
         linkedin_url: cp.linkedin_url,
         service_cities: Array(cp.service_cities),
         stripe_customer_id: user.stripe_customer_id,
-        membership_level: MembershipPolicy.normalized_level(cp.membership_level),
+        membership_level: MembershipPolicy.normalized_level(cp.membership_level, audience: :company),
         membership_fee_waived: cp.membership_fee_waived,
         membership_fee_override_cents: cp.membership_fee_override_cents,
         commission_override_percent: cp.commission_override_percent,
@@ -129,6 +133,8 @@ class AdminUserDetail
       users: company_users.map do |member|
         {
           id: member.id,
+          first_name: member.first_name,
+          last_name: member.last_name,
           email: member.email,
           created_at: member.created_at&.iso8601
         }

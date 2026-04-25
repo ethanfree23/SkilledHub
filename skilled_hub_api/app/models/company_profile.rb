@@ -15,7 +15,7 @@ class CompanyProfile < ApplicationRecord
   has_many :favorite_technician_entries, class_name: 'FavoriteTechnician', dependent: :destroy
   has_many :favorite_technician_profiles, through: :favorite_technician_entries, source: :technician_profile
 
-  validates :membership_level, inclusion: { in: MembershipPolicy::LEVELS }
+  validate :membership_level_must_be_configured
 
   def average_rating
     Rating.average_for(self)
@@ -46,6 +46,14 @@ class CompanyProfile < ApplicationRecord
   end
 
   def normalize_membership_level
-    self.membership_level = MembershipPolicy.normalized_level(membership_level)
+    self.membership_level = MembershipPolicy.normalized_level(membership_level, audience: :company)
+  end
+
+  def membership_level_must_be_configured
+    return if membership_level.blank?
+
+    unless MembershipPolicy.level_valid?(membership_level, audience: :company)
+      errors.add(:membership_level, "is not a valid tier")
+    end
   end
 end

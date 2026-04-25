@@ -16,7 +16,10 @@ module Api
             if provision_params[:company_profile_id].present?
               AdminAccountProvisioner.provision_company_login!(
                 email: provision_params[:email],
-                company_profile_id: provision_params[:company_profile_id]
+                company_profile_id: provision_params[:company_profile_id],
+                phone: provision_params[:phone],
+                first_name: provision_params[:first_name],
+                last_name: provision_params[:last_name]
               )
             else
               cities = provision_params[:service_cities]
@@ -35,7 +38,9 @@ module Api
                 instagram_url: provision_params[:instagram_url],
                 linkedin_url: provision_params[:linkedin_url],
                 service_cities: cities,
-                contact_name: provision_params[:contact_name]
+                contact_name: provision_params[:contact_name],
+                first_name: provision_params[:first_name],
+                last_name: provision_params[:last_name]
               )
             end
 
@@ -98,7 +103,7 @@ module Api
         def provision_params
           params.permit(
             :email, :company_name, :industry, :location, :bio, :phone, :website_url, :company_profile_id,
-            :facebook_url, :instagram_url, :linkedin_url, :contact_name,
+            :facebook_url, :instagram_url, :linkedin_url, :contact_name, :first_name, :last_name,
             service_cities: []
           )
         end

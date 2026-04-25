@@ -39,7 +39,12 @@ module Api
                 if params[:company_profile_id].present?
                   AdminAccountProvisioner.provision_company_login!(
                     email: params[:email],
-                    company_profile_id: params[:company_profile_id]
+                    company_profile_id: params[:company_profile_id],
+                    phone: params[:phone],
+                    first_name: params[:first_name],
+                    last_name: params[:last_name],
+                    password: params[:password],
+                    password_confirmation: params[:password_confirmation]
                   )
                 else
                   AdminAccountProvisioner.provision_company!(
@@ -47,14 +52,18 @@ module Api
                     company_name: params[:company_name],
                     industry: params[:industry],
                     bio: params[:bio],
-                    phone: params[:phone],
                     website_url: params[:website_url],
                     facebook_url: params[:facebook_url],
                     instagram_url: params[:instagram_url],
                     linkedin_url: params[:linkedin_url],
                     service_cities: parse_service_cities_param,
                     logo: params[:logo],
-                    contact_name: params[:contact_name]
+                    contact_name: params[:contact_name],
+                    phone: params[:phone],
+                    first_name: params[:first_name],
+                    last_name: params[:last_name],
+                    password: params[:password],
+                    password_confirmation: params[:password_confirmation]
                   )
                 end
             when "technician"
@@ -64,7 +73,12 @@ module Api
                 location: params[:location],
                 experience_years: params[:experience_years],
                 availability: params[:availability],
-                bio: params[:bio]
+                bio: params[:bio],
+                phone: params[:phone],
+                first_name: params[:first_name],
+                last_name: params[:last_name],
+                password: params[:password],
+                password_confirmation: params[:password_confirmation]
               )
             else
               return render json: { errors: ["role must be company or technician"] }, status: :unprocessable_entity
@@ -210,9 +224,11 @@ module Api
 
           attrs = {}
           if params.key?(:membership_level)
-            level = MembershipPolicy.normalized_level(params[:membership_level])
-            unless MembershipPolicy.level_valid?(level)
-              return render json: { errors: ["membership_level must be basic, pro, or premium"] }, status: :unprocessable_entity
+            aud = user.company? ? :company : :technician
+            level = MembershipPolicy.normalized_level(params[:membership_level], audience: aud)
+            unless MembershipPolicy.level_valid?(level, audience: aud)
+              allowed = MembershipPolicy.slugs_for_audience(aud).join(", ")
+              return render json: { errors: ["membership_level must be one of: #{allowed}"] }, status: :unprocessable_entity
             end
             attrs[:membership_level] = level
           end
@@ -250,7 +266,7 @@ module Api
         end
 
         def technician_profile_admin_params
-          p = params.permit(:trade_type, :location, :availability, :bio, :experience_years)
+          p = params.permit(:trade_type, :location, :availability, :bio, :phone, :experience_years)
           if p.key?(:experience_years)
             raw = p[:experience_years]
             p[:experience_years] = raw.present? ? raw.to_i : nil
@@ -320,16 +336,25 @@ module Api
           return scope if q.blank?
 
           like = "%#{ActiveRecord::Base.sanitize_sql_like(q.downcase)}%"
-          scope.where("LOWER(users.email) LIKE ?", like)
+          scope.left_joins(:company_profile, :technician_profile).where(
+            "LOWER(users.email) LIKE :like OR LOWER(COALESCE(users.first_name, '')) LIKE :like OR LOWER(COALESCE(users.last_name, '')) LIKE :like OR LOWER(COALESCE(company_profiles.company_name, '')) LIKE :like OR LOWER(COALESCE(technician_profiles.trade_type, '')) LIKE :like",
+            like: like
+          )
         end
 
         def list_item(user)
+          company_name = user.company_profile&.company_name
+          user_name = [user.first_name, user.last_name].map(&:to_s).map(&:strip).reject(&:blank?).join(" ")
           {
             id: user.id,
             email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            user_name: user_name.presence,
             role: user.role,
             created_at: user.created_at&.iso8601,
             label: user_list_label(user),
+            company_name: company_name,
             technician_profile_id: user.technician_profile&.id,
             company_profile_id: user.company_profile&.id
           }

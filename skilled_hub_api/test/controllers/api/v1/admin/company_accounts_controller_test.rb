@@ -73,7 +73,10 @@ module Api
           post "/api/v1/admin/company_accounts",
                params: {
                  email: "new.login+company_accounts_test@example.com",
-                 company_profile_id: profile.id
+                 company_profile_id: profile.id,
+                 first_name: "Pat",
+                 last_name: "Manager",
+                 phone: "555-222-3333"
                },
                headers: auth_header_for(admin),
                as: :json
@@ -86,6 +89,9 @@ module Api
           created = User.find_by!(email: "new.login+company_accounts_test@example.com")
           assert_equal profile.id, created.company_profile_id
           assert created.company?
+          assert_equal "Pat", created.first_name
+          assert_equal "Manager", created.last_name
+          assert_equal "555-222-3333", created.phone
         end
       end
     end

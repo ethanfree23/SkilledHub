@@ -19,6 +19,10 @@ export default function AdminCreateUserModal({
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
     email: '',
+    first_name: '',
+    last_name: '',
+    password: '',
+    password_confirmation: '',
     company_name: '',
     contact_name: '',
     phone: '',
@@ -71,6 +75,10 @@ export default function AdminCreateUserModal({
     }
     setCreateForm({
       email: '',
+      first_name: '',
+      last_name: '',
+      password: '',
+      password_confirmation: '',
       company_name: '',
       contact_name: '',
       phone: '',
@@ -118,9 +126,13 @@ export default function AdminCreateUserModal({
     };
   }, [companySearch, isOpen, createRole, useExistingCompany, presetCompanyProfile]);
 
-  const resetAfterSuccess = async (kind) => {
+  const resetAfterSuccess = async (kind, details = {}) => {
     setCreateForm({
       email: '',
+      first_name: '',
+      last_name: '',
+      password: '',
+      password_confirmation: '',
       company_name: '',
       contact_name: '',
       phone: '',
@@ -144,15 +156,38 @@ export default function AdminCreateUserModal({
       setSelectedCompany(null);
     }
     onClose();
-    if (onCompleted) await onCompleted({ kind });
+    if (onCompleted) await onCompleted({ kind, ...details });
   };
 
   const handleCreate = async (e) => {
     e.preventDefault();
     const email = createForm.email?.trim();
     if (!email) {
-      onError?.('Enter an email for the new account.');
+      onError?.(createRole === 'company' ? 'Enter a contact email for this business.' : 'Enter an email for the new account.');
       return;
+    }
+    const firstName = createForm.first_name?.trim();
+    const lastName = createForm.last_name?.trim();
+    const phone = createForm.phone?.trim();
+    if (!firstName || !lastName) {
+      onError?.('First and last name are required.');
+      return;
+    }
+    if (!phone) {
+      onError?.('Phone number is required.');
+      return;
+    }
+    const password = createForm.password || '';
+    const passwordConfirmation = createForm.password_confirmation || '';
+    if (password || passwordConfirmation) {
+      if (!password || !passwordConfirmation) {
+        onError?.('Enter and confirm the password.');
+        return;
+      }
+      if (password !== passwordConfirmation) {
+        onError?.('Password confirmation does not match.');
+        return;
+      }
     }
     const effectiveUseExisting = presetCompanyProfile?.id ? true : useExistingCompany;
     const effectiveCompany = presetCompanyProfile?.id
@@ -176,8 +211,13 @@ export default function AdminCreateUserModal({
             role: 'company',
             email,
             company_profile_id: effectiveCompany.id,
+            first_name: firstName,
+            last_name: lastName,
+            phone,
+            password: password || undefined,
+            password_confirmation: passwordConfirmation || undefined,
           });
-          await resetAfterSuccess('company_link');
+          await resetAfterSuccess('company_link', { passwordSet: Boolean(password) });
         } else {
           if (!createForm.company_name?.trim() || !createForm.phone?.trim() || !createForm.bio?.trim()) {
             onError?.('Company name, phone number, and bio are required.');
@@ -187,9 +227,13 @@ export default function AdminCreateUserModal({
           const fd = new FormData();
           fd.append('role', 'company');
           fd.append('email', email);
+          fd.append('first_name', firstName);
+          fd.append('last_name', lastName);
+          fd.append('phone', phone);
+          if (password) fd.append('password', password);
+          if (passwordConfirmation) fd.append('password_confirmation', passwordConfirmation);
           fd.append('company_name', createForm.company_name.trim());
           if (createForm.contact_name?.trim()) fd.append('contact_name', createForm.contact_name.trim());
-          fd.append('phone', createForm.phone.trim());
           if (selectedIndustries.length) fd.append('industry', selectedIndustries.join(', '));
           fd.append('bio', createForm.bio.trim());
           if (createForm.website_url?.trim()) fd.append('website_url', createForm.website_url.trim());
@@ -199,12 +243,17 @@ export default function AdminCreateUserModal({
           serviceCities.map((c) => c.trim()).filter(Boolean).forEach((c) => fd.append('service_cities[]', c));
           if (logoFile) fd.append('logo', logoFile);
           await adminUsersAPI.create(fd);
-          await resetAfterSuccess('company_new');
+          await resetAfterSuccess('company_new', { passwordSet: Boolean(password) });
         }
       } else {
         await adminUsersAPI.create({
           role: 'technician',
           email,
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          password: password || undefined,
+          password_confirmation: passwordConfirmation || undefined,
           trade_type: createForm.trade_type?.trim() || undefined,
           location: createForm.location?.trim() || undefined,
           experience_years:
@@ -212,7 +261,7 @@ export default function AdminCreateUserModal({
           availability: createForm.availability?.trim() || undefined,
           bio: createForm.bio?.trim() || undefined,
         });
-        await resetAfterSuccess('technician');
+        await resetAfterSuccess('technician', { passwordSet: Boolean(password) });
       }
     } catch (err) {
       onError?.(err.message || 'Could not create user');
@@ -241,7 +290,7 @@ export default function AdminCreateUserModal({
           <div className="flex items-center gap-2 min-w-0">
             <FaUserPlus className="text-emerald-600 shrink-0 w-5 h-5" aria-hidden />
             <h2 id="admin-create-user-title" className="text-lg font-semibold text-gray-900 truncate">
-              Create user
+              {createRole === 'company' ? 'Create company contact' : 'Create user'}
             </h2>
           </div>
           <button
@@ -282,22 +331,11 @@ export default function AdminCreateUserModal({
             </div>
           )}
           <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <label className="block sm:col-span-2">
-              <span className="text-xs font-medium text-gray-500 uppercase">Email *</span>
-              <input
-                type="email"
-                required
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={createForm.email}
-                onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="login@company.com"
-              />
-            </label>
             {createRole === 'company' ? (
               <>
                 {lockedCompany ? (
                   <div className="sm:col-span-2 rounded-xl border border-blue-100 bg-blue-50/80 p-3 text-sm text-gray-800">
-                    <div className="text-xs font-medium text-gray-500 uppercase mb-1">Company account</div>
+                    <div className="text-xs font-medium text-gray-500 uppercase mb-1">Step 1: Business</div>
                     <div className="font-semibold text-gray-900">
                       {presetCompanyProfile.company_name || `Company #${presetCompanyProfile.id}`}
                     </div>
@@ -308,7 +346,7 @@ export default function AdminCreateUserModal({
                 ) : (
                   <>
                     <div className="sm:col-span-2 rounded-xl border border-gray-200 p-3 bg-gray-50">
-                      <div className="text-xs font-medium text-gray-500 uppercase mb-2">Company account target</div>
+                      <div className="text-xs font-medium text-gray-500 uppercase mb-2">Step 1: Business</div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -320,7 +358,7 @@ export default function AdminCreateUserModal({
                             !useExistingCompany ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
                           }`}
                         >
-                          Create new company
+                          Create new business
                         </button>
                         <button
                           type="button"
@@ -329,13 +367,13 @@ export default function AdminCreateUserModal({
                             useExistingCompany ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
                           }`}
                         >
-                          Link to existing company
+                          Use existing business
                         </button>
                       </div>
                     </div>
                     {useExistingCompany ? (
                       <div className="sm:col-span-2">
-                        <span className="text-xs font-medium text-gray-500 uppercase">Find company account *</span>
+                        <span className="text-xs font-medium text-gray-500 uppercase">Select business *</span>
                         <input
                           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                           value={companySearch}
@@ -343,7 +381,7 @@ export default function AdminCreateUserModal({
                             setCompanySearch(e.target.value);
                             setSelectedCompany(null);
                           }}
-                          placeholder="Search company by name..."
+                          placeholder="Search business by name..."
                         />
                         <div className="mt-2 border border-gray-200 rounded-lg max-h-40 overflow-auto bg-white">
                           {companySearchBusy ? (
@@ -370,31 +408,12 @@ export default function AdminCreateUserModal({
                     ) : (
                       <>
                         <label className="block sm:col-span-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase">Company name *</span>
+                          <span className="text-xs font-medium text-gray-500 uppercase">Business name *</span>
                           <input
                             required
                             className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                             value={createForm.company_name}
                             onChange={(e) => setCreateForm((f) => ({ ...f, company_name: e.target.value }))}
-                          />
-                        </label>
-                        <label className="block sm:col-span-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase">Contact name (CRM)</span>
-                          <input
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            value={createForm.contact_name}
-                            onChange={(e) => setCreateForm((f) => ({ ...f, contact_name: e.target.value }))}
-                            placeholder="Primary contact"
-                          />
-                        </label>
-                        <label className="block sm:col-span-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
-                          <input
-                            type="tel"
-                            required
-                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            value={createForm.phone}
-                            onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
                           />
                         </label>
                         <div className="block sm:col-span-2">
@@ -472,9 +491,125 @@ export default function AdminCreateUserModal({
                     )}
                   </>
                 )}
+                <div className="sm:col-span-2 rounded-xl border border-gray-200 p-3 bg-gray-50">
+                  <div className="text-xs font-medium text-gray-500 uppercase mb-2">Step 2: Contact</div>
+                  <p className="text-xs text-gray-600">
+                    Create the login for the contact person who belongs to this business.
+                  </p>
+                </div>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Contact email *</span>
+                  <input
+                    type="email"
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="contact@business.com"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">First name *</span>
+                  <input
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.first_name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, first_name: e.target.value }))}
+                    placeholder="First name"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Last name *</span>
+                  <input
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.last_name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, last_name: e.target.value }))}
+                    placeholder="Last name"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
+                  <input
+                    type="tel"
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.phone}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="(555) 555-5555"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Contact name</span>
+                  <input
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.contact_name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, contact_name: e.target.value }))}
+                    placeholder="Primary contact"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
+                  <input
+                    type="password"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                    placeholder="Leave blank to send setup email"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
+                  <input
+                    type="password"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.password_confirmation}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, password_confirmation: e.target.value }))}
+                    placeholder="Repeat password"
+                  />
+                </label>
               </>
             ) : (
               <>
+                <label className="block sm:col-span-2">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Email *</span>
+                  <input
+                    type="email"
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="tech@example.com"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">First name *</span>
+                  <input
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.first_name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, first_name: e.target.value }))}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Last name *</span>
+                  <input
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.last_name}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, last_name: e.target.value }))}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Phone *</span>
+                  <input
+                    type="tel"
+                    required
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.phone}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                  />
+                </label>
                 <label className="block">
                   <span className="text-xs font-medium text-gray-500 uppercase">Trade</span>
                   <input
@@ -509,6 +644,26 @@ export default function AdminCreateUserModal({
                     onChange={(e) => setCreateForm((f) => ({ ...f, location: e.target.value }))}
                   />
                 </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
+                  <input
+                    type="password"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                    placeholder="Leave blank to send setup email"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
+                  <input
+                    type="password"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={createForm.password_confirmation}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, password_confirmation: e.target.value }))}
+                    placeholder="Repeat password"
+                  />
+                </label>
               </>
             )}
             {!(lockedCompany && createRole === 'company') && (
@@ -531,7 +686,7 @@ export default function AdminCreateUserModal({
                 disabled={creating}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
               >
-                {creating ? 'Creating…' : 'Create & email'}
+                {creating ? 'Creating…' : createRole === 'company' ? 'Create contact & email' : 'Create & email'}
               </button>
               <button
                 type="button"

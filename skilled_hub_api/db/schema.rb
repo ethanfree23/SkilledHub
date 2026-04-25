@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_24_161100) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_25_105000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -191,6 +191,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_161100) do
     t.index ["email"], name: "index_marketing_leads_on_email", unique: true
   end
 
+  create_table "membership_tier_configs", force: :cascade do |t|
+    t.string "audience", null: false
+    t.string "slug", null: false
+    t.string "display_name"
+    t.integer "monthly_fee_cents", default: 0, null: false
+    t.decimal "commission_percent", precision: 6, scale: 3, null: false
+    t.integer "early_access_delay_hours"
+    t.integer "sort_order", default: 0, null: false
+    t.string "stripe_price_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["audience", "slug"], name: "index_membership_tier_configs_on_audience_and_slug", unique: true
+    t.index ["audience", "sort_order"], name: "index_membership_tier_configs_on_audience_and_sort_order"
+  end
+
   create_table "messages", force: :cascade do |t|
     t.integer "conversation_id", null: false
     t.string "sender_type", null: false
@@ -301,6 +316,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_161100) do
     t.string "stripe_membership_subscription_id"
     t.string "membership_status"
     t.datetime "membership_current_period_end_at"
+    t.string "phone"
     t.index ["membership_level"], name: "index_technician_profiles_on_membership_level"
     t.index ["stripe_membership_subscription_id"], name: "index_technician_profiles_on_stripe_membership_subscription_id", unique: true
     t.index ["user_id"], name: "index_technician_profiles_on_user_id"
@@ -324,6 +340,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_161100) do
     t.string "password_reset_token"
     t.datetime "password_reset_sent_at"
     t.integer "company_profile_id"
+    t.string "first_name"
+    t.string "last_name"
+    t.string "phone"
     t.index ["company_profile_id"], name: "index_users_on_company_profile_id"
     t.index ["password_reset_token"], name: "index_users_on_password_reset_token", unique: true
   end

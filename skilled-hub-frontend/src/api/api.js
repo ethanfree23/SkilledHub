@@ -206,6 +206,31 @@ export const adminUsersAPI = {
   },
 };
 
+/** Admin: global membership tier pricing (technician vs company audiences) */
+export const adminMembershipTierConfigsAPI = {
+  list: (audience) =>
+    apiRequest(`/admin/membership_tier_configs?audience=${encodeURIComponent(audience)}`),
+  create: (payload) =>
+    apiRequest('/admin/membership_tier_configs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  update: (id, payload) =>
+    apiRequest(`/admin/membership_tier_configs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  remove: (id) =>
+    apiRequest(`/admin/membership_tier_configs/${id}`, {
+      method: 'DELETE',
+    }),
+  /** Creates a monthly recurring Stripe price from the saved tier (paid tiers only, server must have STRIPE secret key) */
+  provisionStripe: (id) =>
+    apiRequest(`/admin/membership_tier_configs/${id}/provision_stripe`, {
+      method: 'POST',
+    }),
+};
+
 export const adminReferralsAPI = {
   issueReward: (id) =>
     apiRequest(`/admin/referrals/${id}/issue_reward`, {

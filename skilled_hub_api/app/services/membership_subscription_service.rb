@@ -17,8 +17,9 @@ class MembershipSubscriptionService
   def self.create_checkout_session!(user:, membership_level:, success_url:, cancel_url:)
     raise Error, "Stripe is not configured" if Stripe.api_key.blank?
 
-    level = MembershipPolicy.normalized_level(membership_level)
-    raise Error, "Basic does not require a subscription checkout" if level == "basic"
+    level = MembershipPolicy.normalized_level(membership_level, audience: user.role)
+    rule = MembershipPolicy.rules_for_audience(user.role)[level]
+    raise Error, "This tier does not require a subscription checkout" if rule.blank? || rule[:fee_cents].to_i <= 0
 
     profile = profile_for(user)
     raise Error, "Membership profile not found" if profile.blank?
@@ -83,14 +84,24 @@ class MembershipSubscriptionService
   end
 
   def self.price_id_for(role:, level:)
+    aud = MembershipPolicy.normalize_audience(role)
+    cfg = MembershipTierConfig.find_by(audience: aud, slug: level.to_s)
+    return cfg.stripe_price_id.to_s if cfg&.stripe_price_id.present?
+
     PRICE_ENV_KEYS.dig(role.to_s, level.to_s).then { |key| key.present? ? ENV[key].to_s : nil }
   end
 
   def self.level_from_subscription(user:, subscription:)
     price_id = subscription.items&.data&.first&.price&.id.to_s
-    mapping = PRICE_ENV_KEYS.fetch(user.role)
+    aud = user.company? ? "company" : "technician"
+    match = MembershipTierConfig.find_by(audience: aud, stripe_price_id: price_id)
+    return match.slug if match
+
+    mapping = PRICE_ENV_KEYS.fetch(user.role.to_s)
     found = mapping.find { |_lvl, env_key| ENV[env_key].to_s == price_id }
-    found ? found.first : "basic"
+    return found.first if found
+
+    MembershipPolicy.default_slug_for(aud)
   end
 
   def self.timestamp_to_time(ts)

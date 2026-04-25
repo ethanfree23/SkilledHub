@@ -17,15 +17,18 @@ module Api
         return render json: { error: "Membership profile not found" }, status: :not_found if profile.blank?
 
         requested_level = params[:membership_level].to_s.downcase
-        unless MembershipPolicy.level_valid?(requested_level)
-          return render json: { error: "membership_level must be basic, pro, or premium" }, status: :unprocessable_entity
+        audience = @current_user.company? ? :company : :technician
+        unless MembershipPolicy.level_valid?(requested_level, audience: audience)
+          allowed = MembershipPolicy.slugs_for_audience(audience).join(", ")
+          return render json: { error: "membership_level must be one of: #{allowed}" }, status: :unprocessable_entity
         end
         level = requested_level
+        rule = MembershipPolicy.rules_for_audience(audience)[level]
 
-        if level == "basic"
+        if rule && rule[:fee_cents].to_i <= 0
           MembershipSubscriptionService.cancel_for_basic!(@current_user)
           profile.update!(
-            membership_level: "basic",
+            membership_level: level,
             membership_status: "active",
             stripe_membership_subscription_id: nil,
             membership_current_period_end_at: nil
@@ -73,7 +76,10 @@ module Api
           end
 
         {
-          membership_level: MembershipPolicy.normalized_level(profile.membership_level),
+          membership_level: MembershipPolicy.normalized_level(
+            profile.membership_level,
+            audience: (@current_user.company? ? :company : :technician)
+          ),
           monthly_fee_cents: monthly_fee_cents,
           commission_percent: commission_percent,
           membership_fee_waived: profile.membership_fee_waived,

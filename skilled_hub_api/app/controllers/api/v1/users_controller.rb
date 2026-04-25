@@ -32,11 +32,11 @@ module Api
 
         # Registration only allows technician or company; admin is created manually
         permitted_role = %w[technician company].include?(params[:role].to_s) ? params[:role] : 'technician'
-        membership_level = MembershipPolicy.normalized_level(params[:membership_tier] || params[:membership_level])
-        unless MembershipPolicy.level_valid?(membership_level)
-          return render json: { error: "membership_tier must be basic, pro, or premium" }, status: :unprocessable_entity
+        membership_level = MembershipPolicy.normalized_level(params[:membership_tier] || params[:membership_level], audience: permitted_role)
+        unless MembershipPolicy.level_valid?(membership_level, audience: permitted_role)
+          return render json: { error: "membership_tier is not valid for the selected role" }, status: :unprocessable_entity
         end
-        unless payment_valid_for_tier?(membership_level)
+        unless payment_valid_for_tier?(membership_level, permitted_role)
           return render json: { error: "Valid payment is required for selected membership tier." }, status: :unprocessable_entity
         end
 
@@ -65,11 +65,11 @@ module Api
       private
 
       def user_params
-        params.permit(:email, :password, :password_confirmation, :role, :membership_tier, :membership_level, :signup_payment_intent_id, :honeypot)
+        params.permit(:email, :password, :password_confirmation, :first_name, :last_name, :phone, :role, :membership_tier, :membership_level, :signup_payment_intent_id, :honeypot)
       end
 
       def update_me_params
-        p = params.permit(:email, :password, :password_confirmation).to_h
+        p = params.permit(:email, :password, :password_confirmation, :first_name, :last_name, :phone).to_h
         p.except!(:password, :password_confirmation) if p[:password].blank?
         p
       end
@@ -87,8 +87,11 @@ module Api
         lead.save(validate: false)
       end
 
-      def payment_valid_for_tier?(membership_level)
-        return true if membership_level == "basic"
+      def payment_valid_for_tier?(membership_level, role)
+        rule = MembershipPolicy.rules_for_audience(role)[membership_level]
+        return false unless rule
+
+        return true if rule[:fee_cents].to_i <= 0
 
         intent_id = params[:signup_payment_intent_id].to_s
         return false if intent_id.blank? || Stripe.api_key.blank?
