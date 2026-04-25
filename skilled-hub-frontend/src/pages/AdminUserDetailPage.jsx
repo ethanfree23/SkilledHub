@@ -40,6 +40,7 @@ export default function AdminUserDetailPage({ user, onLogout }) {
   const [profileEditing, setProfileEditing] = useState(false);
   const [profileDraft, setProfileDraft] = useState({});
   const [profileSaveBusy, setProfileSaveBusy] = useState(false);
+  const [membershipSaveBusy, setMembershipSaveBusy] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [masqueradeBusy, setMasqueradeBusy] = useState(false);
 
@@ -75,6 +76,10 @@ export default function AdminUserDetailPage({ user, onLogout }) {
   const isCompany = data?.role_key === 'company' || u?.role === 'company';
   const isTech = data?.role_key === 'technician' || u?.role === 'technician';
   const canManagePassword = isCompany || isTech;
+  const membershipLevel = profile?.membership_level || 'basic';
+  const effectiveMembershipFeeCents = profile?.effective_membership_fee_cents ?? 0;
+  const effectiveCommissionPercent = profile?.effective_commission_percent ?? 0;
+  const billingExempt = !!profile?.membership_fee_waived;
 
   const sendSetupEmail = async () => {
     if (!u?.id) return;
@@ -267,6 +272,34 @@ export default function AdminUserDetailPage({ user, onLogout }) {
       });
     } finally {
       setProfileSaveBusy(false);
+    }
+  };
+
+  const toggleBillingExempt = async (nextChecked) => {
+    if (!u?.id || !isCompany) return;
+    setMembershipSaveBusy(true);
+    try {
+      await adminUsersAPI.updateMembershipPricing(u.id, {
+        membership_fee_waived: nextChecked,
+      });
+      await load();
+      setAlertModal({
+        isOpen: true,
+        title: 'Billing updated',
+        message: nextChecked
+          ? 'Billing exemption enabled. Membership fee and commission are now effectively 0 while tier stays unchanged.'
+          : 'Billing exemption disabled. Tier pricing now applies normally.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not update billing exemption',
+        message: err.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setMembershipSaveBusy(false);
     }
   };
 
@@ -641,6 +674,33 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                 </form>
               )}
             </AdminCollapsibleCard>
+
+            {isCompany && profile && (
+              <AdminCollapsibleCard
+                title="Membership billing"
+                description="Keep tier access while toggling billing exemption for this company."
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                  <Stat label="Tier" value={membershipLevel} />
+                  <Stat label="Effective monthly fee" value={fmtMoney(effectiveMembershipFeeCents)} />
+                  <Stat label="Effective commission" value={`${Number(effectiveCommissionPercent || 0).toFixed(2)}%`} />
+                </div>
+                <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4"
+                    checked={billingExempt}
+                    disabled={membershipSaveBusy}
+                    onChange={(e) => toggleBillingExempt(e.target.checked)}
+                  />
+                  <span className="text-sm text-gray-700">
+                    <span className="font-semibold text-gray-900">Billing exempt</span>
+                    <br />
+                    Keeps current tier but makes effective membership fee and commission 0. Also allows posting jobs without a saved card.
+                  </span>
+                </label>
+              </AdminCollapsibleCard>
+            )}
 
             {isCompany && u?.company_context && (
               <AdminCollapsibleCard

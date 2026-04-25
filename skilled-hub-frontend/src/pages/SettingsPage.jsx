@@ -40,6 +40,15 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const isCompany = user?.role === 'company';
   const isTechnician = user?.role === 'technician';
   const isAdmin = user?.role === 'admin';
+  const needsMapSetup = isTechnician && (
+    !String(profile?.address || '').trim() ||
+    !String(profile?.city || '').trim() ||
+    !String(profile?.state || '').trim() ||
+    !String(profile?.zip_code || '').trim() ||
+    !String(profile?.country || '').trim() ||
+    profile?.latitude == null ||
+    profile?.longitude == null
+  );
 
   useEffect(() => {
     fetchProfile();
@@ -359,6 +368,14 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
             {settingsTab === 'profile' && (
               <div id="settings-panel-profile" role="tabpanel" aria-labelledby="settings-tab-profile">
+          {needsMapSetup && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm font-semibold text-amber-900">Complete map setup</p>
+              <p className="text-sm text-amber-800 mt-1">
+                Add your full address so job maps can center correctly and show accurate nearby jobs.
+              </p>
+            </div>
+          )}
           {isAdmin ? (
             <p className="text-gray-500">Admin accounts do not have technician or company profiles.</p>
           ) : (
@@ -444,14 +461,35 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   </div>
                 </div>
                 <div className="border-t border-gray-200 pt-4 mt-4">
-                  <h4 className="font-medium text-gray-900 mb-2">Your Address</h4>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h4 className="font-medium text-gray-900">Your Address</h4>
+                    {needsMapSetup && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Complete map setup
+                      </span>
+                    )}
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input name="address" value={form.address} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. 123 Main St" />
+                    <input
+                      name="address"
+                      value={form.address}
+                      onChange={handleChange}
+                      required={isTechnician}
+                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.address || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
+                      placeholder="e.g. 123 Main St"
+                    />
                   </div>
                   <div className="mt-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                    <input name="city" value={form.city} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Houston" />
+                    <input
+                      name="city"
+                      value={form.city}
+                      onChange={handleChange}
+                      required={isTechnician}
+                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.city || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
+                      placeholder="e.g. Houston"
+                    />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                     <CountryStateSelect
@@ -459,12 +497,26 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                       state={form.state}
                       onCountryChange={(v) => handleChange({ target: { name: 'country', value: v } })}
                       onStateChange={(v) => handleChange({ target: { name: 'state', value: v } })}
+                      required={isTechnician}
+                      highlightMissing={needsMapSetup}
                     />
                   </div>
                   <div className="mt-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
-                    <input name="zip_code" value={form.zip_code} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. 77007" />
+                    <input
+                      name="zip_code"
+                      value={form.zip_code}
+                      onChange={handleChange}
+                      required={isTechnician}
+                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.zip_code || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
+                      placeholder="e.g. 77007"
+                    />
                   </div>
+                  {needsMapSetup && (
+                    <p className="mt-2 text-xs text-amber-800">
+                      Required to enable accurate map radius and distance sorting on your dashboard.
+                    </p>
+                  )}
                 </div>
               </>
             )}

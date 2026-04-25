@@ -32,6 +32,10 @@ module Api
 
         # Registration only allows technician or company; admin is created manually
         permitted_role = %w[technician company].include?(params[:role].to_s) ? params[:role] : 'technician'
+        city = params[:city].to_s.strip
+        if permitted_role == 'technician' && city.blank?
+          return render json: { error: "city is required for technician signup" }, status: :unprocessable_entity
+        end
         membership_level = MembershipPolicy.normalized_level(params[:membership_tier] || params[:membership_level], audience: permitted_role)
         unless MembershipPolicy.level_valid?(membership_level, audience: permitted_role)
           return render json: { error: "membership_tier is not valid for the selected role" }, status: :unprocessable_entity
@@ -51,6 +55,7 @@ module Api
               trade_type: 'General',
               experience_years: 0,
               availability: 'Full-time',
+              city: city,
               membership_level: membership_level
             )
           end

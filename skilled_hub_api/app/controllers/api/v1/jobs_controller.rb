@@ -138,7 +138,9 @@ module Api
       end
 
       def create
-        unless PaymentService.company_has_payment_method?(@current_user)
+        company_profile = @current_user.company_profile
+        requires_saved_card = !MembershipPolicy.billing_exempt?(company_profile)
+        if requires_saved_card && !PaymentService.company_has_payment_method?(@current_user)
           return render json: { error: 'Add a valid credit or debit card in Profile & Settings → Payment before posting a job.' }, status: :unprocessable_entity
         end
 
@@ -383,8 +385,9 @@ module Api
           status: :accepted
         )
 
-        # For paid jobs: charge company immediately (tech claims = job is theirs)
-        if job.job_amount_cents > 0
+        # For paid jobs: charge company immediately unless billing is exempt.
+        charge_required = job.job_amount_cents > 0 && !MembershipPolicy.billing_exempt?(job.company_profile)
+        if charge_required
           result = PaymentService.charge_company_on_claim(job)
           if result[:error]
             job_application.destroy!

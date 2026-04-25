@@ -77,6 +77,7 @@ const RegisterForm = ({
     email: initialEmail,
     password: '',
     password_confirmation: '',
+    city: '',
     role: initialRole,
     membership_tier: 'basic',
     role_view: initialRoleView,
@@ -134,6 +135,10 @@ const RegisterForm = ({
     }
     if (registerData.password !== registerData.password_confirmation) {
       setError('Passwords do not match');
+      return false;
+    }
+    if (registerData.role === 'technician' && !registerData.city.trim()) {
+      setError('City is required for technician accounts.');
       return false;
     }
     if (registerData.honeypot) {
@@ -300,6 +305,26 @@ const RegisterForm = ({
             </select>
           </div>
 
+          {registerData.role === 'technician' && (
+            <div>
+              <label htmlFor={`${idPrefix}-city`} className={`block text-sm font-medium ${v.label}`}>
+                City
+              </label>
+              <input
+                type="text"
+                id={`${idPrefix}-city`}
+                name="city"
+                value={registerData.city}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, city: e.target.value }))
+                }
+                required
+                placeholder="e.g. Houston"
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              />
+            </div>
+          )}
+
           <div className="absolute left-[-9999px] top-0 opacity-0 pointer-events-none">
             <label htmlFor={`${idPrefix}-consent-check`}>Consent check</label>
             <input
@@ -348,6 +373,7 @@ const RegisterForm = ({
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
             <p><span className="font-semibold">Email:</span> {registerData.email}</p>
             <p><span className="font-semibold">Account type:</span> {registerData.role}</p>
+            {registerData.role === 'technician' && <p><span className="font-semibold">City:</span> {registerData.city}</p>}
             <p><span className="font-semibold">Tier:</span> {selectedTier?.name} ({selectedTier?.price})</p>
             <div className="mt-3">
               <button

@@ -217,6 +217,11 @@ export const adminUsersAPI = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  updateMembershipPricing: (id, payload) =>
+    apiRequest(`/admin/users/${id}/membership_pricing`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   create: (data) => {
     if (data instanceof FormData) {
       return apiRequest('/admin/users', {

@@ -53,6 +53,11 @@ class MembershipPolicy
     effective_commission_percent(profile: technician_profile, base_commission_percent: rule[:commission_percent])
   end
 
+  # A single admin toggle to keep tier benefits while exempting billing.
+  def self.billing_exempt?(profile)
+    profile&.membership_fee_waived?
+  end
+
   def self.job_visible_to_technician?(job:, technician_profile:)
     return true if technician_profile.blank?
 
@@ -97,6 +102,8 @@ class MembershipPolicy
   end
 
   def self.effective_commission_percent(profile:, base_commission_percent:)
+    return 0.0 if billing_exempt?(profile)
+
     override = profile&.commission_override_percent
     return base_commission_percent if override.nil?
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI } from '../api/api';
+import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI, profilesAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
 import AppHeader from '../components/AppHeader';
 import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine, FaUsers, FaUserCog, FaBuilding, FaCommentDots } from 'react-icons/fa';
@@ -37,6 +37,18 @@ const formatDate = (dateStr) => {
 const formatCurrency = (cents) => {
   if (cents == null || cents === 0) return '$0';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+};
+
+const haversineMiles = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
+  const R = 3959;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
 const PERIOD_OPTIONS = [
@@ -272,6 +284,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [jobs, setJobs] = useState(null);
+  const [openJobs, setOpenJobs] = useState([]);
+  const [technicianProfile, setTechnicianProfile] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [feedbackList, setFeedbackList] = useState(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
@@ -279,6 +293,14 @@ const Dashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     fetchDashboard();
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== 'technician') return undefined;
+    const intervalId = window.setInterval(() => {
+      fetchDashboard();
+    }, 30000);
+    return () => window.clearInterval(intervalId);
   }, [user?.role]);
 
   const fetchDashboard = async () => {
@@ -295,11 +317,20 @@ const Dashboard = ({ user, onLogout }) => {
         setAnalytics(analyticsRes);
       } else if (user?.role === 'technician') {
         setFeedbackList(null);
-        const [jobsRes, analyticsRes] = await Promise.all([
+        const [jobsRes, analyticsRes, openJobsRes, technicianProfileRes] = await Promise.all([
           jobsAPI.getTechnicianDashboard(),
           jobsAPI.getAnalytics().catch(() => null),
+          jobsAPI.getAll({ status: 'open' }).catch(() => []),
+          profilesAPI.getTechnicianProfile().catch(() => null),
         ]);
+        const now = Date.now();
+        const liveOpenJobs = (Array.isArray(openJobsRes) ? openJobsRes : []).filter((job) => {
+          const endAt = job?.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
+          return endAt == null || endAt >= now;
+        });
         setJobs(jobsRes);
+        setOpenJobs(liveOpenJobs);
+        setTechnicianProfile(technicianProfileRes);
         setAnalytics(analyticsRes);
       } else if (user?.role === 'admin') {
         const [analyticsRes, feedbackRes] = await Promise.all([
@@ -307,11 +338,15 @@ const Dashboard = ({ user, onLogout }) => {
           feedbackAPI.list().catch(() => null),
         ]);
         setJobs(null);
+        setOpenJobs([]);
+        setTechnicianProfile(null);
         setAnalytics(analyticsRes);
           setFeedbackList(feedbackRes?.feedback_submissions ?? []);
       } else {
         setFeedbackList(null);
         setJobs(null);
+        setOpenJobs([]);
+        setTechnicianProfile(null);
         setAnalytics(null);
       }
     } catch (err) {
@@ -369,7 +404,14 @@ const Dashboard = ({ user, onLogout }) => {
             />
           )}
           {user?.role === 'technician' && (
-            <TechnicianDashboardContent jobs={jobs} analytics={analytics} navigate={navigate} user={user} />
+            <TechnicianDashboardContent
+              jobs={jobs}
+              openJobs={openJobs}
+              technicianProfile={technicianProfile}
+              analytics={analytics}
+              navigate={navigate}
+              user={user}
+            />
           )}
           {user?.role === 'admin' && (
             <AdminDashboardContent analytics={analytics} feedbackList={feedbackList} />
@@ -816,10 +858,36 @@ const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigat
   );
 };
 
-const TechnicianDashboardContent = ({ jobs, analytics, navigate, user }) => {
+const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analytics, navigate, user }) => {
   const inProgress = jobs?.in_progress || [];
   const completed = jobs?.completed || [];
+  const [selectedMapJobId, setSelectedMapJobId] = useState(null);
   const [reviewedJobIds, setReviewedJobIds] = useState(new Set());
+  const searchRadiusMiles = 150;
+  const technicianLat = technicianProfile?.latitude;
+  const technicianLng = technicianProfile?.longitude;
+
+  const nearbyOpenJobs = (openJobs || [])
+    .map((job) => ({
+      ...job,
+      distanceMiles: haversineMiles(technicianLat, technicianLng, job?.latitude, job?.longitude),
+    }))
+    .filter((job) => {
+      if (technicianLat == null || technicianLng == null) return true;
+      return job.distanceMiles <= searchRadiusMiles;
+    })
+    .sort((a, b) => a.distanceMiles - b.distanceMiles);
+
+  useEffect(() => {
+    if (!nearbyOpenJobs.length) {
+      setSelectedMapJobId(null);
+      return;
+    }
+    const stillExists = nearbyOpenJobs.some((job) => job.id === selectedMapJobId);
+    if (!stillExists) {
+      setSelectedMapJobId(nearbyOpenJobs[0].id);
+    }
+  }, [nearbyOpenJobs, selectedMapJobId]);
 
   useEffect(() => {
     if (user?.role === 'technician') {
@@ -829,8 +897,91 @@ const TechnicianDashboardContent = ({ jobs, analytics, navigate, user }) => {
     }
   }, [user?.role]);
 
+  const selectedMapJob = nearbyOpenJobs.find((job) => job.id === selectedMapJobId) || null;
+  const centerLat = technicianLat ?? selectedMapJob?.latitude ?? 39.5;
+  const centerLng = technicianLng ?? selectedMapJob?.longitude ?? -98.35;
+  const needsExactAddressPrompt =
+    !technicianProfile?.address?.trim() || technicianLat == null || technicianLng == null;
+  const latDelta = searchRadiusMiles / 69;
+  const lonDelta = searchRadiusMiles / (Math.cos((centerLat * Math.PI) / 180) * 69 || 1);
+  const left = centerLng - lonDelta;
+  const right = centerLng + lonDelta;
+  const top = centerLat + latDelta;
+  const bottom = centerLat - latDelta;
+  const mapEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(left)},${encodeURIComponent(bottom)},${encodeURIComponent(right)},${encodeURIComponent(top)}&layer=mapnik&marker=${encodeURIComponent(centerLat)},${encodeURIComponent(centerLng)}`;
+
   return (
     <>
+      {needsExactAddressPrompt && (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm">
+          <p className="font-semibold text-sm sm:text-base mb-1">Add your exact address for better map matching</p>
+          <p className="text-sm text-amber-900/90 mb-3">
+            We have your city, but adding your full street address improves map centering and nearby job distance accuracy.
+          </p>
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700"
+          >
+            Add address in Settings
+          </Link>
+        </div>
+      )}
+
+      <section className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 xl:grid-cols-3">
+          <div className="xl:col-span-2 min-h-[24rem] bg-slate-100">
+            {selectedMapJob ? (
+              <iframe
+                key={`${selectedMapJob.id}-${centerLat}-${centerLng}`}
+                title={`Open job map for ${selectedMapJob.title}`}
+                src={mapEmbedUrl}
+                className="h-full w-full min-h-[24rem] border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="h-full min-h-[24rem] flex items-center justify-center px-6 text-center text-gray-600">
+                No live open jobs to map right now.
+              </div>
+            )}
+          </div>
+          <div className="border-t xl:border-t-0 xl:border-l border-gray-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-900">Open Jobs Map</h2>
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+                Live
+              </span>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Open jobs refresh every 30 seconds and show a {searchRadiusMiles}-mile radius from your profile location.
+            </p>
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {nearbyOpenJobs.slice(0, 25).map((job) => (
+                <button
+                  key={job.id}
+                  type="button"
+                  onClick={() => setSelectedMapJobId(job.id)}
+                  className={`w-full text-left rounded-lg border px-3 py-2 transition ${
+                    selectedMapJobId === job.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-gray-900 line-clamp-1">{job.title}</p>
+                  <p className="text-xs text-gray-600 line-clamp-1">
+                    {job.location || 'Location pending'}
+                    {Number.isFinite(job.distanceMiles) ? ` • ${job.distanceMiles.toFixed(1)} mi` : ''}
+                  </p>
+                </button>
+              ))}
+              {!nearbyOpenJobs.length && (
+                <p className="text-sm text-gray-500">No open jobs available.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Analytics Section */}
       {analytics && (
         <div className="mb-8">

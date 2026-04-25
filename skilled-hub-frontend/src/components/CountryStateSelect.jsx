@@ -5,7 +5,7 @@ import { getStatesForCountry } from '../data/statesByCountry';
 /**
  * Searchable dropdown - type to filter, click to select.
  */
-const SearchableSelect = ({ options, value, onChange, placeholder, className = '' }) => {
+const SearchableSelect = ({ options, value, onChange, placeholder, className = '', required = false, inputClassName = '' }) => {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const containerRef = useRef(null);
@@ -39,7 +39,8 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className = '
         }}
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
-        className="w-full border px-3 py-2 rounded bg-white"
+        required={required}
+        className={`w-full border px-3 py-2 rounded bg-white ${inputClassName}`}
       />
       {open && (
         <ul className="absolute z-20 mt-1 w-full border border-gray-300 rounded-lg bg-white shadow-lg max-h-48 overflow-y-auto">
@@ -65,11 +66,13 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className = '
 /**
  * Country and State/Province select. USA default, states change by country.
  */
-const CountryStateSelect = ({ country, state, onCountryChange, onStateChange, required = false }) => {
+const CountryStateSelect = ({ country, state, onCountryChange, onStateChange, required = false, highlightMissing = false }) => {
   const countryCode = COUNTRIES.find((c) => c.name === country)?.code || '';
   const stateOptions = getStatesForCountry(countryCode).map((s) => ({ value: s, label: s }));
 
   const countryOptions = COUNTRIES.map((c) => ({ value: c.name, label: c.name }));
+  const countryInputClassName = highlightMissing && !String(country || '').trim() ? 'border-amber-400 bg-amber-50' : '';
+  const stateInputClassName = highlightMissing && !String(state || '').trim() ? 'border-amber-400 bg-amber-50' : '';
 
   const handleCountryChange = (newCountry) => {
     onCountryChange(newCountry);
@@ -90,6 +93,8 @@ const CountryStateSelect = ({ country, state, onCountryChange, onStateChange, re
           onChange={handleCountryChange}
           placeholder="Select country"
           className="bg-white"
+          required={required}
+          inputClassName={countryInputClassName}
         />
       </div>
       <div>
@@ -101,6 +106,8 @@ const CountryStateSelect = ({ country, state, onCountryChange, onStateChange, re
             onChange={onStateChange}
             placeholder="Type or scroll to select"
             className="bg-white"
+            required={required}
+            inputClassName={stateInputClassName}
           />
         ) : (
           <input
@@ -108,7 +115,8 @@ const CountryStateSelect = ({ country, state, onCountryChange, onStateChange, re
             value={state}
             onChange={(e) => onStateChange(e.target.value)}
             placeholder="Enter state or province"
-            className="w-full border px-3 py-2 rounded bg-white"
+            required={required}
+            className={`w-full border px-3 py-2 rounded bg-white ${stateInputClassName}`}
           />
         )}
       </div>

@@ -704,6 +704,28 @@ const CrmPage = ({ user, onLogout }) => {
     });
   };
 
+  const updateAdditionalContactNamePart = (contactIdx, part, value) => {
+    setForm((f) => {
+      const contacts = editableContacts(f.contacts, {
+        name: f.contact_name || '',
+        email: f.email || '',
+        phone: f.phone || '',
+      });
+      if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
+
+      const current = splitContactName(contacts[contactIdx]?.name);
+      const next = {
+        ...current,
+        [part]: value,
+      };
+      const combinedName = [next.firstName, next.lastName].filter(Boolean).join(' ').trim();
+      const nextContacts = contacts.map((contact, idx) =>
+        idx === contactIdx ? { ...contact, name: combinedName } : contact,
+      );
+      return { ...f, contacts: nextContacts };
+    });
+  };
+
   const normalizeMatchValue = (value) => String(value || '').trim().toLowerCase();
 
   const normalizePhoneMatch = (value) => {
@@ -1342,59 +1364,65 @@ const CrmPage = ({ user, onLogout }) => {
                   <div className="block sm:col-span-2 rounded-lg border border-gray-200 p-3 bg-gray-50">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
-                      <button
-                        type="button"
-                        disabled={!isRecordEditing}
-                        onClick={addAdditionalContact}
-                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-                      >
-                        Add contact
-                      </button>
                     </div>
                     {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
                       .slice(1)
                       .map((contact, idx) => {
                         const contactIndex = idx + 1;
+                        const splitName = splitContactName(contact.name);
                         return (
-                          <div key={`extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div key={`extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
                             <input
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                              placeholder="Name"
-                              value={contact.name || ''}
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="First name"
+                              value={splitName.firstName}
                               ref={focusAdditionalContactNameInput(contactIndex)}
-                              onChange={(e) => updateAdditionalContactField(contactIndex, 'name', e.target.value)}
+                              onChange={(e) => updateAdditionalContactNamePart(contactIndex, 'firstName', e.target.value)}
                               readOnly={!isRecordEditing}
                             />
                             <input
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Last name"
+                              value={splitName.lastName}
+                              onChange={(e) => updateAdditionalContactNamePart(contactIndex, 'lastName', e.target.value)}
+                              readOnly={!isRecordEditing}
+                            />
+                            <input
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                               placeholder="Email"
                               value={contact.email || ''}
                               onChange={(e) => updateAdditionalContactField(contactIndex, 'email', e.target.value)}
                               readOnly={!isRecordEditing}
                             />
-                            <div className="flex gap-2">
-                              <input
-                                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                                placeholder="Phone"
-                                value={contact.phone || ''}
-                                onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
-                                readOnly={!isRecordEditing}
-                              />
-                              <button
-                                type="button"
-                                disabled={!isRecordEditing}
-                                onClick={() => removeAdditionalContact(contactIndex)}
-                                className="px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                              >
-                                Remove
-                              </button>
-                            </div>
+                            <input
+                              className="sm:col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Phone"
+                              value={contact.phone || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
+                              readOnly={!isRecordEditing}
+                            />
+                            <button
+                              type="button"
+                              disabled={!isRecordEditing}
+                              onClick={() => removeAdditionalContact(contactIndex)}
+                              className="sm:col-span-1 h-[34px] px-2 rounded border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
                           </div>
                         );
                       })}
                     {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
                       <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
                     )}
+                    <button
+                      type="button"
+                      disabled={!isRecordEditing}
+                      onClick={addAdditionalContact}
+                      className="mt-2 text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      Add contact
+                    </button>
                   </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Website</span>
@@ -2546,54 +2574,59 @@ const CrmPage = ({ user, onLogout }) => {
                   <div className="block sm:col-span-2 rounded-lg border border-gray-200 p-3 bg-gray-50">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
-                      <button
-                        type="button"
-                        onClick={addAdditionalContact}
-                        className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-                      >
-                        Add contact
-                      </button>
                     </div>
                     {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
                       .slice(1)
                       .map((contact, idx) => {
                         const contactIndex = idx + 1;
+                        const splitName = splitContactName(contact.name);
                         return (
-                          <div key={`new-extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div key={`new-extra-contact-${contactIndex}`} className="mt-2 grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
                             <input
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                              placeholder="Name"
-                              value={contact.name || ''}
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="First name"
+                              value={splitName.firstName}
                               ref={focusAdditionalContactNameInput(contactIndex)}
-                              onChange={(e) => updateAdditionalContactField(contactIndex, 'name', e.target.value)}
+                              onChange={(e) => updateAdditionalContactNamePart(contactIndex, 'firstName', e.target.value)}
                             />
                             <input
-                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Last name"
+                              value={splitName.lastName}
+                              onChange={(e) => updateAdditionalContactNamePart(contactIndex, 'lastName', e.target.value)}
+                            />
+                            <input
+                              className="sm:col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
                               placeholder="Email"
                               value={contact.email || ''}
                               onChange={(e) => updateAdditionalContactField(contactIndex, 'email', e.target.value)}
                             />
-                            <div className="flex gap-2">
-                              <input
-                                className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
-                                placeholder="Phone"
-                                value={contact.phone || ''}
-                                onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeAdditionalContact(contactIndex)}
-                                className="px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50"
-                              >
-                                Remove
-                              </button>
-                            </div>
+                            <input
+                              className="sm:col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                              placeholder="Phone"
+                              value={contact.phone || ''}
+                              onChange={(e) => updateAdditionalContactField(contactIndex, 'phone', e.target.value)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeAdditionalContact(contactIndex)}
+                              className="sm:col-span-1 h-[34px] px-2 rounded border border-red-300 text-red-700 hover:bg-red-50"
+                            >
+                              Remove
+                            </button>
                           </div>
                         );
                       })}
                     {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
                       <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
                     )}
+                    <button
+                      type="button"
+                      onClick={addAdditionalContact}
+                      className="mt-2 text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                    >
+                      Add contact
+                    </button>
                   </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Website</span>

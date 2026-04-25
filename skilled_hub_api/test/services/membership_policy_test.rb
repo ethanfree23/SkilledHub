@@ -10,7 +10,7 @@ class MembershipPolicyTest < ActiveSupport::TestCase
     assert_equal 0, MembershipPolicy.company_commission_percent(profile)
   end
 
-  test "applies fee waiver and commission override" do
+  test "fee waiver makes effective fee and commission zero" do
     user = User.create!(email: "tech-policy@example.com", password: "password123", password_confirmation: "password123", role: :technician)
     profile = TechnicianProfile.create!(
       user: user,
@@ -22,7 +22,7 @@ class MembershipPolicyTest < ActiveSupport::TestCase
     )
 
     assert_equal 0, MembershipPolicy.technician_monthly_fee_cents(profile)
-    assert_equal 7.5, MembershipPolicy.technician_commission_percent(profile)
+    assert_equal 0.0, MembershipPolicy.technician_commission_percent(profile)
   end
 
   test "respects posted_at access windows by tier" do
