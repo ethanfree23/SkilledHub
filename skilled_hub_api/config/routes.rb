@@ -12,6 +12,7 @@ Rails.application.routes.draw do
       patch "password_resets", to: "password_resets#update"
       post "marketing_leads", to: "marketing_leads#create"
       post "signup_payment_intents", to: "signup_payment_intents#create"
+      get "membership_tier_configs", to: "membership_tier_configs#index"
       get 'technicians/profile', to: 'technicians#profile'
       get 'company_profiles/profile', to: 'company_profiles#profile'
       patch 'users/me', to: 'users#update_me'

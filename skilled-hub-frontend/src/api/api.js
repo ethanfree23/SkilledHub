@@ -104,6 +104,11 @@ export const marketingLeadsAPI = {
     }),
 };
 
+export const membershipTierConfigsAPI = {
+  list: (audience) =>
+    apiRequest(`/membership_tier_configs?audience=${encodeURIComponent(audience)}`),
+};
+
 export const signupPaymentsAPI = {
   createIntent: ({ email, role, membership_tier: membershipTier }) =>
     apiRequest('/signup_payment_intents', {

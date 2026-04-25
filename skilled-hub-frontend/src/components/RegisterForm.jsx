@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI, signupPaymentsAPI } from '../api/api';
+import { authAPI, membershipTierConfigsAPI, signupPaymentsAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from './CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
@@ -21,6 +21,35 @@ const styles = {
       'bg-[#FE6711] hover:bg-[#e55a0a] focus:ring-[#FE6711] shadow-lg shadow-orange-200/40',
   },
 };
+
+const FALLBACK_TIER_CONFIG = {
+  technician: [
+    { id: 'basic', name: 'Basic', price: '$0/mo', description: '20% commission.', requiresPayment: false },
+    { id: 'pro', name: 'Pro', price: '$49/mo', description: '20% commission.', requiresPayment: true },
+    { id: 'premium', name: 'Premium', price: '$249/mo', description: '10% commission.', requiresPayment: true },
+  ],
+  company: [
+    { id: 'basic', name: 'Basic', price: '$0/mo', description: '20% commission.', requiresPayment: false },
+    { id: 'pro', name: 'Pro', price: '$99/mo', description: '15% commission.', requiresPayment: true },
+    { id: 'premium', name: 'Premium', price: '$249/mo', description: '10% commission.', requiresPayment: true },
+  ],
+};
+
+const formatMonthlyPrice = (monthlyFeeCents) => {
+  const cents = Number(monthlyFeeCents) || 0;
+  if (cents <= 0) return '$0/mo';
+  return `$${(cents / 100).toFixed(0)}/mo`;
+};
+
+const tierDescription = (tier) => `${tier.commission_percent}% commission.`;
+
+const mapTier = (tier) => ({
+  id: tier.slug,
+  name: tier.display_name || tier.slug,
+  price: formatMonthlyPrice(tier.monthly_fee_cents),
+  description: tierDescription(tier),
+  requiresPayment: (Number(tier.monthly_fee_cents) || 0) > 0,
+});
 
 const RegisterForm = ({
   onLoginSuccess,
@@ -43,6 +72,7 @@ const RegisterForm = ({
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [paymentToken, setPaymentToken] = useState(null);
+  const [tierConfig, setTierConfig] = useState(FALLBACK_TIER_CONFIG);
   const [registerData, setRegisterData] = useState({
     email: initialEmail,
     password: '',
@@ -54,37 +84,46 @@ const RegisterForm = ({
   });
 
   const v = styles[variant] || styles.default;
+  useEffect(() => {
+    let active = true;
 
-  const tierConfig = {
-    technician: [
-      {
-        id: 'basic',
-        name: 'Basic',
-        price: '$0',
-        description: 'Full access to all jobs, 20% commission.',
-        requiresPayment: false,
-      },
-      {
-        id: 'pro',
-        name: 'Pro',
-        price: '$49/mo',
-        description: 'View jobs one day before Basic, 20% commission.',
-        requiresPayment: true,
-      },
-      {
-        id: 'premium',
-        name: 'Premium',
-        price: '$249/mo',
-        description: 'View jobs two days before Pro, 10% commission.',
-        requiresPayment: true,
-      },
-    ],
-    company: [
-      { id: 'basic', name: 'Basic', price: '$0', description: 'Post jobs and connect with available technicians.', requiresPayment: false },
-      { id: 'pro', name: 'Pro', price: '$99/mo', description: 'Priority matching and advanced filters.', requiresPayment: true },
-      { id: 'premium', name: 'Premium', price: '$249/mo', description: 'Fast-fill support and premium visibility.', requiresPayment: true },
-    ],
-  };
+    const loadAudience = async (audience) => {
+      try {
+        const res = await membershipTierConfigsAPI.list(audience);
+        const mapped = (res?.membership_tier_configs || []).map(mapTier);
+        if (!mapped.length) return null;
+        return mapped;
+      } catch {
+        return null;
+      }
+    };
+
+    const load = async () => {
+      const [tech, company] = await Promise.all([
+        loadAudience('technician'),
+        loadAudience('company'),
+      ]);
+
+      if (!active) return;
+      setTierConfig({
+        technician: tech || FALLBACK_TIER_CONFIG.technician,
+        company: company || FALLBACK_TIER_CONFIG.company,
+      });
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const options = tierConfig[registerData.role] || [];
+    if (!options.some((tier) => tier.id === registerData.membership_tier) && options.length > 0) {
+      setRegisterData((prev) => ({ ...prev, membership_tier: options[0].id }));
+      setPaymentToken(null);
+    }
+  }, [registerData.role, registerData.membership_tier, tierConfig]);
 
   const selectedTier = tierConfig[registerData.role]?.find((tier) => tier.id === registerData.membership_tier);
 
