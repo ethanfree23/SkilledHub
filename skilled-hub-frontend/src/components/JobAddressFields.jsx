@@ -3,8 +3,8 @@ import CountryStateSelect from './CountryStateSelect';
 import { addressesAPI } from '../api/api';
 
 /**
- * Paste a full address, pick a Google Maps / Places match (when API key is configured)
- * or OpenStreetMap suggestions, or expand to manual street + city + state fields.
+ * Search by street address or broader area (city/state), pick a Google Maps / Places
+ * match (when API key is configured) or OpenStreetMap suggestions, or expand to manual fields.
  */
 const JobAddressFields = ({
   address,
@@ -28,7 +28,7 @@ const JobAddressFields = ({
 
   const usingText =
     pickedLabel ||
-    (String(address || '').trim() && String(city || '').trim()
+    ((String(city || '').trim() || String(state || '').trim())
       ? [address, city, state, zipCode, country].filter(Boolean).join(', ')
       : '');
 
@@ -156,7 +156,7 @@ const JobAddressFields = ({
         <div ref={wrapRef} className="space-y-2">
           <label className="block font-medium mb-1 text-sm">Search address</label>
           <p className="text-xs text-gray-500">
-            Paste a full address in one line, then choose a match below.
+            Enter a street address or just city/state, then choose a match below.
             {provider === 'google'
               ? ' Suggestions use Google Places.'
               : ' Suggestions use OpenStreetMap (enable GOOGLE_MAPS_API_KEY on the server for Google Maps results).'}
@@ -175,7 +175,7 @@ const JobAddressFields = ({
                 if (suggestions.length) setOpen(true);
               }}
               onKeyDown={onSearchKeyDown}
-              placeholder="e.g. 1600 Amphitheatre Parkway, Mountain View, CA 94043"
+              placeholder="e.g. Houston, TX or 1600 Amphitheatre Parkway, Mountain View, CA 94043"
             />
             {loading && (
               <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching…</span>
@@ -237,13 +237,12 @@ const JobAddressFields = ({
             </button>
           </div>
           <div>
-            <label className="block font-medium mb-1 text-sm">Street address</label>
+            <label className="block font-medium mb-1 text-sm">Street address (optional)</label>
             <input
               className="w-full border px-3 py-2 rounded bg-white"
               value={address}
               onChange={(e) => onChange({ address: e.target.value })}
               placeholder="e.g. 123 Main St"
-              required
             />
           </div>
           <div>

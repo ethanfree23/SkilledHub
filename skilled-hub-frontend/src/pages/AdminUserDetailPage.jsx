@@ -222,7 +222,6 @@ export default function AdminUserDetailPage({ user, onLogout }) {
         first_name: u?.first_name || '',
         last_name: u?.last_name || '',
         trade_type: profile.trade_type || '',
-        location: profile.location || '',
         address: profile.address || '',
         city: profile.city || '',
         state: profile.state || 'Texas',
@@ -261,7 +260,9 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               first_name: profileDraft.first_name?.trim() || null,
               last_name: profileDraft.last_name?.trim() || null,
               trade_type: profileDraft.trade_type?.trim(),
-              location: profileDraft.location?.trim(),
+              location: [profileDraft.city?.trim(), profileDraft.state?.trim(), profileDraft.country?.trim()]
+                .filter(Boolean)
+                .join(', '),
               address: profileDraft.address?.trim(),
               city: profileDraft.city?.trim(),
               state: profileDraft.state?.trim(),
@@ -740,14 +741,6 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                         className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                         value={profileDraft.trade_type || ''}
                         onChange={(e) => setProfileDraft((d) => ({ ...d, trade_type: e.target.value }))}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Location</span>
-                      <input
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                        value={profileDraft.location || ''}
-                        onChange={(e) => setProfileDraft((d) => ({ ...d, location: e.target.value }))}
                       />
                     </label>
                     <div className="sm:col-span-2">

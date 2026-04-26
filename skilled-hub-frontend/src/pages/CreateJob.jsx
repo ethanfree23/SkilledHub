@@ -211,8 +211,8 @@ const CreateJob = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!String(address || '').trim() || !String(city || '').trim()) {
-      setErrorModal('Please pick an address from the suggestions list, or use Fill out form manually and enter street and city.');
+    if (!String(city || '').trim() || !String(state || '').trim()) {
+      setErrorModal('Please select at least city and state from address search or manual entry.');
       return;
     }
     setSaving(true);

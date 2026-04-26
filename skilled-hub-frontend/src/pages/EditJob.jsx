@@ -172,11 +172,11 @@ const EditJob = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!String(form.address || '').trim() || !String(form.city || '').trim()) {
+    if (!String(form.city || '').trim() || !String(form.state || '').trim()) {
       setAlertModal({
         isOpen: true,
         title: 'Address required',
-        message: 'Pick an address from suggestions or use Fill out form manually.',
+        message: 'Please set at least city and state from address search or manual entry.',
         variant: 'error',
         onCloseAction: null,
       });
