@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import AdminCollapsibleCard from '../components/AdminCollapsibleCard';
 import AdminCreateUserModal from '../components/AdminCreateUserModal';
+import JobAddressFields from '../components/JobAddressFields';
 import { ServiceCityPicker } from '../components/admin/AdminUserFormPickers';
 import { adminUsersAPI, adminReferralsAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
@@ -222,6 +223,11 @@ export default function AdminUserDetailPage({ user, onLogout }) {
         last_name: u?.last_name || '',
         trade_type: profile.trade_type || '',
         location: profile.location || '',
+        address: profile.address || '',
+        city: profile.city || '',
+        state: profile.state || 'Texas',
+        zip_code: profile.zip_code || '',
+        country: profile.country || 'United States',
         experience_years: profile.experience_years != null ? String(profile.experience_years) : '',
         availability: profile.availability || '',
         bio: profile.bio || '',
@@ -256,6 +262,11 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               last_name: profileDraft.last_name?.trim() || null,
               trade_type: profileDraft.trade_type?.trim(),
               location: profileDraft.location?.trim(),
+              address: profileDraft.address?.trim(),
+              city: profileDraft.city?.trim(),
+              state: profileDraft.state?.trim(),
+              zip_code: profileDraft.zip_code?.trim(),
+              country: profileDraft.country?.trim(),
               availability: profileDraft.availability?.trim(),
               bio: profileDraft.bio?.trim(),
               experience_years:
@@ -511,6 +522,14 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                         <dt className="text-gray-500">Location</dt>
                         <dd className="font-medium text-gray-900">{profile.location || '—'}</dd>
                       </div>
+                      <div className="sm:col-span-2">
+                        <dt className="text-gray-500">Address</dt>
+                        <dd className="font-medium text-gray-900">
+                          {[profile.address, profile.city, profile.state, profile.zip_code, profile.country]
+                            .filter(Boolean)
+                            .join(', ') || '—'}
+                        </dd>
+                      </div>
                       <div>
                         <dt className="text-gray-500">Experience (years)</dt>
                         <dd className="font-medium text-gray-900">{profile.experience_years ?? '—'}</dd>
@@ -731,6 +750,26 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                         onChange={(e) => setProfileDraft((d) => ({ ...d, location: e.target.value }))}
                       />
                     </label>
+                    <div className="sm:col-span-2">
+                      <JobAddressFields
+                        sectionTitle="Technician Address"
+                        address={profileDraft.address || ''}
+                        city={profileDraft.city || ''}
+                        state={profileDraft.state || 'Texas'}
+                        zipCode={profileDraft.zip_code || ''}
+                        country={profileDraft.country || 'United States'}
+                        onChange={(patch) =>
+                          setProfileDraft((d) => ({
+                            ...d,
+                            ...(patch.address !== undefined ? { address: patch.address } : {}),
+                            ...(patch.city !== undefined ? { city: patch.city } : {}),
+                            ...(patch.state !== undefined ? { state: patch.state } : {}),
+                            ...(patch.zip_code !== undefined ? { zip_code: patch.zip_code } : {}),
+                            ...(patch.country !== undefined ? { country: patch.country } : {}),
+                          }))
+                        }
+                      />
+                    </div>
                     <label className="block">
                       <span className="text-xs font-medium text-gray-500 uppercase">Years experience</span>
                       <input

@@ -299,7 +299,19 @@ module Api
         end
 
         def technician_profile_admin_params
-          p = params.permit(:trade_type, :location, :availability, :bio, :phone, :experience_years)
+          p = params.permit(
+            :trade_type,
+            :location,
+            :availability,
+            :bio,
+            :phone,
+            :experience_years,
+            :address,
+            :city,
+            :state,
+            :zip_code,
+            :country
+          )
           if p.key?(:experience_years)
             raw = p[:experience_years]
             p[:experience_years] = raw.present? ? raw.to_i : nil
