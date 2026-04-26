@@ -154,57 +154,61 @@ const JobAddressFields = ({
 
       {!manualExpanded && (
         <div ref={wrapRef} className="space-y-2">
-          <label className="block font-medium mb-1 text-sm">Search address</label>
-          <p className="text-xs text-gray-500">
-            Enter a street address or just city/state, then choose a match below.
-            {provider === 'google'
-              ? ' Suggestions use Google Places.'
-              : ' Suggestions use OpenStreetMap (enable GOOGLE_MAPS_API_KEY on the server for Google Maps results).'}
-          </p>
-          <div className="relative">
-            <input
-              type="text"
-              autoComplete="off"
-              className="w-full border px-3 py-2 rounded bg-white"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setOpen(true);
-              }}
-              onFocus={() => {
-                if (suggestions.length) setOpen(true);
-              }}
-              onKeyDown={onSearchKeyDown}
-              placeholder="e.g. Houston, TX or 1600 Amphitheatre Parkway, Mountain View, CA 94043"
-            />
-            {loading && (
-              <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching…</span>
-            )}
-            {open && suggestions.length > 0 && (
-              <ul className="absolute z-30 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm py-1">
-                {suggestions.map((s, idx) => (
-                  <li key={`${s.source}-${s.place_id || s.label}-${idx}`}>
-                    <button
-                      type="button"
-                      className={`w-full text-left px-3 py-2 hover:bg-blue-50 ${idx === highlight ? 'bg-blue-50' : ''}`}
-                      onMouseEnter={() => setHighlight(idx)}
-                      onClick={() => pickSuggestion(s)}
-                    >
-                      {s.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {!usingText && (
+            <>
+              <label className="block font-medium mb-1 text-sm">Search address</label>
+              <p className="text-xs text-gray-500">
+                Enter a street address or just city/state, then choose a match below.
+                {provider === 'google'
+                  ? ' Suggestions use Google Places.'
+                  : ' Suggestions use OpenStreetMap (enable GOOGLE_MAPS_API_KEY on the server for Google Maps results).'}
+              </p>
+              <div className="relative">
+                <input
+                  type="text"
+                  autoComplete="off"
+                  className="w-full border px-3 py-2 rounded bg-white"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (suggestions.length) setOpen(true);
+                  }}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="e.g. Houston, TX or 1600 Amphitheatre Parkway, Mountain View, CA 94043"
+                />
+                {loading && (
+                  <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching…</span>
+                )}
+                {open && suggestions.length > 0 && (
+                  <ul className="absolute z-30 mt-1 w-full max-h-56 overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm py-1">
+                    {suggestions.map((s, idx) => (
+                      <li key={`${s.source}-${s.place_id || s.label}-${idx}`}>
+                        <button
+                          type="button"
+                          className={`w-full text-left px-3 py-2 hover:bg-blue-50 ${idx === highlight ? 'bg-blue-50' : ''}`}
+                          onMouseEnter={() => setHighlight(idx)}
+                          onClick={() => pickSuggestion(s)}
+                        >
+                          {s.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-          <button
-            type="button"
-            className="text-sm font-medium text-blue-700 hover:text-blue-900 underline"
-            onClick={() => setManualExpanded(true)}
-          >
-            Fill out form manually
-          </button>
+              <button
+                type="button"
+                className="text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+                onClick={() => setManualExpanded(true)}
+              >
+                Fill out form manually
+              </button>
+            </>
+          )}
 
           {usingText && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
