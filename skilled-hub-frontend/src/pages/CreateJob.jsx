@@ -73,6 +73,7 @@ const CreateJob = () => {
   const [companyOptions, setCompanyOptions] = useState([]);
   const [companySearchLoading, setCompanySearchLoading] = useState(false);
   const [selectedCompanyName, setSelectedCompanyName] = useState('');
+  const [companySelectionLocked, setCompanySelectionLocked] = useState(false);
   const [enforceCardValidation, setEnforceCardValidation] = useState(true);
   const [platformFeePercent, setPlatformFeePercent] = useState(null);
   const [accessTiers, setAccessTiers] = useState([]);
@@ -122,6 +123,7 @@ const CreateJob = () => {
 
   useEffect(() => {
     if (!isAdmin) return;
+    if (companySelectionLocked) return;
     const q = companyQuery.trim();
     if (q.length < 2) {
       setCompanyOptions([]);
@@ -147,7 +149,7 @@ const CreateJob = () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [companyQuery, isAdmin]);
+  }, [companyQuery, isAdmin, companySelectionLocked]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -285,11 +287,17 @@ const CreateJob = () => {
                 value={companyQuery}
                 onChange={(e) => setCompanyQuery(e.target.value)}
                 placeholder="Search by company name..."
+                disabled={companySelectionLocked}
               />
+              {companySelectionLocked && (
+                <p className="text-xs text-blue-700">
+                  Company is locked. Click Edit to change selection.
+                </p>
+              )}
               {companySearchLoading && (
                 <p className="text-xs text-gray-500">Searching companies...</p>
               )}
-              {!companySearchLoading && companyOptions.length > 0 && (
+              {!companySelectionLocked && !companySearchLoading && companyOptions.length > 0 && (
                 <div className="max-h-44 overflow-y-auto border rounded bg-white">
                   {companyOptions.map((company) => (
                     (() => {
@@ -308,6 +316,7 @@ const CreateJob = () => {
                         setSelectedCompanyName(label);
                         setCompanyQuery(companyLabel);
                         setCompanyOptions([]);
+                        setCompanySelectionLocked(true);
                       }}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b last:border-b-0"
                     >
@@ -319,9 +328,21 @@ const CreateJob = () => {
                 </div>
               )}
               {selectedCompanyName && (
-                <p className="text-sm text-green-700">
-                  Selected company: <span className="font-medium">{selectedCompanyName}</span>
-                </p>
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 flex items-center justify-between gap-3">
+                  <p className="text-sm text-blue-900">
+                    Selected company: <span className="font-semibold">{selectedCompanyName}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompanySelectionLocked(false);
+                      setCompanyOptions([]);
+                    }}
+                    className="text-xs px-2.5 py-1 rounded border border-blue-300 text-blue-800 bg-white hover:bg-blue-100"
+                  >
+                    Edit
+                  </button>
+                </div>
               )}
             </div>
           )}
