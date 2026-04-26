@@ -520,6 +520,7 @@ const CreateJob = () => {
             <div>
               <label className="block font-medium mb-1">Go Live Date & Time</label>
               <DateTimeInput
+                id="create-job-go-live-at"
                 value={goLiveAt}
                 onChange={(e) => setGoLiveAt(e.target.value)}
                 className="w-full"
@@ -557,6 +558,7 @@ const CreateJob = () => {
           <div>
             <label className="block font-medium mb-1">Start Date & Time</label>
             <DateTimeInput
+              id="create-job-start-at"
               value={scheduledStartAt}
               onChange={(e) => setScheduledStartAt(e.target.value)}
               className="w-full"
@@ -565,6 +567,7 @@ const CreateJob = () => {
           <div>
             <label className="block font-medium mb-1">End Date & Time</label>
             <DateTimeInput
+              id="create-job-end-at"
               value={scheduledEndAt}
               onChange={(e) => setScheduledEndAt(e.target.value)}
               className="w-full"

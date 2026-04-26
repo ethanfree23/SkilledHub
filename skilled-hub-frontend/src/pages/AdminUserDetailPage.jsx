@@ -43,6 +43,7 @@ export default function AdminUserDetailPage({ user, onLogout }) {
   const [membershipSaveBusy, setMembershipSaveBusy] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [masqueradeBusy, setMasqueradeBusy] = useState(false);
+  const [ensureProfileBusy, setEnsureProfileBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -330,6 +331,30 @@ export default function AdminUserDetailPage({ user, onLogout }) {
     }
   };
 
+  const ensureMissingProfile = async () => {
+    if (!u?.id || !(isCompany || isTech) || profile) return;
+    setEnsureProfileBusy(true);
+    try {
+      await adminUsersAPI.ensureProfile(u.id);
+      await load();
+      setAlertModal({
+        isOpen: true,
+        title: 'Profile created',
+        message: 'Missing profile was created. You can now edit this user profile.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not create profile',
+        message: err.message || 'Request failed',
+        variant: 'error',
+      });
+    } finally {
+      setEnsureProfileBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
@@ -499,6 +524,21 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                         <dd className="font-medium text-gray-900 whitespace-pre-wrap">{profile.bio || '—'}</dd>
                       </div>
                     </>
+                  )}
+                  {(isCompany || isTech) && !profile && (
+                    <div className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-sm text-amber-800">
+                        This account is missing its {isCompany ? 'company' : 'technician'} profile, so Edit is unavailable.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={ensureProfileBusy}
+                        onClick={ensureMissingProfile}
+                        className="mt-2 px-3 py-1.5 text-sm font-semibold text-amber-900 border border-amber-400 rounded-lg hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {ensureProfileBusy ? 'Creating…' : `Create missing ${isCompany ? 'company' : 'technician'} profile`}
+                      </button>
+                    </div>
                   )}
                   {isCompany && u?.company_context?.company_profile_id && (
                     <div>

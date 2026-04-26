@@ -214,6 +214,30 @@ module Api
           render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
         end
 
+        # POST /api/v1/admin/users/:id/ensure_profile
+        # Creates a missing technician/company profile and links it.
+        def ensure_profile
+          user = provisioned_user!
+          return if user.nil?
+
+          profile =
+            if user.company?
+              ensure_company_profile_for(user)
+            elsif user.technician?
+              user.technician_profile || TechnicianProfile.create!(user_id: user.id)
+            else
+              return render json: { errors: ["This account has no editable profile"] }, status: :unprocessable_entity
+            end
+
+          render json: {
+            message: "Profile is ready",
+            profile_type: user.company? ? "company" : "technician",
+            profile_id: profile.id
+          }, status: :ok
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        end
+
         # PATCH /api/v1/admin/users/:id/membership_pricing
         def membership_pricing
           user = provisioned_user!
@@ -290,6 +314,14 @@ module Api
             return
           end
           user
+        end
+
+        def ensure_company_profile_for(user)
+          profile = user.company_profile || CompanyProfile.create!(user_id: user.id)
+          if user.company_profile_id != profile.id
+            user.update_column(:company_profile_id, profile.id)
+          end
+          profile
         end
 
         def frontend_reset_password_url(token)

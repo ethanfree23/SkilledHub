@@ -59,11 +59,11 @@ export default function AppHeader({
               </NavLink>
               {showCrm && (
                 <>
-                  <NavLink page="crm" to="/crm">
-                    CRM
-                  </NavLink>
                   <NavLink page="users" to="/admin/users">
                     Users
+                  </NavLink>
+                  <NavLink page="crm" to="/crm">
+                    CRM
                   </NavLink>
                 </>
               )}

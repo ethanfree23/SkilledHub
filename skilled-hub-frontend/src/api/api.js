@@ -205,6 +205,10 @@ export const adminUsersAPI = {
   },
   get: (id, period = '7d') =>
     apiRequest(`/admin/users/${id}?period=${encodeURIComponent(period)}`),
+  ensureProfile: (id) =>
+    apiRequest(`/admin/users/${id}/ensure_profile`, {
+      method: 'POST',
+    }),
   sendPasswordSetup: (id, { sendEmail = true } = {}) =>
     apiRequest(`/admin/users/${id}/password_setup`, {
       method: 'POST',

@@ -92,6 +92,7 @@ Rails.application.routes.draw do
         resources :users, only: %i[index show create] do
           member do
             post :password_setup
+            post :ensure_profile
             patch :password, action: :set_password
             patch :company_membership
             patch :membership_pricing

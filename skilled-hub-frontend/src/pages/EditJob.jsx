@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { jobsAPI, profilesAPI, adminMembershipTierConfigsAPI } from '../api/api';
 import JobAddressFields from '../components/JobAddressFields';
+import DateTimeInput from '../components/DateTimeInput';
 import AlertModal from '../components/AlertModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { EXPERIENCE_YEAR_OPTIONS } from '../constants/experienceSelect';
@@ -425,12 +426,11 @@ const EditJob = () => {
         {isAdmin && (
           <div>
             <label className="block font-medium mb-1">Go Live Date & Time</label>
-            <input
-              type="datetime-local"
-              className="w-full border px-3 py-2 rounded"
-              name="go_live_at"
+            <DateTimeInput
+              id="edit-job-go-live-at"
               value={form.go_live_at}
-              onChange={handleChange}
+              onChange={(e) => setForm((prev) => ({ ...prev, go_live_at: e.target.value }))}
+              className="w-full"
             />
             <p className="text-xs text-gray-500 mt-0.5">
               Tier access windows are calculated from this date/time.
@@ -504,11 +504,11 @@ const EditJob = () => {
           <form onSubmit={handleExtend} className="flex gap-4 items-end">
             <div className="flex-1">
               <label className="block font-medium mb-1 text-sm">New End Date & Time</label>
-              <input
-                type="datetime-local"
-                className="w-full border px-3 py-2 rounded"
+              <DateTimeInput
+                id="edit-job-extend-end-at"
                 value={extendEndAt}
-                onChange={e => setExtendEndAt(e.target.value)}
+                onChange={(e) => setExtendEndAt(e.target.value)}
+                className="w-full"
               />
             </div>
             <button

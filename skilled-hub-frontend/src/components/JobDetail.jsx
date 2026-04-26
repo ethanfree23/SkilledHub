@@ -535,11 +535,24 @@ const JobDetail = () => {
         </div>
       </div>
 
-      {Array.isArray(job.timeline_events) && job.timeline_events.length > 0 && (
+      {(job.go_live_at || (Array.isArray(job.timeline_events) && job.timeline_events.length > 0)) && (
         <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-800 mb-3">Job and payment timeline</h2>
           <div className="flex gap-2 overflow-x-auto pb-1 snap-x">
-            {job.timeline_events.map((ev) => (
+            {job.go_live_at && (
+              <div className="min-w-[148px] snap-start rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                <p className="text-xs font-medium text-blue-900">Go Live</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {new Date(job.go_live_at).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            )}
+            {Array.isArray(job.timeline_events) && job.timeline_events.map((ev) => (
               <div
                 key={`${ev.key}-${ev.at || ''}`}
                 className="min-w-[148px] snap-start rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"
@@ -695,6 +708,19 @@ const JobDetail = () => {
                   </p>
                 </div>
               </div>
+              {job.go_live_at && (
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm text-gray-500">Go Live</p>
+                    <p className="font-medium">
+                      {new Date(job.go_live_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
