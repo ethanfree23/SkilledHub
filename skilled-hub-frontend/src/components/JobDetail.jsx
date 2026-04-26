@@ -9,6 +9,7 @@ import { companyChargeFromJobAmount, formatPlatformFeePercent, resolvedCompanyFe
 import { EXPERIENCE_YEAR_OPTIONS, formatExperienceLong } from '../constants/experienceSelect';
 import Modal from 'react-modal';
 import StarRating from './StarRating';
+import JobAddressFields from './JobAddressFields';
 
 const toDatetimeLocal = (d) => {
   if (!d) return '';
@@ -33,7 +34,11 @@ const JobDetail = () => {
     minimum_years_experience: '',
     notes: '',
     required_certifications: [''],
-    location: '',
+    address: '',
+    city: '',
+    state: 'Texas',
+    zip_code: '',
+    country: 'United States',
     hourly_rate_cents: '',
     hours_per_day: '8',
     days: '',
@@ -237,7 +242,11 @@ const JobDetail = () => {
         const arr = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
         return arr.length ? arr : [''];
       })(),
-      location: job.location || '',
+      address: job.address || job.location || '',
+      city: job.city || '',
+      state: job.state || 'Texas',
+      zip_code: job.zip_code || '',
+      country: job.country || 'United States',
       hourly_rate_cents: hasNewPricing ? (job.hourly_rate_cents / 100).toFixed(2) : '',
       hours_per_day: String(job.hours_per_day ?? 8),
       days: job.days != null ? String(job.days) : '',
@@ -275,6 +284,17 @@ const JobDetail = () => {
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const patchEditAddress = (patch) => {
+    setEditData((prev) => ({
+      ...prev,
+      ...(patch.address !== undefined ? { address: patch.address } : {}),
+      ...(patch.city !== undefined ? { city: patch.city } : {}),
+      ...(patch.state !== undefined ? { state: patch.state } : {}),
+      ...(patch.zip_code !== undefined ? { zip_code: patch.zip_code } : {}),
+      ...(patch.country !== undefined ? { country: patch.country } : {}),
+    }));
   };
 
   const handleEditCertChange = (idx, value) => {
@@ -319,7 +339,12 @@ const JobDetail = () => {
         required_certifications: Array.isArray(editData.required_certifications) && editData.required_certifications.filter((c) => c?.trim()).length
           ? editData.required_certifications.filter((c) => c?.trim()).join(", ")
           : null,
-        location: editData.location,
+        address: editData.address,
+        city: editData.city,
+        state: editData.state,
+        zip_code: editData.zip_code,
+        country: editData.country,
+        location: [editData.city, editData.state, editData.country].filter(Boolean).join(', '),
         scheduled_start_at: editData.scheduled_start_at ? new Date(editData.scheduled_start_at).toISOString() : null,
         scheduled_end_at: editData.scheduled_end_at ? new Date(editData.scheduled_end_at).toISOString() : null,
       };
@@ -1074,10 +1099,15 @@ const JobDetail = () => {
                 </button>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Location</label>
-              <input name="location" value={editData.location} onChange={handleEditChange} className="w-full border rounded p-2" required />
-            </div>
+            <JobAddressFields
+              sectionTitle="Address"
+              address={editData.address}
+              city={editData.city}
+              state={editData.state}
+              zipCode={editData.zip_code}
+              country={editData.country}
+              onChange={patchEditAddress}
+            />
             <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
               <h3 className="font-medium text-gray-900">Price</h3>
               <div className="grid grid-cols-3 gap-4">
