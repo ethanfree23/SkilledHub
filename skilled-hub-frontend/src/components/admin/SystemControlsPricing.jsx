@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { adminMembershipTierConfigsAPI } from '../../api/api';
+import { adminLicensingSettingsAPI, adminMembershipTierConfigsAPI } from '../../api/api';
+
+const US_STATE_OPTIONS = [
+  ['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'],
+  ['CA', 'California'], ['CO', 'Colorado'], ['CT', 'Connecticut'], ['DE', 'Delaware'],
+  ['FL', 'Florida'], ['GA', 'Georgia'], ['HI', 'Hawaii'], ['ID', 'Idaho'],
+  ['IL', 'Illinois'], ['IN', 'Indiana'], ['IA', 'Iowa'], ['KS', 'Kansas'],
+  ['KY', 'Kentucky'], ['LA', 'Louisiana'], ['ME', 'Maine'], ['MD', 'Maryland'],
+  ['MA', 'Massachusetts'], ['MI', 'Michigan'], ['MN', 'Minnesota'], ['MS', 'Mississippi'],
+  ['MO', 'Missouri'], ['MT', 'Montana'], ['NE', 'Nebraska'], ['NV', 'Nevada'],
+  ['NH', 'New Hampshire'], ['NJ', 'New Jersey'], ['NM', 'New Mexico'], ['NY', 'New York'],
+  ['NC', 'North Carolina'], ['ND', 'North Dakota'], ['OH', 'Ohio'], ['OK', 'Oklahoma'],
+  ['OR', 'Oregon'], ['PA', 'Pennsylvania'], ['RI', 'Rhode Island'], ['SC', 'South Carolina'],
+  ['SD', 'South Dakota'], ['TN', 'Tennessee'], ['TX', 'Texas'], ['UT', 'Utah'],
+  ['VT', 'Vermont'], ['VA', 'Virginia'], ['WA', 'Washington'], ['WV', 'West Virginia'],
+  ['WI', 'Wisconsin'], ['WY', 'Wyoming'], ['DC', 'District of Columbia'],
+];
 
 const emptyNewTier = () => ({
   slug: '',
@@ -39,6 +55,9 @@ export default function SystemControlsPricing() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [provisionBusyId, setProvisionBusyId] = useState(null);
+  const [localOnlyStateCodes, setLocalOnlyStateCodes] = useState([]);
+  const [savingLicensing, setSavingLicensing] = useState(false);
+  const [stateSearch, setStateSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +77,35 @@ export default function SystemControlsPricing() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadLicensing = useCallback(async () => {
+    try {
+      const res = await adminLicensingSettingsAPI.get();
+      const codes = Array.isArray(res?.local_only_state_codes) ? res.local_only_state_codes : [];
+      setLocalOnlyStateCodes(codes);
+    } catch {
+      setLocalOnlyStateCodes([]);
+    }
+  }, []);
+
+  const toggleLocalOnlyState = (code) => {
+    setLocalOnlyStateCodes((prev) => (
+      prev.includes(code)
+        ? prev.filter((c) => c !== code)
+        : [...prev, code].sort()
+    ));
+  };
+
+  const filteredStateOptions = US_STATE_OPTIONS.filter(([code, name]) => {
+    const q = stateSearch.trim().toLowerCase();
+    if (!q) return true;
+    return code.toLowerCase().includes(q) || name.toLowerCase().includes(q);
+  });
+
+  useEffect(() => {
+    if (systemSubTab !== 'licensing') return;
+    loadLicensing();
+  }, [systemSubTab, loadLicensing]);
 
   const updateRow = (id, field, value) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -196,6 +244,19 @@ export default function SystemControlsPricing() {
           }`}
         >
           Pricing
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={systemSubTab === 'licensing'}
+          onClick={() => setSystemSubTab('licensing')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+            systemSubTab === 'licensing'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-600 border-transparent hover:text-gray-900'
+          }`}
+        >
+          Licensing
         </button>
       </div>
 
@@ -381,6 +442,86 @@ export default function SystemControlsPricing() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {systemSubTab === 'licensing' && (
+        <div className="space-y-4">
+          <div className="text-sm text-gray-600 space-y-2 max-w-3xl">
+            <p>
+              Electrical license number is required by default for all company states. Use this list only for
+              states where licensing is local/city-driven and a statewide number should not be mandatory.
+            </p>
+            <p>
+              Select states where licensing is local-only.
+            </p>
+          </div>
+
+          <div>
+            <span className="text-sm font-medium text-gray-700">Local-only exception states</span>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={stateSearch}
+                onChange={(e) => setStateSearch(e.target.value)}
+                placeholder="Search state or code..."
+                className="flex-1 min-w-[220px] border rounded-lg px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setLocalOnlyStateCodes(US_STATE_OPTIONS.map(([code]) => code))}
+                className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setLocalOnlyStateCodes([])}
+                className="px-3 py-2 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="mt-2 max-h-72 overflow-auto border border-gray-200 rounded-lg p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {filteredStateOptions.map(([code, name]) => (
+                <label key={code} className="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={localOnlyStateCodes.includes(code)}
+                    onChange={() => toggleLocalOnlyState(code)}
+                  />
+                  <span>{name} ({code})</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {localOnlyStateCodes.length > 0 && (
+            <div className="text-sm text-gray-700">
+              Current exceptions: {localOnlyStateCodes.join(', ')}
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={savingLicensing}
+            onClick={async () => {
+              setSavingLicensing(true);
+              setError(null);
+              try {
+                const res = await adminLicensingSettingsAPI.update(localOnlyStateCodes);
+                const nextCodes = Array.isArray(res?.local_only_state_codes) ? res.local_only_state_codes : [];
+                setLocalOnlyStateCodes(nextCodes);
+              } catch (e) {
+                setError(e.message || 'Failed to save licensing exceptions');
+              } finally {
+                setSavingLicensing(false);
+              }
+            }}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {savingLicensing ? 'Saving…' : 'Save licensing exceptions'}
+          </button>
         </div>
       )}
 

@@ -414,6 +414,20 @@ const CompanyProfilePage = ({ user, onLogout }) => {
             </div>
           )}
 
+          {(profile.state || profile.electrical_license_number) && (
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2">Information</h2>
+              <div className="space-y-2 text-sm text-gray-700">
+                {profile.state && (
+                  <p><span className="font-medium text-gray-900">State:</span> {profile.state}</p>
+                )}
+                {profile.electrical_license_number && (
+                  <p><span className="font-medium text-gray-900">Electrical license #:</span> {profile.electrical_license_number}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {user?.role === 'admin' && (
             <div className="p-6 border-b border-gray-200">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-3">

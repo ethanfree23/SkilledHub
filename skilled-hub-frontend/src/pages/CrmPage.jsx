@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { crmAPI } from '../api/api';
@@ -95,16 +95,22 @@ const normalizeContactEntry = (entry) => {
   const name = String(entry.name || '').trim();
   const email = String(entry.email || '').trim();
   const phone = formatPhoneInput(String(entry.phone || '').trim());
+  const jobTitle = String(entry.job_title || '').trim();
+  const extension = String(entry.extension || '').trim();
   if (!name && !email && !phone) return null;
-  return { name, email, phone };
+  return { name, email, phone, job_title: jobTitle, extension };
 };
 
 const normalizeContactDraftEntry = (entry) => {
-  if (!entry || typeof entry !== 'object') return { name: '', email: '', phone: '' };
+  if (!entry || typeof entry !== 'object') return {
+    name: '', email: '', phone: '', job_title: '', extension: '',
+  };
   return {
     name: String(entry.name || '').trim(),
     email: String(entry.email || '').trim(),
     phone: formatPhoneInput(String(entry.phone || '').trim()),
+    job_title: String(entry.job_title || '').trim(),
+    extension: String(entry.extension || '').trim(),
   };
 };
 
@@ -422,14 +428,16 @@ const CrmPage = ({ user, onLogout }) => {
     const normalizedContacts = normalizeContacts(form.contacts, {
       name: form.contact_name || '',
       email: form.email || '',
-      phone: form.phone || '',
+      phone: '',
+      job_title: '',
+      extension: '',
     });
     const primaryContact = normalizedContacts[0] || {};
     const payload = {
       name: form.name?.trim(),
       contact_name: (primaryContact.name || form.contact_name || '').trim() || undefined,
       email: (primaryContact.email || form.email || '').trim() || undefined,
-      phone: formatPhoneInput((primaryContact.phone || form.phone || '').trim()) || undefined,
+      phone: formatPhoneInput((form.phone || '').trim()) || undefined,
       contacts: normalizedContacts,
       website: form.website?.trim() || undefined,
       street_address: form.street_address?.trim() || undefined,
@@ -514,7 +522,9 @@ const CrmPage = ({ user, onLogout }) => {
       const existingContacts = normalizeContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
       const importedPrimary = normalizeContactEntry({
         name: row.contact_name,
@@ -771,9 +781,13 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
-      const first = contacts[0] || { name: '', email: '', phone: '' };
+      const first = contacts[0] || {
+        name: '', email: '', phone: '', job_title: '', extension: '',
+      };
       const formattedValue = field === 'phone' ? formatPhoneInput(value) : value;
       const nextContacts = [{ ...first, [field]: formattedValue }, ...contacts.slice(1)];
       return {
@@ -791,9 +805,13 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
-      const first = contacts[0] || { name: '', email: '', phone: '' };
+      const first = contacts[0] || {
+        name: '', email: '', phone: '', job_title: '', extension: '',
+      };
       const tokens = String(first.name || '').trim().split(/\s+/).filter(Boolean);
       const current = {
         firstName: tokens.length > 0 ? tokens[0] : '',
@@ -815,11 +833,20 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
-      const baseContacts = contacts.length > 0 ? contacts : [{ name: '', email: '', phone: '' }];
+      const baseContacts = contacts.length > 0 ? contacts : [{
+        name: '', email: '', phone: '', job_title: '', extension: '',
+      }];
       pendingAdditionalContactFocusIdx.current = baseContacts.length;
-      return { ...f, contacts: [...baseContacts, { name: '', email: '', phone: '' }] };
+      return {
+        ...f,
+        contacts: [...baseContacts, {
+          name: '', email: '', phone: '', job_title: '', extension: '',
+        }],
+      };
     });
   };
 
@@ -835,7 +862,9 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
       if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
       const formattedValue = field === 'phone' ? formatPhoneInput(value) : value;
@@ -851,7 +880,9 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
       if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
       return { ...f, contacts: contacts.filter((_, idx) => idx !== contactIdx) };
@@ -863,7 +894,9 @@ const CrmPage = ({ user, onLogout }) => {
       const contacts = editableContacts(f.contacts, {
         name: f.contact_name || '',
         email: f.email || '',
-        phone: f.phone || '',
+        phone: '',
+        job_title: '',
+        extension: '',
       });
       if (contactIdx <= 0 || contactIdx >= contacts.length) return f;
 
@@ -878,6 +911,45 @@ const CrmPage = ({ user, onLogout }) => {
       );
       return { ...f, contacts: nextContacts };
     });
+  };
+
+  const setPrimaryContactFromDirectory = (serializedContact) => {
+    if (!serializedContact) return;
+    try {
+      const chosen = JSON.parse(serializedContact);
+      setForm((f) => {
+        const contacts = editableContacts(f.contacts, {
+          name: f.contact_name || '',
+          email: f.email || '',
+          phone: '',
+          job_title: '',
+          extension: '',
+        });
+        const first = contacts[0] || {
+          name: '',
+          email: '',
+          phone: '',
+          job_title: '',
+          extension: '',
+        };
+        const nextPrimary = {
+          ...first,
+          name: String(chosen.name || '').trim(),
+          email: String(chosen.email || '').trim(),
+          phone: formatPhoneInput(String(chosen.phone || '').trim()),
+          job_title: String(chosen.job_title || '').trim(),
+          extension: String(chosen.extension || '').trim(),
+        };
+        return {
+          ...f,
+          contact_name: nextPrimary.name,
+          email: nextPrimary.email,
+          contacts: [nextPrimary, ...contacts.slice(1)],
+        };
+      });
+    } catch {
+      // ignore malformed contact option payloads
+    }
   };
 
   const normalizeMatchValue = (value) => String(value || '').trim().toLowerCase();
@@ -1288,7 +1360,9 @@ const CrmPage = ({ user, onLogout }) => {
   const displayContacts = editableContacts(form.contacts, {
     name: form.contact_name || '',
     email: form.email || '',
-    phone: form.phone || '',
+    phone: '',
+    job_title: '',
+    extension: '',
   });
   const fullAddress = [form.street_address, form.city, form.state, form.zip].map((v) => String(v || '').trim()).filter(Boolean).join(', ');
   const mapsAddressUrl = fullAddress
@@ -1300,6 +1374,29 @@ const CrmPage = ({ user, onLogout }) => {
     const statusOk = pipelineStatusFilter.trim() === '' || (row.status || '').toLowerCase() === pipelineStatusFilter.trim().toLowerCase();
     return nameOk && statusOk;
   });
+  const crmContactOptions = useMemo(() => {
+    const unique = new Map();
+    leads.forEach((lead) => {
+      const normalized = normalizeContacts(lead.contacts, {
+        name: lead.contact_name || '',
+        email: lead.email || '',
+        phone: '',
+      });
+      normalized.forEach((contact) => {
+        const key = [
+          String(contact.name || '').trim().toLowerCase(),
+          String(contact.email || '').trim().toLowerCase(),
+          String(contact.phone || '').replace(/\D/g, ''),
+        ].join('|');
+        if (!key || unique.has(key)) return;
+        unique.set(key, {
+          ...contact,
+          company_name: lead.name || '',
+        });
+      });
+    });
+    return Array.from(unique.values());
+  }, [leads]);
   const mergeTargetLead = leads.find((lead) => Number(lead.id) === Number(mergeTargetId));
   const currentMergeLead = {
     ...c,
@@ -1307,7 +1404,9 @@ const CrmPage = ({ user, onLogout }) => {
     contacts: editableContacts(form.contacts, {
       name: form.contact_name || '',
       email: form.email || '',
-      phone: form.phone || '',
+      phone: '',
+      job_title: '',
+      extension: '',
     }),
   };
 
@@ -1545,7 +1644,7 @@ const CrmPage = ({ user, onLogout }) => {
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
                     </div>
-                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
+                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '' })
                       .slice(1)
                       .map((contact, idx) => {
                         const contactIndex = idx + 1;
@@ -1592,7 +1691,7 @@ const CrmPage = ({ user, onLogout }) => {
                           </div>
                         );
                       })}
-                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
+                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '' }).length <= 1 && (
                       <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
                     )}
                     <button
@@ -2704,6 +2803,9 @@ const CrmPage = ({ user, onLogout }) => {
               </div>
               <div className="overflow-y-auto px-6 py-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">Company info</h3>
+                  </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Company name *</span>
                     <input
@@ -2712,6 +2814,90 @@ const CrmPage = ({ user, onLogout }) => {
                       onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                     />
                   </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Company phone</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={form.phone ?? ''}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: formatPhoneInput(e.target.value) }))}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Status</span>
+                    <select
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm capitalize"
+                      value={form.status ?? 'lead'}
+                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    >
+                      {CRM_STATUSES.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="block sm:col-span-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Company types</span>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {CRM_COMPANY_TYPES.map((type) => {
+                        const active = (form.company_types || []).includes(type);
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => toggleCompanyType(type)}
+                            className={`px-2.5 py-1 rounded-full border text-xs capitalize ${
+                              active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                            }`}
+                          >
+                            {type.replace(/_/g, ' ')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2 border-t border-gray-100 pt-4 mt-1">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">Primary contact</h3>
+                    <div className="flex flex-wrap items-center gap-3 mb-3 text-sm">
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="primary-contact-mode"
+                          checked={form.primary_contact_mode !== 'existing'}
+                          onChange={() => setForm((f) => ({ ...f, primary_contact_mode: 'new' }))}
+                        />
+                        New contact
+                      </label>
+                      <label className="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="primary-contact-mode"
+                          checked={form.primary_contact_mode === 'existing'}
+                          onChange={() => setForm((f) => ({ ...f, primary_contact_mode: 'existing' }))}
+                        />
+                        Use existing CRM contact
+                      </label>
+                    </div>
+                    {form.primary_contact_mode === 'existing' && (
+                      <label className="block mb-3">
+                        <span className="text-xs font-medium text-gray-500 uppercase">Select existing contact</span>
+                        <select
+                          className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                          defaultValue=""
+                          onChange={(e) => setPrimaryContactFromDirectory(e.target.value)}
+                        >
+                          <option value="">Choose a contact…</option>
+                          {crmContactOptions.map((contact, idx) => (
+                            <option key={`${contact.name}-${contact.email}-${idx}`} value={JSON.stringify(contact)}>
+                              {[contact.name || 'Unnamed', contact.company_name ? `(${contact.company_name})` : '', contact.email || contact.phone || '']
+                                .filter(Boolean)
+                                .join(' ')}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
                   <label className="block">
                     <span className="text-xs font-medium text-gray-500 uppercase">First name</span>
                     <input
@@ -2729,20 +2915,6 @@ const CrmPage = ({ user, onLogout }) => {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Status</span>
-                    <select
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm capitalize"
-                      value={form.status ?? 'lead'}
-                      onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                    >
-                      {CRM_STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
                     <span className="text-xs font-medium text-gray-500 uppercase">Email</span>
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -2752,18 +2924,34 @@ const CrmPage = ({ user, onLogout }) => {
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Phone</span>
+                    <span className="text-xs font-medium text-gray-500 uppercase">Personal phone</span>
                     <input
                       className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      value={form.phone ?? ''}
+                      value={editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '', job_title: '', extension: '' })[0]?.phone || ''}
                       onChange={(e) => updatePrimaryContactField('phone', e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Extension</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '', job_title: '', extension: '' })[0]?.extension || ''}
+                      onChange={(e) => updatePrimaryContactField('extension', e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Job title</span>
+                    <input
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      value={editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '', job_title: '', extension: '' })[0]?.job_title || ''}
+                      onChange={(e) => updatePrimaryContactField('job_title', e.target.value)}
                     />
                   </label>
                   <div className="block sm:col-span-2 rounded-lg border border-gray-200 p-3 bg-gray-50">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-gray-500 uppercase">Additional contacts</span>
                     </div>
-                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone })
+                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '' })
                       .slice(1)
                       .map((contact, idx) => {
                         const contactIndex = idx + 1;
@@ -2805,7 +2993,7 @@ const CrmPage = ({ user, onLogout }) => {
                           </div>
                         );
                       })}
-                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: form.phone }).length <= 1 && (
+                    {editableContacts(form.contacts, { name: form.contact_name, email: form.email, phone: '' }).length <= 1 && (
                       <p className="mt-2 text-xs text-gray-500">No additional contacts yet.</p>
                     )}
                     <button
@@ -2881,26 +3069,6 @@ const CrmPage = ({ user, onLogout }) => {
                       onChange={(e) => setForm((f) => ({ ...f, linkedin_url: e.target.value }))}
                     />
                   </label>
-                  <div className="block sm:col-span-2">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Company types</span>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {CRM_COMPANY_TYPES.map((type) => {
-                        const active = (form.company_types || []).includes(type);
-                        return (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => toggleCompanyType(type)}
-                            className={`px-2.5 py-1 rounded-full border text-xs capitalize ${
-                              active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
-                            }`}
-                          >
-                            {type.replace(/_/g, ' ')}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
                   <label className="block sm:col-span-2">
                     <span className="text-xs font-medium text-gray-500 uppercase">Notes</span>
                     <textarea

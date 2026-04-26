@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_26_004000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_26_132000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -60,7 +60,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_004000) do
     t.string "stripe_membership_subscription_id"
     t.string "membership_status"
     t.datetime "membership_current_period_end_at"
+    t.string "state"
+    t.string "electrical_license_number"
     t.index ["membership_level"], name: "index_company_profiles_on_membership_level"
+    t.index ["state"], name: "index_company_profiles_on_state"
     t.index ["stripe_membership_subscription_id"], name: "index_company_profiles_on_stripe_membership_subscription_id", unique: true
     t.index ["user_id"], name: "index_company_profiles_on_user_id"
   end
@@ -259,6 +262,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_004000) do
     t.index ["job_id"], name: "index_payments_on_job_id"
     t.index ["status"], name: "index_payments_on_status"
     t.index ["stripe_payment_intent_id"], name: "index_payments_on_stripe_payment_intent_id"
+  end
+
+  create_table "platform_settings", force: :cascade do |t|
+    t.string "key", null: false
+    t.json "value_json", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_platform_settings_on_key", unique: true
   end
 
   create_table "ratings", force: :cascade do |t|

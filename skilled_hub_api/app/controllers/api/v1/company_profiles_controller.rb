@@ -110,6 +110,7 @@ module Api
         params.permit(
           :company_name, :industry, :location, :bio, :user_id,
           :phone, :website_url, :facebook_url, :instagram_url, :linkedin_url,
+          :state, :electrical_license_number,
           service_cities: []
         )
       end

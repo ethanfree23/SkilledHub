@@ -52,6 +52,8 @@ module Api
                     company_name: params[:company_name],
                     industry: params[:industry],
                     bio: params[:bio],
+                    state: params[:state],
+                    electrical_license_number: params[:electrical_license_number],
                     website_url: params[:website_url],
                     facebook_url: params[:facebook_url],
                     instagram_url: params[:instagram_url],
@@ -96,7 +98,7 @@ module Api
                 company_profile: profile.as_json(
                   only: %i[
                     id company_name industry location bio phone website_url facebook_url instagram_url linkedin_url
-                    service_cities user_id created_at updated_at
+                    service_cities state electrical_license_number user_id created_at updated_at
                   ]
                 ).merge("avatar_url" => company_avatar_url(profile))
               }
@@ -291,6 +293,7 @@ module Api
           params.permit(
             :company_name, :industry, :location, :bio, :phone,
             :website_url, :facebook_url, :instagram_url, :linkedin_url,
+            :state, :electrical_license_number,
             service_cities: []
           )
         end

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import { profilesAPI, settingsAPI, authAPI, documentsAPI } from '../api/api';
+import { profilesAPI, settingsAPI, authAPI, documentsAPI, licensingSettingsAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from '../components/CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
@@ -11,6 +11,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SystemControlsPricing from '../components/admin/SystemControlsPricing';
 import AdminJobAccessSettings from '../components/admin/AdminJobAccessSettings';
 import { needsTechnicianMapSetup } from '../utils/technicianMap';
+import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
 
 const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [profile, setProfile] = useState(null);
@@ -43,6 +44,19 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const isTechnician = user?.role === 'technician';
   const isAdmin = user?.role === 'admin';
   const needsMapSetup = isTechnician && needsTechnicianMapSetup(profile);
+
+  useEffect(() => {
+    let active = true;
+    licensingSettingsAPI.get()
+      .then((res) => {
+        if (!active) return;
+        setLocalOnlyLicenseStates(res?.local_only_state_codes || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     fetchProfile();
@@ -78,6 +92,8 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           company_name: p?.company_name || '',
           industry: p?.industry || '',
           location: p?.location || '',
+          state: p?.state || '',
+          electrical_license_number: p?.electrical_license_number || '',
           bio: p?.bio || '',
         });
       } else if (isTechnician) {
@@ -130,7 +146,18 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     setError(null);
     try {
       if (isCompany) {
-        await profilesAPI.updateCompanyProfile(profile.id, form);
+        const companyState = (form.state || '').trim();
+        const stateRequiresLicense = requiresElectricalLicenseForState(companyState);
+        if (stateRequiresLicense && !(form.electrical_license_number || '').trim()) {
+          setError('This state requires an electrical license number.');
+          setSaving(false);
+          return;
+        }
+        await profilesAPI.updateCompanyProfile(profile.id, {
+          ...form,
+          state: companyState,
+          electrical_license_number: (form.electrical_license_number || '').trim(),
+        });
       } else {
         await profilesAPI.updateTechnicianProfile(profile.id, {
           ...form,
@@ -418,6 +445,29 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                   <input name="location" value={form.location} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <input
+                    name="state"
+                    value={form.state || ''}
+                    onChange={handleChange}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="e.g. Texas"
+                  />
+                </div>
+                {requiresElectricalLicenseForState(form.state) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Electrical license number</label>
+                    <input
+                      name="electrical_license_number"
+                      value={form.electrical_license_number || ''}
+                      onChange={handleChange}
+                      className="w-full border rounded-lg px-3 py-2"
+                      placeholder="Enter TECL license number"
+                      required
+                    />
+                  </div>
+                )}
               </>
             )}
 

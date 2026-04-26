@@ -13,6 +13,7 @@ Rails.application.routes.draw do
       post "marketing_leads", to: "marketing_leads#create"
       post "signup_payment_intents", to: "signup_payment_intents#create"
       get "membership_tier_configs", to: "membership_tier_configs#index"
+      get "licensing_settings", to: "licensing_settings#show"
       get 'technicians/profile', to: 'technicians#profile'
       get 'company_profiles/profile', to: 'company_profiles#profile'
       patch 'users/me', to: 'users#update_me'
@@ -110,6 +111,8 @@ Rails.application.routes.draw do
           resources :crm_notes, only: %i[create update]
         end
         patch "referrals/:id/issue_reward", to: "referrals#issue_reward"
+        get "licensing_settings", to: "licensing_settings#show"
+        patch "licensing_settings", to: "licensing_settings#update"
       end
     end
   end

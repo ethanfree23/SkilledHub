@@ -694,6 +694,11 @@ const JobDetail = () => {
                           </span>
                         )}
                       </p>
+                      {job.company_profile?.electrical_license_number && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          License #: {job.company_profile.electrical_license_number}
+                        </p>
+                      )}
                       {currentUser?.role === 'technician' && (
                         <Link
                           to={`/companies/${job.company_profile_id ?? job.company_profile?.id ?? ''}`}

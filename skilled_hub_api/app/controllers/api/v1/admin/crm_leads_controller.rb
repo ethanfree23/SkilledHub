@@ -169,7 +169,7 @@ module Api
             :linked_user_id,
             :linked_company_profile_id,
             company_types: [],
-            contacts: %i[name email phone]
+            contacts: %i[name email phone job_title extension]
           )
           p[:linked_user_id] = nil if p.key?(:linked_user_id) && p[:linked_user_id].blank?
           p[:linked_company_profile_id] = nil if p.key?(:linked_company_profile_id) && p[:linked_company_profile_id].blank?
@@ -303,7 +303,9 @@ module Api
             {
               name: name,
               email: email,
-              phone: (hash["phone"].presence || hash[:phone].presence)
+              phone: (hash["phone"].presence || hash[:phone].presence),
+              job_title: hash["job_title"].to_s.strip.presence || hash[:job_title].to_s.strip.presence,
+              extension: hash["extension"].to_s.strip.presence || hash[:extension].to_s.strip.presence
             }.compact
           end
         end
@@ -487,7 +489,13 @@ module Api
               phone = hash["phone"].to_s.strip.presence || hash[:phone].to_s.strip.presence
               next if name.blank? && email.blank? && phone.blank?
 
-              { name: name, email: email, phone: phone }.compact
+              {
+                name: name,
+                email: email,
+                phone: phone,
+                job_title: hash["job_title"].to_s.strip.presence || hash[:job_title].to_s.strip.presence,
+                extension: hash["extension"].to_s.strip.presence || hash[:extension].to_s.strip.presence
+              }.compact
             end
             next from_contacts if from_contacts.any?
 
@@ -531,7 +539,13 @@ module Api
             phone = hash["phone"].to_s.strip.presence || hash[:phone].to_s.strip.presence
             next if name.blank? && email.blank? && phone.blank?
 
-            { name: name, email: email, phone: phone }.compact
+            {
+              name: name,
+              email: email,
+              phone: phone,
+              job_title: hash["job_title"].to_s.strip.presence || hash[:job_title].to_s.strip.presence,
+              extension: hash["extension"].to_s.strip.presence || hash[:extension].to_s.strip.presence
+            }.compact
           end
 
           if normalized.empty?

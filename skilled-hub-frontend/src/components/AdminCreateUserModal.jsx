@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FaBuilding, FaTimes, FaUserPlus, FaWrench } from 'react-icons/fa';
-import { adminUsersAPI, crmAPI } from '../api/api';
+import { adminUsersAPI, crmAPI, licensingSettingsAPI } from '../api/api';
 import { IndustryMultiSelect, ServiceCityPicker } from './admin/AdminUserFormPickers';
 import { formatPhoneInput } from '../utils/phone';
+import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
 
 const DEFAULT_CONTACT_PASSWORD = 'Password123$';
 
@@ -34,6 +35,8 @@ export default function AdminCreateUserModal({
     facebook_url: '',
     instagram_url: '',
     linkedin_url: '',
+    state: '',
+    electrical_license_number: '',
     trade_type: '',
     experience_years: '',
     availability: '',
@@ -48,6 +51,19 @@ export default function AdminCreateUserModal({
   const [companySearchBusy, setCompanySearchBusy] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [showContactPassword, setShowContactPassword] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    licensingSettingsAPI.get()
+      .then((res) => {
+        if (!active) return;
+        setLocalOnlyLicenseStates(res?.local_only_state_codes || []);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -91,6 +107,8 @@ export default function AdminCreateUserModal({
       facebook_url: '',
       instagram_url: '',
       linkedin_url: '',
+      state: '',
+      electrical_license_number: '',
       trade_type: '',
       experience_years: '',
       availability: '',
@@ -162,6 +180,8 @@ export default function AdminCreateUserModal({
       facebook_url: '',
       instagram_url: '',
       linkedin_url: '',
+      state: '',
+      electrical_license_number: '',
       trade_type: '',
       experience_years: '',
       availability: '',
@@ -249,6 +269,18 @@ export default function AdminCreateUserModal({
             setCreating(false);
             return;
           }
+          const companyState = createForm.state?.trim();
+          if (!companyState) {
+            onError?.('Company state is required.');
+            setCreating(false);
+            return;
+          }
+          const stateRequiresLicense = requiresElectricalLicenseForState(companyState);
+          if (stateRequiresLicense && !createForm.electrical_license_number?.trim()) {
+            onError?.('This state requires an electrical license number.');
+            setCreating(false);
+            return;
+          }
           const fd = new FormData();
           fd.append('role', 'company');
           fd.append('email', email);
@@ -258,6 +290,10 @@ export default function AdminCreateUserModal({
           if (password) fd.append('password', password);
           if (passwordConfirmation) fd.append('password_confirmation', passwordConfirmation);
           fd.append('company_name', createForm.company_name.trim());
+          fd.append('state', companyState);
+          if (createForm.electrical_license_number?.trim()) {
+            fd.append('electrical_license_number', createForm.electrical_license_number.trim());
+          }
           if (createForm.contact_name?.trim()) fd.append('contact_name', createForm.contact_name.trim());
           if (selectedIndustries.length) fd.append('industry', selectedIndustries.join(', '));
           fd.append('bio', createForm.bio.trim());
@@ -462,6 +498,30 @@ export default function AdminCreateUserModal({
                             onChange={setServiceCities}
                           />
                         </div>
+                        <label className="block sm:col-span-2">
+                          <span className="text-xs font-medium text-gray-500 uppercase">State *</span>
+                          <input
+                            required
+                            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            value={createForm.state}
+                            onChange={(e) => setCreateForm((f) => ({ ...f, state: e.target.value }))}
+                            placeholder="e.g. Texas"
+                          />
+                        </label>
+                        {requiresElectricalLicenseForState(createForm.state) && (
+                          <label className="block sm:col-span-2">
+                            <span className="text-xs font-medium text-gray-500 uppercase">Electrical license number *</span>
+                            <input
+                              required
+                              className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                              value={createForm.electrical_license_number}
+                              onChange={(e) =>
+                                setCreateForm((f) => ({ ...f, electrical_license_number: e.target.value }))
+                              }
+                              placeholder="Enter TECL license number"
+                            />
+                          </label>
+                        )}
                         <label className="block sm:col-span-2">
                           <span className="text-xs font-medium text-gray-500 uppercase">Company website</span>
                           <input

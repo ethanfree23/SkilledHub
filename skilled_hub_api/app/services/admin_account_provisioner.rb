@@ -10,6 +10,7 @@ module AdminAccountProvisioner
   # rubocop:disable Metrics/ParameterLists
   def provision_company!(
     email:, company_name: nil, industry: nil, bio: nil,
+    state: nil, electrical_license_number: nil,
     phone: nil, website_url: nil, facebook_url: nil, instagram_url: nil, linkedin_url: nil,
     service_cities: nil,
     logo: nil,
@@ -24,11 +25,13 @@ module AdminAccountProvisioner
     assert_email_available!(email)
 
     company_name_clean = company_name.to_s.strip
+    state_clean = state.to_s.strip
     phone_clean = phone.to_s.strip
     bio_clean = bio.to_s.strip
     first_name_clean = first_name.to_s.strip
     last_name_clean = last_name.to_s.strip
     raise Error, "Company name is required" if company_name_clean.blank?
+    raise Error, "State is required" if state_clean.blank?
     raise Error, "Phone number is required" if phone_clean.blank?
     raise Error, "Bio is required" if bio_clean.blank?
     raise Error, "First name is required" if first_name_clean.blank?
@@ -60,6 +63,8 @@ module AdminAccountProvisioner
         membership_level: "basic",
         company_name: company_name_clean,
         industry: industry.to_s.strip.presence,
+        state: state_clean,
+        electrical_license_number: electrical_license_number.to_s.strip.presence,
         bio: bio_clean,
         phone: phone_clean,
         website_url: strip_or_nil(website_url),

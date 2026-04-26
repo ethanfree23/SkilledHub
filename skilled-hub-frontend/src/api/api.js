@@ -109,6 +109,10 @@ export const membershipTierConfigsAPI = {
     apiRequest(`/membership_tier_configs?audience=${encodeURIComponent(audience)}`),
 };
 
+export const licensingSettingsAPI = {
+  get: () => apiRequest('/licensing_settings'),
+};
+
 export const signupPaymentsAPI = {
   createIntent: ({ email, role, membership_tier: membershipTier }) =>
     apiRequest('/signup_payment_intents', {
@@ -275,6 +279,15 @@ export const adminMembershipTierConfigsAPI = {
   provisionStripe: (id) =>
     apiRequest(`/admin/membership_tier_configs/${id}/provision_stripe`, {
       method: 'POST',
+    }),
+};
+
+export const adminLicensingSettingsAPI = {
+  get: () => apiRequest('/admin/licensing_settings'),
+  update: (localOnlyStateCodes) =>
+    apiRequest('/admin/licensing_settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ local_only_state_codes: localOnlyStateCodes }),
     }),
 };
 

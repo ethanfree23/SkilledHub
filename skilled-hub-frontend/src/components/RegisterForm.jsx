@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI, membershipTierConfigsAPI, signupPaymentsAPI } from '../api/api';
+import { authAPI, licensingSettingsAPI, membershipTierConfigsAPI, signupPaymentsAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from './CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
+import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
 
 const styles = {
   default: {
@@ -78,6 +79,8 @@ const RegisterForm = ({
     password: '',
     password_confirmation: '',
     city: '',
+    state: '',
+    electrical_license_number: '',
     role: initialRole,
     membership_tier: 'basic',
     role_view: initialRoleView,
@@ -119,6 +122,17 @@ const RegisterForm = ({
   }, []);
 
   useEffect(() => {
+    let active = true;
+    licensingSettingsAPI.get()
+      .then((res) => {
+        if (!active) return;
+        setLocalOnlyLicenseStates(res?.local_only_state_codes || []);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     const options = tierConfig[registerData.role] || [];
     if (!options.some((tier) => tier.id === registerData.membership_tier) && options.length > 0) {
       setRegisterData((prev) => ({ ...prev, membership_tier: options[0].id }));
@@ -139,6 +153,16 @@ const RegisterForm = ({
     }
     if (registerData.role === 'technician' && !registerData.city.trim()) {
       setError('City is required for technician accounts.');
+      return false;
+    }
+    if (registerData.role === 'company' && !registerData.state.trim()) {
+      setError('State is required for company accounts.');
+      return false;
+    }
+    const stateRequiresLicense =
+      registerData.role === 'company' && requiresElectricalLicenseForState(registerData.state);
+    if (stateRequiresLicense && !registerData.electrical_license_number.trim()) {
+      setError('This state requires an electrical license number.');
       return false;
     }
     if (registerData.honeypot) {
@@ -325,6 +349,47 @@ const RegisterForm = ({
             </div>
           )}
 
+          {registerData.role === 'company' && (
+            <>
+              <div>
+                <label htmlFor={`${idPrefix}-state`} className={`block text-sm font-medium ${v.label}`}>
+                  State
+                </label>
+                <input
+                  type="text"
+                  id={`${idPrefix}-state`}
+                  name="state"
+                  value={registerData.state}
+                  onChange={(e) =>
+                    setRegisterData((prev) => ({ ...prev, state: e.target.value }))
+                  }
+                  required
+                  placeholder="e.g. Texas"
+                  className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+                />
+              </div>
+              {requiresElectricalLicenseForState(registerData.state) && (
+                <div>
+                  <label htmlFor={`${idPrefix}-electrical-license-number`} className={`block text-sm font-medium ${v.label}`}>
+                    Electrical license number
+                  </label>
+                  <input
+                    type="text"
+                    id={`${idPrefix}-electrical-license-number`}
+                    name="electrical_license_number"
+                    value={registerData.electrical_license_number}
+                    onChange={(e) =>
+                      setRegisterData((prev) => ({ ...prev, electrical_license_number: e.target.value }))
+                    }
+                    required
+                    placeholder="Enter TECL license number"
+                    className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           <div className="absolute left-[-9999px] top-0 opacity-0 pointer-events-none">
             <label htmlFor={`${idPrefix}-consent-check`}>Consent check</label>
             <input
@@ -374,6 +439,10 @@ const RegisterForm = ({
             <p><span className="font-semibold">Email:</span> {registerData.email}</p>
             <p><span className="font-semibold">Account type:</span> {registerData.role}</p>
             {registerData.role === 'technician' && <p><span className="font-semibold">City:</span> {registerData.city}</p>}
+            {registerData.role === 'company' && <p><span className="font-semibold">State:</span> {registerData.state}</p>}
+            {registerData.role === 'company' && requiresElectricalLicenseForState(registerData.state) && (
+              <p><span className="font-semibold">Electrical license:</span> {registerData.electrical_license_number}</p>
+            )}
             <p><span className="font-semibold">Tier:</span> {selectedTier?.name} ({selectedTier?.price})</p>
             <div className="mt-3">
               <button

@@ -39,6 +39,9 @@ module Api
         if permitted_role == 'technician' && city.blank?
           return render json: { error: "city is required for technician signup" }, status: :unprocessable_entity
         end
+        if permitted_role == 'company' && params[:state].to_s.strip.blank?
+          return render json: { error: "state is required for company signup" }, status: :unprocessable_entity
+        end
         membership_level = MembershipPolicy.normalized_level(params[:membership_tier] || params[:membership_level], audience: permitted_role)
         unless MembershipPolicy.level_valid?(membership_level, audience: permitted_role)
           return render json: { error: "membership_tier is not valid for the selected role" }, status: :unprocessable_entity
@@ -51,7 +54,16 @@ module Api
         user.password_set_actor = 'user'
         if user.save
           if user.company?
-            profile = CompanyProfile.create!(user: user, membership_level: membership_level)
+            profile = CompanyProfile.new(
+              user: user,
+              membership_level: membership_level,
+              state: params[:state].to_s.strip.presence,
+              electrical_license_number: params[:electrical_license_number].to_s.strip.presence
+            )
+            unless profile.save
+              user.destroy
+              return render json: { errors: profile.errors.full_messages }, status: :unprocessable_entity
+            end
             user.update_column(:company_profile_id, profile.id)
           elsif user.technician?
             TechnicianProfile.create!(
@@ -74,7 +86,9 @@ module Api
       private
 
       def user_params
-        params.permit(:email, :password, :password_confirmation, :first_name, :last_name, :phone, :role)
+        params.permit(
+          :email, :password, :password_confirmation, :first_name, :last_name, :phone, :role
+        )
       end
 
       def update_me_params

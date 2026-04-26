@@ -11,6 +11,7 @@ const MarketingPage = ({ onLoginSuccess }) => {
   const [leadEmail, setLeadEmail] = useState('');
   const [submittingLead, setSubmittingLead] = useState(false);
   const [leadError, setLeadError] = useState('');
+  const heroVideoSrc = '/hero-collage-loop.mp4';
 
   const stepsByRole = useMemo(
     () => ({
@@ -76,9 +77,25 @@ const MarketingPage = ({ onLoginSuccess }) => {
         </div>
       </header>
 
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        <div className="max-w-5xl mx-auto text-center relative">
-          <div className="inline-block px-4 py-2 mb-6 rounded-full bg-[#FE6711]/15 text-[#FE6711] font-semibold text-sm">
+      <section className="relative min-h-screen pt-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex items-center">
+        <div className="absolute inset-0 -z-10">
+          <video
+            className="h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/techflash-logo.png"
+          >
+            <source src={heroVideoSrc} type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-white/66" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#F7F7F7]/72 via-[#F7F7F7]/60 to-[#FE6711]/20" />
+        </div>
+
+        <div className="max-w-5xl mx-auto text-center relative w-full">
+          <div className="inline-block px-4 py-2 mb-6 rounded-full bg-[#FE6711]/20 text-[#d1540a] font-semibold text-sm">
             Find short-term technicians in under 6 hours
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-gray-800 leading-tight">
@@ -87,26 +104,24 @@ const MarketingPage = ({ onLoginSuccess }) => {
           <p className="mt-6 text-xl text-gray-600 max-w-2xl mx-auto">
             Companies fill urgent jobs quickly. Technicians claim nearby work and get paid. TechFlash keeps both sides moving.
           </p>
-        </div>
-      </section>
 
-      <section className="px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">
-          <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3 md:flex-row md:items-center">
-            <p className="text-sm font-semibold text-gray-700 md:w-56">Get started in seconds</p>
-            <input
-              type="email"
-              required
-              value={leadEmail}
-              onChange={(e) => setLeadEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#FE6711] focus:outline-none"
-            />
-            <button type="submit" disabled={submittingLead} className="rounded-xl bg-[#FE6711] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e55a0a] disabled:opacity-50">
-              {submittingLead ? 'Submitting...' : 'Submit'}
-            </button>
-          </form>
-          {leadError && <p className="mt-2 text-sm text-red-600">{leadError}</p>}
+          <div className="mt-10 rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">
+            <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3 md:flex-row md:items-center">
+              <p className="text-sm font-semibold text-gray-700 md:w-56">Get started in seconds</p>
+              <input
+                type="email"
+                required
+                value={leadEmail}
+                onChange={(e) => setLeadEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#FE6711] focus:outline-none"
+              />
+              <button type="submit" disabled={submittingLead} className="rounded-xl bg-[#FE6711] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e55a0a] disabled:opacity-50">
+                {submittingLead ? 'Submitting...' : 'Submit'}
+              </button>
+            </form>
+            {leadError && <p className="mt-2 text-sm text-red-600">{leadError}</p>}
+          </div>
         </div>
       </section>
 
