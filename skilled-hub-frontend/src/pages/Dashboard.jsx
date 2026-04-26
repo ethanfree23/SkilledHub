@@ -908,19 +908,20 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
 
       <section className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="grid grid-cols-1 xl:grid-cols-3">
-          <div className="xl:col-span-2 min-h-[24rem] bg-slate-100">
-            {selectedMapJob ? (
-              <iframe
-                key={`${selectedMapJob.id}-${centerLat}-${centerLng}`}
-                title={`Open job map for ${selectedMapJob.title}`}
-                src={mapEmbedUrl}
-                className="h-full w-full min-h-[24rem] border-0"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            ) : (
-              <div className="h-full min-h-[24rem] flex items-center justify-center px-6 text-center text-gray-600">
-                No live open jobs to map right now.
+          <div className="xl:col-span-2 min-h-[24rem] bg-slate-100 relative">
+            <iframe
+              key={`${selectedMapJob?.id || 'none'}-${centerLat}-${centerLng}`}
+              title={selectedMapJob ? `Open job map for ${selectedMapJob.title}` : 'Open jobs map area view'}
+              src={mapEmbedUrl}
+              className="h-full w-full min-h-[24rem] border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+            {!selectedMapJob && (
+              <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+                <div className="rounded-full bg-slate-900/45 text-white text-xs sm:text-sm px-4 py-2 backdrop-blur-[1px]">
+                  No jobs available in your area right now
+                </div>
               </div>
             )}
           </div>

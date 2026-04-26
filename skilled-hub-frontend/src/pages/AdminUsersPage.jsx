@@ -43,7 +43,7 @@ export default function AdminUsersPage({ user, onLogout }) {
   const [emailFilter, setEmailFilter] = useState('');
   const [phoneFilter, setPhoneFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
-  const [sortBy, setSortBy] = useState('first_name');
+  const [sortBy, setSortBy] = useState('company');
   const [sortDir, setSortDir] = useState('asc');
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [showColumnConfig, setShowColumnConfig] = useState(false);

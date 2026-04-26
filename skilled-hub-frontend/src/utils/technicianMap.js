@@ -18,9 +18,14 @@ export const filterJobsWithinRadius = (jobs, centerLat, centerLng, radiusMiles) 
     }))
     .filter((job) => {
       if (centerLat == null || centerLng == null) return true;
+      if (!Number.isFinite(job.distanceMiles)) return true;
       return job.distanceMiles <= radiusMiles;
     })
-    .sort((a, b) => a.distanceMiles - b.distanceMiles);
+    .sort((a, b) => {
+      const aDistance = Number.isFinite(a.distanceMiles) ? a.distanceMiles : Number.POSITIVE_INFINITY;
+      const bDistance = Number.isFinite(b.distanceMiles) ? b.distanceMiles : Number.POSITIVE_INFINITY;
+      return aDistance - bDistance;
+    });
 };
 
 export const needsTechnicianMapSetup = (profile) => (

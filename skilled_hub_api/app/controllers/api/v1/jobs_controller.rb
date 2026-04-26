@@ -39,7 +39,9 @@ module Api
             if params[:status].present?
               jobs = jobs.where.not(status: [:filled, :finished])
               unless params[:include_past] == 'true'
-                jobs = jobs.where('scheduled_start_at IS NULL OR scheduled_start_at >= ?', Time.current)
+                # Open jobs should remain visible through their end time,
+                # even after their start time has passed.
+                jobs = jobs.where('scheduled_end_at IS NULL OR scheduled_end_at >= ?', Time.current)
               end
             end
             # Technicians must never see jobs claimed by other technicians

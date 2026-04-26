@@ -16,6 +16,17 @@ const toDatetimeLocal = (d) => {
 };
 
 const LUNCH_HOURS = 1;
+const CLASS_SUGGESTIONS = [
+  'Apprentice',
+  'Journeyman',
+  'Master',
+  'Service Technician',
+  'Installation Technician',
+  'HVAC',
+  'Electrical',
+  'Plumbing',
+  'General Labor',
+];
 
 const getDefaultStart = () => {
   const tomorrow = new Date();
@@ -389,7 +400,13 @@ const CreateJob = () => {
               value={skillClass}
               onChange={(e) => setSkillClass(e.target.value)}
               placeholder="e.g. Journeyman, Residential"
+              list="job-class-suggestions"
             />
+            <datalist id="job-class-suggestions">
+              {CLASS_SUGGESTIONS.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="block font-medium mb-1">Experience</label>
