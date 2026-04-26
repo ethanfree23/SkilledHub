@@ -2,8 +2,10 @@ class User < ApplicationRecord
   PASSWORD_RESET_EXPIRY = 72.hours
 
   has_secure_password
+  attr_accessor :password_set_actor
 
   validates :email, presence: true, uniqueness: { case_sensitive: false }
+  before_save :stamp_password_metadata, if: :will_save_change_to_password_digest?
 
   enum role: { technician: 0, company: 1, admin: 2 }
 
@@ -47,5 +49,14 @@ class User < ApplicationRecord
 
   def company_profile
     shared_company_profile || super
+  end
+
+  private
+
+  def stamp_password_metadata
+    actor = password_set_actor.to_s.presence
+    actor = "user" unless %w[admin user].include?(actor)
+    self.password_set_by = actor
+    self.password_set_at = Time.current
   end
 end

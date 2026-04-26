@@ -78,6 +78,13 @@ export default function AdminUserDetailPage({ user, onLogout }) {
   const isCompany = data?.role_key === 'company' || u?.role === 'company';
   const isTech = data?.role_key === 'technician' || u?.role === 'technician';
   const canManagePassword = isCompany || isTech;
+  const passwordStatus = u?.password_status;
+  const passwordSetByLabel =
+    passwordStatus?.set_by === 'admin'
+      ? 'Admin'
+      : passwordStatus?.set_by === 'user'
+        ? 'User'
+        : 'Unknown';
   const membershipLevel = profile?.membership_level || 'basic';
   const effectiveMembershipFeeCents = profile?.effective_membership_fee_cents ?? 0;
   const effectiveCommissionPercent = profile?.effective_commission_percent ?? 0;
@@ -887,6 +894,18 @@ export default function AdminUserDetailPage({ user, onLogout }) {
 
             {canManagePassword && (
               <AdminCollapsibleCard title="Access management" description="Send a new setup email, generate a manual setup link, or set a password directly for this account.">
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  <div>
+                    <span className="font-semibold text-gray-900">Password status:</span>{' '}
+                    {passwordStatus?.has_password ? 'Set' : 'Not set'}
+                  </div>
+                  {passwordStatus?.has_password && (
+                    <div className="mt-1 text-xs text-gray-600">
+                      Set by: {passwordSetByLabel}
+                      {passwordStatus?.set_at ? ` on ${new Date(passwordStatus.set_at).toLocaleString()}` : ''}
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     type="button"

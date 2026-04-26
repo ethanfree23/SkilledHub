@@ -44,7 +44,7 @@ module AdminAccountProvisioner
     profile = nil
 
     ActiveRecord::Base.transaction do
-      user = User.create!(
+      user = User.new(
         email: email,
         password: pw,
         password_confirmation: pw,
@@ -53,6 +53,8 @@ module AdminAccountProvisioner
         last_name: last_name_clean,
         phone: phone_clean
       )
+      user.password_set_actor = "admin"
+      user.save!
       profile = CompanyProfile.create!(
         user: user,
         membership_level: "basic",
@@ -110,7 +112,7 @@ module AdminAccountProvisioner
     profile = nil
 
     ActiveRecord::Base.transaction do
-      user = User.create!(
+      user = User.new(
         email: email,
         password: pw,
         password_confirmation: pw,
@@ -119,6 +121,8 @@ module AdminAccountProvisioner
         last_name: last_name_clean,
         phone: phone_clean
       )
+      user.password_set_actor = "admin"
+      user.save!
       profile = TechnicianProfile.create!(
         user: user,
         membership_level: "basic",
@@ -166,7 +170,7 @@ module AdminAccountProvisioner
     user = nil
 
     ActiveRecord::Base.transaction do
-      user = User.create!(
+      user = User.new(
         email: email,
         password: pw,
         password_confirmation: pw,
@@ -176,6 +180,8 @@ module AdminAccountProvisioner
         last_name: last_name_clean,
         phone: phone_clean
       )
+      user.password_set_actor = "admin"
+      user.save!
       user.generate_password_reset_token! if send_reset
     end
 

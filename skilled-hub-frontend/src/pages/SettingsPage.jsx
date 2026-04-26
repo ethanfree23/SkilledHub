@@ -5,7 +5,7 @@ import { profilesAPI, settingsAPI, authAPI, documentsAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from '../components/CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
-import CountryStateSelect from '../components/CountryStateSelect';
+import JobAddressFields from '../components/JobAddressFields';
 import AlertModal from '../components/AlertModal';
 import ConfirmModal from '../components/ConfirmModal';
 import SystemControlsPricing from '../components/admin/SystemControlsPricing';
@@ -110,6 +110,17 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const patchAddress = (patch) => {
+    setForm((prev) => ({
+      ...prev,
+      ...(patch.address !== undefined ? { address: patch.address } : {}),
+      ...(patch.city !== undefined ? { city: patch.city } : {}),
+      ...(patch.state !== undefined ? { state: patch.state } : {}),
+      ...(patch.zip_code !== undefined ? { zip_code: patch.zip_code } : {}),
+      ...(patch.country !== undefined ? { country: patch.country } : {}),
+    }));
   };
 
   const handleProfileSubmit = async (e) => {
@@ -465,49 +476,15 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                       </span>
                     )}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                    <input
-                      name="address"
-                      value={form.address}
-                      onChange={handleChange}
-                      required={isTechnician}
-                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.address || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
-                      placeholder="e.g. 123 Main St"
-                    />
-                  </div>
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                    <input
-                      name="city"
-                      value={form.city}
-                      onChange={handleChange}
-                      required={isTechnician}
-                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.city || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
-                      placeholder="e.g. Houston"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                    <CountryStateSelect
-                      country={form.country}
-                      state={form.state}
-                      onCountryChange={(v) => handleChange({ target: { name: 'country', value: v } })}
-                      onStateChange={(v) => handleChange({ target: { name: 'state', value: v } })}
-                      required={isTechnician}
-                      highlightMissing={needsMapSetup}
-                    />
-                  </div>
-                  <div className="mt-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
-                    <input
-                      name="zip_code"
-                      value={form.zip_code}
-                      onChange={handleChange}
-                      required={isTechnician}
-                      className={`w-full border rounded-lg px-3 py-2 ${needsMapSetup && !String(form.zip_code || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`}
-                      placeholder="e.g. 77007"
-                    />
-                  </div>
+                  <JobAddressFields
+                    sectionTitle="Technician Address"
+                    address={form.address}
+                    city={form.city}
+                    state={form.state}
+                    zipCode={form.zip_code}
+                    country={form.country}
+                    onChange={patchAddress}
+                  />
                   {needsMapSetup && (
                     <p className="mt-2 text-xs text-amber-800">
                       Required to enable accurate map radius and distance sorting on your dashboard.

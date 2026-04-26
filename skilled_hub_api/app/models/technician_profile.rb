@@ -31,7 +31,10 @@ class TechnicianProfile < ApplicationRecord
 
   def geocode_address
     return unless address.present? || city.present?
-    return unless new_record? || address_changed? || city_changed? || state_changed? || zip_code_changed? || country_changed?
+    needs_coordinates = latitude.blank? || longitude.blank?
+    address_changed_for_geocode =
+      new_record? || address_changed? || city_changed? || state_changed? || zip_code_changed? || country_changed?
+    return unless needs_coordinates || address_changed_for_geocode
     coords = GeocodingService.geocode(
       address: address,
       city: city,

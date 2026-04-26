@@ -4,6 +4,9 @@ module Api
       before_action :authenticate_user, only: [:show, :update_me]
 
       def update_me
+        if params[:password].present?
+          @current_user.password_set_actor = 'user'
+        end
         if @current_user.update(update_me_params)
           render json: { user: UserSerializer.new(@current_user).as_json }, status: :ok
         else
@@ -45,6 +48,7 @@ module Api
         end
 
         user = User.new(user_params.merge(email: email, role: permitted_role))
+        user.password_set_actor = 'user'
         if user.save
           if user.company?
             profile = CompanyProfile.create!(user: user, membership_level: membership_level)

@@ -35,6 +35,7 @@ module Api
 
         user.password = password
         user.password_confirmation = params[:password_confirmation]
+        user.password_set_actor = "user"
         if user.save
           user.clear_password_reset_token!
           UserLoginEvent.create!(user_id: user.id)

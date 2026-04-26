@@ -63,8 +63,17 @@ class AdminUserDetail
       phone: user.phone,
       role: user.role,
       created_at: user.created_at&.iso8601,
+      password_status: password_status_payload(user),
       profile: profile_payload(user),
       company_context: company_context_payload(user, company_profile)
+    }
+  end
+
+  def password_status_payload(user)
+    {
+      has_password: user.password_digest.present?,
+      set_by: user.password_set_by.presence,
+      set_at: user.password_set_at&.iso8601
     }
   end
 

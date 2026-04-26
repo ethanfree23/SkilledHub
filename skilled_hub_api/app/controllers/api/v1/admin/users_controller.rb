@@ -149,6 +149,7 @@ module Api
 
           user.password = password
           user.password_confirmation = password_confirmation
+          user.password_set_actor = "admin"
           if user.save
             user.clear_password_reset_token!
             render json: { message: "Password updated for #{user.email}" }, status: :ok
