@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI, profilesAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
@@ -46,6 +46,35 @@ const PERIOD_OPTIONS = [
   { id: '30d', label: '30 days' },
   { id: 'all', label: 'All time' },
 ];
+
+const GOOGLE_MAPS_API_KEY = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY || '';
+let googleMapsScriptPromise = null;
+
+const loadGoogleMapsScript = () => {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Window unavailable'));
+  if (window.google?.maps) return Promise.resolve(window.google.maps);
+  if (!GOOGLE_MAPS_API_KEY) return Promise.reject(new Error('Google Maps API key missing'));
+  if (googleMapsScriptPromise) return googleMapsScriptPromise;
+
+  googleMapsScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-techflash-google-maps="1"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.google.maps), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Maps script')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&loading=async`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.techflashGoogleMaps = '1';
+    script.onload = () => resolve(window.google.maps);
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    document.head.appendChild(script);
+  });
+
+  return googleMapsScriptPromise;
+};
 
 const humanizeStatus = (s) => (s == null ? '—' : String(s).replace(/_/g, ' '));
 
@@ -675,6 +704,139 @@ const sortByMostRecent = (list) => {
   });
 };
 
+const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
+  const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
+  const markersRef = useRef([]);
+  const [mapsReady, setMapsReady] = useState(Boolean(window.google?.maps));
+  const [loadError, setLoadError] = useState(null);
+
+  const technicianLat = technicianProfile?.latitude;
+  const technicianLng = technicianProfile?.longitude;
+  const hasTechnicianCoords = Number.isFinite(technicianLat) && Number.isFinite(technicianLng);
+  const homeLatLng = hasTechnicianCoords ? { lat: technicianLat, lng: technicianLng } : null;
+
+  const homeAddressQuery = useMemo(
+    () =>
+      [
+        technicianProfile?.address,
+        technicianProfile?.city,
+        technicianProfile?.state,
+        technicianProfile?.zip_code,
+        technicianProfile?.country,
+      ]
+        .filter((part) => String(part || '').trim())
+        .join(', '),
+    [
+      technicianProfile?.address,
+      technicianProfile?.city,
+      technicianProfile?.state,
+      technicianProfile?.zip_code,
+      technicianProfile?.country,
+    ]
+  );
+
+  const selectedLatLng =
+    Number.isFinite(selectedMapJob?.latitude) && Number.isFinite(selectedMapJob?.longitude)
+      ? { lat: selectedMapJob.latitude, lng: selectedMapJob.longitude }
+      : null;
+
+  const fallbackQuery = hasTechnicianCoords
+    ? `${technicianLat},${technicianLng}`
+    : (homeAddressQuery || selectedMapJob?.location || 'United States');
+  const fallbackEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fallbackQuery)}&z=10&output=embed`;
+
+  useEffect(() => {
+    let cancelled = false;
+    loadGoogleMapsScript()
+      .then(() => {
+        if (!cancelled) {
+          setMapsReady(true);
+          setLoadError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err?.message || 'Map unavailable');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapsReady || !mapContainerRef.current || !window.google?.maps) return;
+
+    const maps = window.google.maps;
+    const defaultCenter = homeLatLng || selectedLatLng || { lat: 39.5, lng: -98.35 };
+    if (!mapRef.current) {
+      mapRef.current = new maps.Map(mapContainerRef.current, {
+        center: defaultCenter,
+        zoom: homeLatLng ? 11 : 6,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+    }
+
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = [];
+
+    if (homeLatLng) {
+      markersRef.current.push(
+        new maps.Marker({
+          map: mapRef.current,
+          position: homeLatLng,
+          title: 'Your location',
+          icon: {
+            path: maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#2563eb',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+        })
+      );
+    }
+
+    if (selectedLatLng) {
+      markersRef.current.push(
+        new maps.Marker({
+          map: mapRef.current,
+          position: selectedLatLng,
+          title: selectedMapJob?.title || 'Selected job',
+        })
+      );
+    }
+
+    if (homeLatLng && selectedLatLng) {
+      const bounds = new maps.LatLngBounds();
+      bounds.extend(homeLatLng);
+      bounds.extend(selectedLatLng);
+      mapRef.current.fitBounds(bounds, 90);
+      return;
+    }
+
+    mapRef.current.setCenter(homeLatLng || selectedLatLng || defaultCenter);
+    mapRef.current.setZoom(homeLatLng ? 11 : 6);
+  }, [mapsReady, homeLatLng, selectedLatLng, selectedMapJob?.title]);
+
+  if (!mapsReady || loadError) {
+    return (
+      <iframe
+        title="Open jobs map area view"
+        src={fallbackEmbedUrl}
+        className="h-full w-full min-h-[24rem] border-0"
+        loading="eager"
+        fetchPriority="high"
+        referrerPolicy="no-referrer-when-downgrade"
+      />
+    );
+  }
+
+  return <div ref={mapContainerRef} className="h-full w-full min-h-[24rem]" />;
+};
+
 const CompanyDashboardContent = ({ jobs, analytics, onFinish, onRefresh, navigate, user, showWelcome = false }) => {
   const now = Date.now();
   const requested = sortByMostRecent(jobs?.requested || []);
@@ -878,16 +1040,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
   }, [user?.role]);
 
   const selectedMapJob = nearbyOpenJobs.find((job) => job.id === selectedMapJobId) || null;
-  const centerLat = technicianLat ?? selectedMapJob?.latitude ?? 39.5;
-  const centerLng = technicianLng ?? selectedMapJob?.longitude ?? -98.35;
   const needsExactAddressPrompt = needsTechnicianMapSetup(technicianProfile);
-  const latDelta = searchRadiusMiles / 69;
-  const lonDelta = searchRadiusMiles / (Math.cos((centerLat * Math.PI) / 180) * 69 || 1);
-  const left = centerLng - lonDelta;
-  const right = centerLng + lonDelta;
-  const top = centerLat + latDelta;
-  const bottom = centerLat - latDelta;
-  const mapEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(left)},${encodeURIComponent(bottom)},${encodeURIComponent(right)},${encodeURIComponent(top)}&layer=mapnik&marker=${encodeURIComponent(centerLat)},${encodeURIComponent(centerLng)}`;
 
   return (
     <>
@@ -909,13 +1062,9 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
       <section className="mb-8 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="grid grid-cols-1 xl:grid-cols-3">
           <div className="xl:col-span-2 min-h-[24rem] bg-slate-100 relative">
-            <iframe
-              key={`${selectedMapJob?.id || 'none'}-${centerLat}-${centerLng}`}
-              title={selectedMapJob ? `Open job map for ${selectedMapJob.title}` : 'Open jobs map area view'}
-              src={mapEmbedUrl}
-              className="h-full w-full min-h-[24rem] border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
+            <TechnicianOpenJobsMap
+              technicianProfile={technicianProfile}
+              selectedMapJob={selectedMapJob}
             />
             {!selectedMapJob && (
               <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
