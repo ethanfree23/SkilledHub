@@ -133,6 +133,34 @@ class UserMailer < ApplicationMailer
     )
   end
 
+  def job_counter_offer_received_email(offer)
+    @offer = offer
+    @job = offer.job
+    recipient = offer.pending_company? ? offer.company_profile.user : offer.technician_profile.user
+    mail(to: recipient.email, subject: "New counter offer for #{@job.title}")
+  end
+
+  def job_counter_offer_accepted_email(offer)
+    @offer = offer
+    @job = offer.job
+    recipients = [offer.company_profile.user.email, offer.technician_profile.user.email].compact.uniq
+    mail(to: recipients, subject: "Counter offer accepted: #{@job.title}")
+  end
+
+  def job_counter_offer_declined_email(offer)
+    @offer = offer
+    @job = offer.job
+    recipient = offer.created_by_role == "technician" ? offer.technician_profile.user : offer.company_profile.user
+    mail(to: recipient.email, subject: "Counter offer declined: #{@job.title}")
+  end
+
+  def job_counter_offer_countered_email(offer)
+    @offer = offer
+    @job = offer.job
+    recipient = offer.pending_company? ? offer.company_profile.user : offer.technician_profile.user
+    mail(to: recipient.email, subject: "Counter offer update for #{@job.title}")
+  end
+
   def admin_feedback(submission)
     @submission = submission
     @sender = submission.user

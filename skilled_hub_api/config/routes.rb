@@ -32,6 +32,14 @@ Rails.application.routes.draw do
           patch :finish
           patch :extend
         end
+        resources :counter_offers, only: [:index, :create], controller: :job_counter_offers
+      end
+      resources :counter_offers, only: [] do
+        member do
+          patch :accept, controller: :job_counter_offers
+          patch :decline, controller: :job_counter_offers
+          patch :counter, controller: :job_counter_offers
+        end
       end
       post 'jobs/:job_id/create_payment_intent', to: 'payments#create_intent'
       post 'settings/create_setup_intent', to: 'settings#create_setup_intent'

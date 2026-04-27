@@ -1,11 +1,13 @@
 class Job < ApplicationRecord
 
   enum status: { open: 0, reserved: 1, accepted: 2, completed: 3, filled: 4, finished: 5 }
+  enum start_mode: { hard_start: 0, rolling_start: 1 }
 
   belongs_to :company_profile
 
   has_many :job_applications, dependent: :destroy
   has_many :payments, dependent: :destroy
+  has_many :job_counter_offers, dependent: :destroy
 
   # Total job amount (before platform fees): hourly_rate * hours_per_day * days
   # Falls back to price_cents for legacy jobs
@@ -36,7 +38,6 @@ class Job < ApplicationRecord
   before_save :geocode_address
 
   validates :minimum_years_experience, numericality: { only_integer: true, greater_than_or_equal_to: 0, allow_nil: true }
-
   has_many :conversations, dependent: :destroy
   has_many :ratings, dependent: :destroy
   has_many :job_issue_reports, dependent: :destroy

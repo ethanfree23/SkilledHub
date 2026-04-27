@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_26_132000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_27_141000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -164,6 +164,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_132000) do
     t.index ["technician_profile_id"], name: "index_job_applications_on_technician_profile_id"
   end
 
+  create_table "job_counter_offers", force: :cascade do |t|
+    t.integer "job_id", null: false
+    t.integer "technician_profile_id", null: false
+    t.integer "company_profile_id", null: false
+    t.integer "parent_offer_id"
+    t.integer "status", default: 0, null: false
+    t.integer "created_by_role", null: false
+    t.integer "proposed_hourly_rate_cents"
+    t.integer "proposed_hours_per_day"
+    t.integer "proposed_days"
+    t.datetime "proposed_start_at"
+    t.datetime "proposed_end_at"
+    t.integer "proposed_start_mode", default: 0, null: false
+    t.datetime "responded_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_profile_id"], name: "index_job_counter_offers_on_company_profile_id"
+    t.index ["job_id", "created_at"], name: "index_job_counter_offers_on_job_id_and_created_at"
+    t.index ["job_id"], name: "index_job_counter_offers_on_job_id"
+    t.index ["parent_offer_id"], name: "index_job_counter_offers_on_parent_offer_id"
+    t.index ["status"], name: "index_job_counter_offers_on_status"
+    t.index ["technician_profile_id"], name: "index_job_counter_offers_on_technician_profile_id"
+  end
+
   create_table "job_issue_reports", force: :cascade do |t|
     t.integer "job_id", null: false
     t.integer "user_id", null: false
@@ -204,7 +228,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_132000) do
     t.integer "minimum_years_experience"
     t.text "notes"
     t.datetime "go_live_at"
+    t.integer "start_mode", default: 0, null: false
     t.index ["company_profile_id"], name: "index_jobs_on_company_profile_id"
+    t.index ["start_mode"], name: "index_jobs_on_start_mode"
   end
 
   create_table "marketing_leads", force: :cascade do |t|
@@ -407,6 +433,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_26_132000) do
   add_foreign_key "feedback_submissions", "users"
   add_foreign_key "job_applications", "jobs"
   add_foreign_key "job_applications", "technician_profiles"
+  add_foreign_key "job_counter_offers", "company_profiles"
+  add_foreign_key "job_counter_offers", "job_counter_offers", column: "parent_offer_id"
+  add_foreign_key "job_counter_offers", "jobs"
+  add_foreign_key "job_counter_offers", "technician_profiles"
   add_foreign_key "job_issue_reports", "jobs"
   add_foreign_key "job_issue_reports", "users"
   add_foreign_key "jobs", "company_profiles"

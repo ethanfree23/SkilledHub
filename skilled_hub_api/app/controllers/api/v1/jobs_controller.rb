@@ -357,74 +357,8 @@ module Api
       # Technician claims a job (first-come-first-served, like Uber driver accepting a ride)
       def claim
         job = Job.find(params[:id])
-        unless @current_user.technician?
-          return render json: { error: 'Only technicians can claim jobs' }, status: :forbidden
-        end
-
-        unless job.open?
-          return render json: { error: 'Job is no longer available' }, status: :unprocessable_entity
-        end
-
-        if job.scheduled_start_at.blank? || job.scheduled_end_at.blank?
-          return render json: { error: 'This job has no scheduled times. The company must set start and end times before technicians can claim it.' }, status: :unprocessable_entity
-        end
-
-        if job.job_applications.accepted.any?
-          return render json: { error: 'Job has already been claimed' }, status: :unprocessable_entity
-        end
-
-        technician_profile = @current_user.technician_profile
-        if technician_profile && !MembershipPolicy.job_visible_to_technician?(job: job, technician_profile: technician_profile)
-          return render json: { error: 'This job is not available for your tier yet.' }, status: :forbidden
-        end
-        if technician_profile
-          overlapping = technician_profile.job_applications
-            .joins(:job)
-            .where(job_applications: { status: :accepted })
-            .where(jobs: { status: [:reserved, :filled] })
-            .where.not(jobs: { id: job.id })
-            .select { |app| jobs_overlap?(app.job, job) }
-          if overlapping.any?
-            return render json: { error: "You cannot claim this job because its scheduled time overlaps with another job you've already claimed." }, status: :unprocessable_entity
-          end
-        end
-        if technician_profile.nil?
-          technician_profile = TechnicianProfile.create!(
-            user: @current_user,
-            trade_type: 'General',
-            experience_years: 0,
-            availability: 'Full-time'
-          )
-        end
-
-        job_application = JobApplication.create!(
-          job: job,
-          technician_profile: technician_profile,
-          status: :accepted
-        )
-
-        # For paid jobs: charge company immediately unless billing is exempt.
-        charge_required = job.job_amount_cents > 0 && !MembershipPolicy.billing_exempt?(job.company_profile)
-        if charge_required
-          result = PaymentService.charge_company_on_claim(job)
-          if result[:error]
-            job_application.destroy!
-            job.reload
-            return render json: { error: result[:error] }, status: :unprocessable_entity
-          end
-          job.update!(status: :filled)
-          MailDelivery.safe_deliver do
-            UserMailer.job_claimed_email(job).deliver_now
-            UserMailer.payment_confirmation_email(job, job.company_charge_cents).deliver_now
-            UserMailer.technician_claimed_job_email(job).deliver_now
-          end
-        else
-          job.update!(status: :filled)
-          MailDelivery.safe_deliver do
-            UserMailer.job_claimed_email(job).deliver_now
-            UserMailer.technician_claimed_job_email(job).deliver_now
-          end
-        end
+        result = Jobs::ClaimJobService.call(job: job, technician_user: @current_user)
+        return render json: { error: result[:error] }, status: (result[:status] || :unprocessable_entity) if result[:error]
 
         render json: job, serializer: JobSerializer, include: [:company_profile, { job_applications: { technician_profile: :user } }], status: :ok
       rescue ActiveRecord::RecordNotFound
@@ -461,7 +395,7 @@ module Api
         params.permit(:title, :description, :required_documents, :required_certifications, :location, :status, :company_profile_id, :timeline, :skip_card_validation,
                       :scheduled_start_at, :scheduled_end_at, :price_cents, :hourly_rate_cents, :hours_per_day, :days,
                       :address, :city, :state, :zip_code, :country,
-                      :skill_class, :minimum_years_experience, :notes, :go_live_at)
+                      :skill_class, :minimum_years_experience, :notes, :go_live_at, :start_mode)
       end
 
       def jobs_overlap?(job_a, job_b)

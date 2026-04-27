@@ -1,0 +1,8 @@
+You have a new counter offer for "<%= @job.title %>".
+
+Proposed rate: <%= @offer.proposed_hourly_rate_cents ? format("$%.2f/hr", @offer.proposed_hourly_rate_cents / 100.0) : "unchanged" %>
+Proposed hours/day: <%= @offer.proposed_hours_per_day || "unchanged" %>
+Proposed days: <%= @offer.proposed_days || "unchanged" %>
+Start mode: <%= @offer.proposed_start_mode.humanize %>
+
+Sign in to TechFlash to respond.

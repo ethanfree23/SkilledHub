@@ -3,8 +3,8 @@ class JobSerializer < ActiveModel::Serializer
              :scheduled_start_at, :scheduled_end_at, :finished_at, :price_cents, :hourly_rate_cents, :hours_per_day, :days,
              :job_amount_cents, :company_charge_cents, :tech_payout_cents,
              :address, :city, :state, :zip_code, :country, :latitude, :longitude,
-             :skill_class, :minimum_years_experience, :notes, :go_live_at,
-             :timeline_events
+             :skill_class, :minimum_years_experience, :notes, :go_live_at, :start_mode,
+             :timeline_events, :pending_counter_offer
 
   belongs_to :company_profile
   has_many :job_applications
@@ -73,5 +73,12 @@ class JobSerializer < ActiveModel::Serializer
     else
       false
     end
+  end
+
+  def pending_counter_offer
+    offer = object.job_counter_offers.where(status: [:pending_company, :pending_technician]).order(created_at: :desc).first
+    return nil unless offer
+
+    JobCounterOfferSerializer.new(offer, scope: scope).as_json
   end
 end

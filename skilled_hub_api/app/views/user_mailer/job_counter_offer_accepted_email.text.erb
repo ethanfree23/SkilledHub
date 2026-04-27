@@ -1,0 +1,8 @@
+The counter offer for "<%= @job.title %>" was accepted.
+
+The job is now claimed.
+
+Accepted rate: <%= @offer.proposed_hourly_rate_cents ? format("$%.2f/hr", @offer.proposed_hourly_rate_cents / 100.0) : "job default" %>
+Hours/day: <%= @offer.proposed_hours_per_day || @job.hours_per_day %>
+Days: <%= @offer.proposed_days || @job.days %>
+Start mode: <%= @offer.proposed_start_mode.humanize %>
