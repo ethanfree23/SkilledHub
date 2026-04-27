@@ -96,18 +96,25 @@ const MarketingPage = ({ onLoginSuccess }) => {
 
         <div className="max-w-5xl mx-auto text-center relative w-full">
           <div className="inline-block px-4 py-2 mb-6 rounded-full bg-[#FE6711]/20 text-[#d1540a] font-semibold text-sm">
-            Find short-term technicians in under 6 hours
+            Instant short-term jobs for skilled technicians
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-gray-800 leading-tight">
-            Fast field-service staffing for both sides.
+            Uber-like,
+            <br />
+            for the trades.
           </h1>
           <p className="mt-6 text-xl text-gray-600 max-w-2xl mx-auto">
-            Companies fill urgent jobs quickly. Technicians claim nearby work and get paid. TechFlash keeps both sides moving.
+            The instant job board for the trades. Claim nearby same-day and next-day work in minutes, with clear pay and a fast, reliable workflow.
           </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm font-semibold text-gray-700">
+            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Claim in minutes</span>
+            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Short-term gigs</span>
+            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Clear pay upfront</span>
+          </div>
 
           <div className="mt-10 rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">
             <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3 md:flex-row md:items-center">
-              <p className="text-sm font-semibold text-gray-700 md:w-56">Get started in seconds</p>
+              <p className="text-sm font-semibold text-gray-700 md:w-56">Find jobs now</p>
               <input
                 type="email"
                 required

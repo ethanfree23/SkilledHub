@@ -470,6 +470,116 @@ module Api
           assert_in_delta Time.current.to_f, job.go_live_at.to_f, 1.0
         end
       end
+
+      test "technician index succeeds when membership visibility checks require full job attributes" do
+        reset_technician_tier_rules!(job_access_min_experience_years: 2)
+
+        company_user = User.create!(
+          email: "company-tech-index-safety@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :company
+        )
+        company_profile = CompanyProfile.create!(
+          user: company_user,
+          membership_level: "basic"
+        )
+        company_user.update_column(:company_profile_id, company_profile.id)
+
+        visible_job = Job.create!(
+          company_profile: company_profile,
+          title: "Visible open job",
+          description: "desc",
+          status: :open,
+          minimum_years_experience: 1,
+          go_live_at: 2.hours.ago,
+          scheduled_start_at: 1.day.from_now,
+          scheduled_end_at: 2.days.from_now
+        )
+
+        technician_user = User.create!(
+          email: "tech-index-safety@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :technician
+        )
+        TechnicianProfile.create!(
+          user: technician_user,
+          trade_type: "General",
+          availability: "Full-time",
+          membership_level: "basic",
+          experience_years: 5
+        )
+
+        get "/api/v1/jobs",
+            headers: auth_header_for(technician_user),
+            as: :json
+
+        assert_response :ok
+        ids = JSON.parse(response.body).map { |row| row["id"] }
+        assert_includes ids, visible_job.id
+      end
+
+      test "technician index does not 500 with mixed eligibility jobs under strict membership rules" do
+        reset_technician_tier_rules!(job_access_min_experience_years: 4)
+
+        company_user = User.create!(
+          email: "company-tech-index-mixed@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :company
+        )
+        company_profile = CompanyProfile.create!(
+          user: company_user,
+          membership_level: "basic"
+        )
+        company_user.update_column(:company_profile_id, company_profile.id)
+
+        eligible_job = Job.create!(
+          company_profile: company_profile,
+          title: "Eligible open job",
+          description: "desc",
+          status: :open,
+          minimum_years_experience: 2,
+          go_live_at: 1.hour.ago,
+          scheduled_start_at: 12.hours.from_now,
+          scheduled_end_at: 14.hours.from_now
+        )
+
+        ineligible_job = Job.create!(
+          company_profile: company_profile,
+          title: "Ineligible open job",
+          description: "desc",
+          status: :open,
+          minimum_years_experience: 7,
+          go_live_at: 1.hour.ago,
+          scheduled_start_at: 15.hours.from_now,
+          scheduled_end_at: 17.hours.from_now
+        )
+
+        technician_user = User.create!(
+          email: "tech-index-mixed@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :technician
+        )
+        TechnicianProfile.create!(
+          user: technician_user,
+          trade_type: "General",
+          availability: "Full-time",
+          membership_level: "basic",
+          experience_years: 5
+        )
+
+        get "/api/v1/jobs",
+            headers: auth_header_for(technician_user),
+            as: :json
+
+        assert_response :ok
+        ids = JSON.parse(response.body).map { |row| row["id"] }
+        assert_includes ids, eligible_job.id
+        assert_not_includes ids, ineligible_job.id
+      end
     end
   end
 end

@@ -27,7 +27,7 @@ module Api
         Rails.logger.error "#{exception.class}: #{exception.message}\n#{exception.backtrace.first(10).join("\n")}"
         render json: {
           error: "Server error",
-          message: (Rails.env.development? ? "#{exception.class}: #{exception.message}" : nil)
+          message: ((Rails.env.development? || Rails.env.test?) ? "#{exception.class}: #{exception.message}" : nil)
         }, status: :internal_server_error
       end
 
@@ -80,9 +80,11 @@ module Api
       # Allow JSON payloads to be parsed correctly into params (Rails API parses JSON by default; this ensures compatibility)
       def transform_json_params
         return unless request.content_type.to_s.include?('application/json')
-        body = request.body.read
+        raw_body = request.body
+        return if raw_body.nil?
+        body = raw_body.read
         return if body.blank?
-        request.body.rewind
+        raw_body.rewind
         json_params = JSON.parse(body)
         params.merge!(json_params) if json_params.is_a?(Hash)
       rescue JSON::ParserError, IOError

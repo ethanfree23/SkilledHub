@@ -6,7 +6,6 @@ class CompanyProfileSerializer < ActiveModel::Serializer
              :membership_status, :membership_current_period_end_at, :effective_membership_fee_cents, :effective_commission_percent
 
   belongs_to :user
-  has_many :jobs
 
   def avatar_url
     return nil unless object.avatar.attached?

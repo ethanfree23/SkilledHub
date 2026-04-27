@@ -53,8 +53,9 @@ module Api
                 .select(:id)
               jobs = jobs.where.not(id: claimed_by_others)
 
-              # Membership early-access gating based on job posted_at (created_at).
-              visible_ids = jobs.select(:id).select do |candidate|
+              # Membership gating needs fields like minimum_years_experience/go_live_at.
+              # Avoid partial SELECT(:id), which can raise missing-attribute errors here.
+              visible_ids = jobs.select do |candidate|
                 MembershipPolicy.job_visible_to_technician?(job: candidate, technician_profile: technician_profile)
               end.map(&:id)
               jobs = jobs.where(id: visible_ids)
