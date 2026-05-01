@@ -62,18 +62,17 @@ class EmailQaRunner
     raise ArgumentError, "Unknown or unavailable template: #{template_key}" if mail.nil?
 
     force_recipient!(mail)
-    delivered = false
-    MailDelivery.safe_deliver do
-      mail.deliver_now
-      delivered = true
-    end
+    result = MailDelivery.safe_deliver_result { mail.deliver_now }
+    delivered = result[:success]
 
-    {
+    out = {
       template_key: template_key,
       delivered: delivered,
       to: [@admin_user.email],
       subject: mail.subject.to_s
     }
+    out[:mail_error] = result[:error] if delivered == false && result[:error].present?
+    out
   end
 
   def send_all(confirmation:)

@@ -74,21 +74,21 @@ Rails.application.configure do
 
   config.action_mailer.perform_caching = false
 
-  # Use Mailtrap HTTPS API only when explicitly enabled.
-  # This avoids accidentally routing production mail to Mailtrap when SMTP_PASSWORD is set.
-  mailtrap_http =
-    ENV['MAILTRAP_USE_HTTP'] == 'true' ||
-    (ENV['MAILTRAP_USE_HTTP'].blank? && ENV['MAILTRAP_API_TOKEN'].present?)
+  # Mailtrap HTTP vs SMTP: set MAILTRAP_USE_HTTP=false to force SMTP even if MAILTRAP_API_TOKEN is set.
+  mailtrap_http = MailDelivery.mailtrap_http_delivery?
 
   if mailtrap_http
     config.action_mailer.delivery_method = :mailtrap_http
+    # Prefer explicit MAILTRAP_API_TOKEN so a stale SMTP_PASSWORD in Railway cannot override a good token.
     config.action_mailer.mailtrap_http_settings = {
-      api_token: ENV['SMTP_PASSWORD'].presence || ENV['MAILTRAP_API_TOKEN']
+      api_token: ENV['MAILTRAP_API_TOKEN'].presence || ENV['SMTP_PASSWORD'].presence
     }
   # Same SMTP env vars as development: SMTP_ADDRESS, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
-  # Optional: SMTP_AUTHENTICATION=login (Mailtrap’s Rails sample uses login; default is plain)
+  # Mailtrap live SMTP uses username "api" + API token as password; their samples use :login auth.
   elsif ENV['SMTP_ADDRESS'].present?
-    smtp_auth = ENV.fetch('SMTP_AUTHENTICATION', 'plain').downcase.to_sym
+    default_smtp_auth =
+      ENV['SMTP_USERNAME'].to_s.casecmp('api').zero? ? 'login' : 'plain'
+    smtp_auth = ENV.fetch('SMTP_AUTHENTICATION', default_smtp_auth).downcase.to_sym
     smtp_auth = :plain unless %i[plain login cram_md5].include?(smtp_auth)
 
     config.action_mailer.delivery_method = :smtp
@@ -124,9 +124,7 @@ Rails.application.configure do
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.after_initialize do
-    mailtrap_http =
-      ENV['MAILTRAP_USE_HTTP'] == 'true' ||
-      (ENV['MAILTRAP_USE_HTTP'].blank? && ENV['MAILTRAP_API_TOKEN'].present?)
+    mailtrap_http = MailDelivery.mailtrap_http_delivery?
 
     if mailtrap_http
       Rails.logger.warn(

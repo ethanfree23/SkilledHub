@@ -314,6 +314,7 @@ export default function SystemControlsPricing() {
         success: !!res?.delivered,
         templateKey,
         to: res?.to || [],
+        mailError: res?.mail_error || null,
       });
     } catch (e) {
       setEmailQaError(e.message || 'Failed to send test email');
@@ -344,7 +345,14 @@ export default function SystemControlsPricing() {
         try {
           const res = await adminEmailQaAPI.sendOne(t.key, emailQaConfirmation);
           if (res?.delivered) deliveredCount += 1;
-          else errors.push({ key: t.key, message: 'Not delivered — check mail env on the API host.' });
+          else {
+            errors.push({
+              key: t.key,
+              message:
+                res?.mail_error ||
+                'Not delivered (no detail from API — redeploy API after updating mail env).',
+            });
+          }
         } catch (e) {
           errors.push({ key: t.key, message: e.message || 'Request failed' });
         }
@@ -924,9 +932,16 @@ export default function SystemControlsPricing() {
                   ))}
                 </div>
                 {emailQaLastSendSummary?.type === 'single' && (
-                  <p className="text-sm text-gray-700">
-                    {emailQaLastSendSummary.success ? 'Sent' : 'Failed'}: {emailQaLastSendSummary.templateKey}
-                  </p>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <p>
+                      {emailQaLastSendSummary.success ? 'Sent' : 'Failed'}: {emailQaLastSendSummary.templateKey}
+                    </p>
+                    {!emailQaLastSendSummary.success && emailQaLastSendSummary.mailError && (
+                      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 whitespace-pre-wrap">
+                        {emailQaLastSendSummary.mailError}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 

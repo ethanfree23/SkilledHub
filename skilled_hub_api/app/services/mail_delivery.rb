@@ -3,10 +3,17 @@
 # Wraps mail sends so SMTP/template failures do not fail HTTP requests.
 # Uses deliver_now (not deliver_later) so sends run inline and never depend on Active Job.
 module MailDelivery
+  # Mirrors config/environments/production.rb mail delivery branch selection.
+  def self.mailtrap_http_delivery?
+    flag = ENV["MAILTRAP_USE_HTTP"].to_s.strip.downcase
+    return false if %w[false 0 no].include?(flag)
+    return true if %w[true 1 yes].include?(flag)
+
+    ENV["MAILTRAP_USE_HTTP"].blank? && ENV["MAILTRAP_API_TOKEN"].present?
+  end
+
   def self.audit_status
-    mailtrap_http =
-      ENV['MAILTRAP_USE_HTTP'] == 'true' ||
-      (ENV['MAILTRAP_USE_HTTP'].blank? && ENV['MAILTRAP_API_TOKEN'].present?)
+    mailtrap_http = mailtrap_http_delivery?
 
     delivery_mode =
       if mailtrap_http
@@ -29,28 +36,43 @@ module MailDelivery
     }
   end
 
-  def self.safe_deliver
-    mailtrap_http = audit_status[:delivery_mode] == 'mailtrap_http'
+  # Returns { success: true, value: ... } or { success: false, error: "..." }.
+  # Use this in admin/diagnostics UIs (e.g. Email QA).
+  def self.safe_deliver_result
+    st = audit_status
+    mailtrap_http = st[:delivery_mode] == 'mailtrap_http'
 
     if mailtrap_http
       if ENV['MAILTRAP_API_TOKEN'].blank? && ENV['SMTP_PASSWORD'].blank?
-        Rails.logger.error('[mail] Mailtrap HTTP requires SMTP_PASSWORD or MAILTRAP_API_TOKEN')
-        return nil
+        msg = "Mailtrap HTTP: set MAILTRAP_API_TOKEN or SMTP_PASSWORD (use your Sending API token) on the API host."
+        Rails.logger.error("[mail] #{msg}")
+        return { success: false, error: msg }
       end
     elsif ENV['SMTP_ADDRESS'].blank?
-      Rails.logger.error('[mail] SMTP_ADDRESS is unset — cannot send mail. Set it on the Railway app service.')
-      return nil
+      msg = "SMTP_ADDRESS is unset — cannot send mail. Set it on the Railway API service."
+      Rails.logger.error("[mail] #{msg}")
+      return { success: false, error: msg }
     elsif ENV['SMTP_PASSWORD'].blank?
-      Rails.logger.error('[mail] SMTP_PASSWORD is unset — Mailtrap token missing.')
-      return nil
+      msg = "SMTP_PASSWORD is unset. For Mailtrap live SMTP, use your API token as the password (user is often 'api')."
+      Rails.logger.error("[mail] #{msg}")
+      return { success: false, error: msg }
     end
 
     Rails.logger.warn("[mail] sending via=#{mailtrap_http ? 'mailtrap_http' : 'smtp'}")
-    yield
-    Rails.logger.warn('[mail] sent OK')
-  rescue StandardError => e
-    Rails.logger.error("[mail] #{e.class}: #{e.message}\n#{e.backtrace.first(12).join("\n")}")
-    nil
+
+    begin
+      value = yield
+      Rails.logger.warn("[mail] sent OK")
+      { success: true, value: value }
+    rescue StandardError => e
+      Rails.logger.error("[mail] #{e.class}: #{e.message}\n#{e.backtrace.first(12).join("\n")}")
+      { success: false, error: "#{e.class}: #{e.message}" }
+    end
+  end
+
+  def self.safe_deliver
+    r = safe_deliver_result { yield }
+    r[:success] ? r[:value] : nil
   end
 
   def self.can_send_mail?(mailtrap_http)

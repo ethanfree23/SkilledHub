@@ -45,6 +45,8 @@ SMTP_PASSWORD=your_mailtrap_password
 
 4. Restart Rails. Emails will appear in your Mailtrap inbox. (SMTP is already configured in `development.rb` when these env vars are set.)
 
+**Important:** These values come from **Email Testing** → **Integration** → **SMTP**. The hostname **`sandbox.smtp.mailtrap.io`** is only for catching mail inside Mailtrap’s testing inbox. It is **not** the same as Mailtrap’s **Email Sending** / transactional delivery. Do **not** copy this sandbox host into production (e.g. Railway): the API may accept sends, but behavior and credentials are for the testing product. Production should use **Mailtrap HTTP** with a Sending API token, or **live SMTP** (`live.smtp.mailtrap.io`) with **Sending** SMTP credentials—not the sandbox hostname.
+
 ---
 
 ### Option B: Letter Opener (open emails in browser)
@@ -87,6 +89,17 @@ SMTP_PASSWORD=your_16_char_app_password
 ---
 
 ## Production
+
+### Mailtrap in production
+
+If you use Mailtrap for real delivery, configure **Email Sending** (transactional), not the Email Testing sandbox:
+
+- **Recommended:** HTTP API — set `MAILTRAP_USE_HTTP=true` and `MAILTRAP_API_TOKEN` to a token from **Sending** in the Mailtrap dashboard (see [Mailtrap HTTP Mode](#mailtrap-http-mode-optional-in-production) below). Do not reuse the testing inbox password as if it were the Sending token unless Mailtrap documents that for your account.
+- **Alternative:** Live SMTP — use host **`live.smtp.mailtrap.io`** (and the SMTP username/password from **Sending**), not `sandbox.smtp.mailtrap.io`.
+
+If production still had `SMTP_ADDRESS=sandbox.smtp.mailtrap.io`, switch to HTTP mode or live SMTP and matching Sending credentials; sandbox SMTP is for dev/testing capture only.
+
+### Other providers
 
 Use a transactional email service (SendGrid, Mailgun, Amazon SES, etc.) and set:
 
