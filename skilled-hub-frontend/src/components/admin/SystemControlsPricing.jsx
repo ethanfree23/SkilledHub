@@ -305,10 +305,15 @@ export default function SystemControlsPricing() {
   };
 
   const sendOneEmailTemplate = async (templateKey) => {
+    const confirm = emailQaConfirmation.trim();
+    if (confirm !== 'SEND_TEST_EMAILS') {
+      setEmailQaError('Type SEND_TEST_EMAILS in the confirmation field (exact phrase).');
+      return;
+    }
     setEmailQaBusyKey(`send:${templateKey}`);
     setEmailQaError(null);
     try {
-      const res = await adminEmailQaAPI.sendOne(templateKey, emailQaConfirmation);
+      const res = await adminEmailQaAPI.sendOne(templateKey, confirm);
       setEmailQaLastSendSummary({
         type: 'single',
         success: !!res?.delivered,
@@ -325,6 +330,13 @@ export default function SystemControlsPricing() {
   };
 
   const sendAllEmailTemplates = async () => {
+    const confirm = emailQaConfirmation.trim();
+    if (confirm !== 'SEND_TEST_EMAILS') {
+      setEmailQaError(
+        'Type SEND_TEST_EMAILS in the confirmation field (exact text) before sending.',
+      );
+      return;
+    }
     if (!emailQaTemplates.length) {
       setEmailQaError('Load templates first (click Refresh).');
       return;
@@ -343,7 +355,7 @@ export default function SystemControlsPricing() {
           templateKey: t.key,
         });
         try {
-          const res = await adminEmailQaAPI.sendOne(t.key, emailQaConfirmation);
+          const res = await adminEmailQaAPI.sendOne(t.key, confirm);
           if (res?.delivered) deliveredCount += 1;
           else {
             errors.push({
@@ -825,7 +837,7 @@ export default function SystemControlsPricing() {
           <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-900">Send confirmation guard</h3>
             <p className="text-xs text-gray-600">
-              Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> to enable send actions.
+              Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> to send (leading/trailing spaces are OK). If the phrase is wrong, you will see a red error when you click Send.
             </p>
             <p className="text-xs text-gray-500">
               Send all runs one template per request so production gateways do not time out on a single long call.
@@ -840,7 +852,7 @@ export default function SystemControlsPricing() {
             <button
               type="button"
               onClick={sendAllEmailTemplates}
-              disabled={emailQaBusyKey === 'send_all' || emailQaConfirmation !== 'SEND_TEST_EMAILS'}
+              disabled={emailQaBusyKey === 'send_all'}
               className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {emailQaBusyKey === 'send_all' && emailQaSendAllProgress
@@ -919,9 +931,7 @@ export default function SystemControlsPricing() {
                           type="button"
                           onClick={() => sendOneEmailTemplate(template.key)}
                           disabled={
-                            emailQaBusyKey === `send:${template.key}` ||
-                            emailQaBusyKey === 'send_all' ||
-                            emailQaConfirmation !== 'SEND_TEST_EMAILS'
+                            emailQaBusyKey === `send:${template.key}` || emailQaBusyKey === 'send_all'
                           }
                           className="px-3 py-1.5 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
                         >
