@@ -46,6 +46,8 @@ class CompanyProfile < ApplicationRecord
 
   def sync_location_from_service_cities
     cities = Array(service_cities).map(&:to_s).map(&:strip).reject(&:blank?)
+    return if location.present?
+
     self.location = cities.join(", ") if cities.any?
   end
 

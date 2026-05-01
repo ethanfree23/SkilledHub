@@ -4,6 +4,8 @@ class JobSerializer < ActiveModel::Serializer
              :job_amount_cents, :company_charge_cents, :tech_payout_cents,
              :address, :city, :state, :zip_code, :country, :latitude, :longitude,
              :skill_class, :minimum_years_experience, :notes, :go_live_at, :start_mode,
+             :rolling_start_rule_type, :rolling_start_exact_start_at, :rolling_start_days_after_acceptance,
+             :rolling_start_weekday, :rolling_start_weekday_time,
              :timeline_events, :pending_counter_offer
 
   belongs_to :company_profile

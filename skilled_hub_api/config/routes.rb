@@ -121,6 +121,11 @@ Rails.application.routes.draw do
         patch "referrals/:id/issue_reward", to: "referrals#issue_reward"
         get "licensing_settings", to: "licensing_settings#show"
         patch "licensing_settings", to: "licensing_settings#update"
+        get "mailtrap_audit", to: "mailtrap_audits#show"
+        get "email_qa/templates", to: "email_qa#templates"
+        post "email_qa/preview", to: "email_qa#preview"
+        post "email_qa/send", to: "email_qa#send_one"
+        post "email_qa/send_all", to: "email_qa#send_all"
       end
     end
   end

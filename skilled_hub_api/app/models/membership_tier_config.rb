@@ -14,6 +14,7 @@ class MembershipTierConfig < ApplicationRecord
   validates :job_access_min_successful_jobs, numericality: { only_integer: true, greater_than_or_equal_to: 0, allow_nil: true }
   validates :job_access_min_profile_completeness_percent, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100, allow_nil: true }
   validate :early_access_only_for_technician
+  validate :standard_technician_tier_delay_order
 
   after_commit :clear_membership_tier_cache
 
@@ -54,5 +55,21 @@ class MembershipTierConfig < ApplicationRecord
     return if early_access_delay_hours.blank?
 
     errors.add(:early_access_delay_hours, "only applies to technician tiers")
+  end
+
+  def standard_technician_tier_delay_order
+    return unless audience == "technician"
+    return unless %w[premium pro basic].include?(slug)
+
+    tiers = MembershipTierConfig.where(audience: "technician", slug: %w[premium pro basic]).index_by(&:slug)
+    tiers[slug] = self
+    return unless tiers["premium"] && tiers["pro"] && tiers["basic"]
+
+    premium_delay = tiers["premium"].early_access_delay_hours.to_i
+    pro_delay = tiers["pro"].early_access_delay_hours.to_i
+    basic_delay = tiers["basic"].early_access_delay_hours.to_i
+    return if premium_delay <= pro_delay && pro_delay <= basic_delay
+
+    errors.add(:early_access_delay_hours, "must keep release order premium first, then pro, then basic")
   end
 end

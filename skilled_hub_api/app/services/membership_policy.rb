@@ -61,15 +61,67 @@ class MembershipPolicy
     return true if technician_profile.blank?
 
     rule = rule_for(:technician, technician_profile.membership_level)
-    return false unless technician_experience_eligible?(job: job, technician_profile: technician_profile, rule: rule)
-    return false unless technician_additional_access_eligible?(technician_profile: technician_profile, rule: rule)
+    experience_eligible = technician_experience_eligible?(job: job, technician_profile: technician_profile, rule: rule)
+    additional_eligible = technician_additional_access_eligible?(technician_profile: technician_profile, rule: rule)
+    unless experience_eligible && additional_eligible
+      # #region agent log
+      debug_log(
+        hypothesis_id: 'B5',
+        location: 'membership_policy.rb:job_visible_to_technician?:eligibility',
+        message: 'membership eligibility rejected',
+        data: {
+          job_id: job&.id,
+          technician_profile_id: technician_profile&.id,
+          membership_level: technician_profile&.membership_level.to_s,
+          experience_eligible: experience_eligible,
+          additional_eligible: additional_eligible,
+          job_minimum_years_experience: job&.minimum_years_experience,
+          technician_experience_years: technician_profile&.experience_years
+        }
+      )
+      # #endregion
+      return false
+    end
 
     delay_hours = rule[:early_access_delay_hours].to_i
     anchor_time = job.go_live_at || job.created_at
-    return false if anchor_time.blank?
+    if anchor_time.blank?
+      # #region agent log
+      debug_log(
+        hypothesis_id: 'B6',
+        location: 'membership_policy.rb:job_visible_to_technician?:anchor_time',
+        message: 'membership rejected due blank anchor',
+        data: {
+          job_id: job&.id,
+          technician_profile_id: technician_profile&.id,
+          go_live_at: job&.go_live_at,
+          created_at: job&.created_at
+        }
+      )
+      # #endregion
+      return false
+    end
 
     visible_from = anchor_time + delay_hours.hours
-    Time.current >= visible_from
+    visible = Time.current >= visible_from
+    # #region agent log
+    debug_log(
+      hypothesis_id: 'B7',
+      location: 'membership_policy.rb:job_visible_to_technician?:time_window',
+      message: 'membership time window check',
+      data: {
+        job_id: job&.id,
+        technician_profile_id: technician_profile&.id,
+        membership_level: technician_profile&.membership_level.to_s,
+        delay_hours: delay_hours,
+        anchor_time: anchor_time,
+        visible_from: visible_from,
+        now: Time.current,
+        visible: visible
+      }
+    )
+    # #endregion
+    visible
   end
 
   def self.normalize_audience(audience)
@@ -188,5 +240,21 @@ class MembershipPolicy
 
   def self.technician_background_verified?(technician_profile)
     !!technician_profile.background_verified
+  end
+
+  def self.debug_log(hypothesis_id:, location:, message:, data:)
+    File.open(Rails.root.join('..', 'debug-f0f940.log'), 'a') do |f|
+      f.puts({
+        sessionId: 'f0f940',
+        runId: 'initial',
+        hypothesisId: hypothesis_id,
+        location: location,
+        message: message,
+        data: data,
+        timestamp: (Time.now.to_f * 1000).to_i
+      }.to_json)
+    end
+  rescue StandardError
+    nil
   end
 end

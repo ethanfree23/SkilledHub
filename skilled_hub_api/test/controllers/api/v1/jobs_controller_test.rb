@@ -314,6 +314,142 @@ module Api
         assert_response :forbidden
       end
 
+      test "rolling start job uses technician preferred_start_at when claimed" do
+        reset_technician_tier_rules!
+
+        company_user = User.create!(
+          email: "company-rolling-claim@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :company
+        )
+        company_profile = CompanyProfile.create!(
+          user: company_user,
+          membership_level: "premium",
+          membership_fee_waived: true
+        )
+        company_user.update_column(:company_profile_id, company_profile.id)
+
+        technician_user = User.create!(
+          email: "tech-rolling-claim@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :technician
+        )
+        TechnicianProfile.create!(
+          user: technician_user,
+          trade_type: "General",
+          availability: "Full-time",
+          membership_level: "basic"
+        )
+
+        travel_to Time.zone.parse("2026-04-27 14:00:00") do
+          job = Job.create!(
+            company_profile: company_profile,
+            title: "Rolling start claim",
+            description: "desc",
+            status: :open,
+            go_live_at: 3.days.ago,
+            start_mode: :rolling_start,
+            hourly_rate_cents: 3_000,
+            hours_per_day: 8,
+            days: 3,
+            scheduled_end_at: 1.week.from_now
+          )
+
+          preferred_start = Time.zone.parse("2026-04-28 09:30:00")
+          patch "/api/v1/jobs/#{job.id}/claim",
+                params: { preferred_start_at: preferred_start.iso8601 },
+                headers: auth_header_for(technician_user),
+                as: :json
+          assert_response :ok
+          job.reload
+          assert_equal "filled", job.status
+          assert_in_delta preferred_start.to_f, job.scheduled_start_at.to_f, 1.0
+        end
+      end
+
+      test "rolling start with days-after-acceptance rule sets start from claim time" do
+        reset_technician_tier_rules!
+
+        company_user = User.create!(email: "company-rolling-days@example.com", password: "password123", password_confirmation: "password123", role: :company)
+        company_profile = CompanyProfile.create!(user: company_user, membership_level: "premium", membership_fee_waived: true)
+        company_user.update_column(:company_profile_id, company_profile.id)
+        technician_user = User.create!(email: "tech-rolling-days@example.com", password: "password123", password_confirmation: "password123", role: :technician)
+        TechnicianProfile.create!(user: technician_user, trade_type: "General", availability: "Full-time", membership_level: "basic")
+
+        travel_to Time.zone.parse("2026-04-29 08:00:00") do
+          job = Job.create!(
+            company_profile: company_profile, title: "Rolling days rule", description: "desc", status: :open,
+            start_mode: :rolling_start, rolling_start_rule_type: :days_after_acceptance, rolling_start_days_after_acceptance: 2,
+            hourly_rate_cents: 3_000, hours_per_day: 8, days: 5, go_live_at: 1.day.ago
+          )
+
+          patch "/api/v1/jobs/#{job.id}/claim", headers: auth_header_for(technician_user), as: :json
+          assert_response :ok
+          job.reload
+          assert_in_delta (Time.current + 2.days).to_f, job.scheduled_start_at.to_f, 1.0
+        end
+      end
+
+      test "rolling start with following-weekday rule uses next week's same day when matched" do
+        reset_technician_tier_rules!
+
+        company_user = User.create!(email: "company-rolling-weekday@example.com", password: "password123", password_confirmation: "password123", role: :company)
+        company_profile = CompanyProfile.create!(user: company_user, membership_level: "premium", membership_fee_waived: true)
+        company_user.update_column(:company_profile_id, company_profile.id)
+        technician_user = User.create!(email: "tech-rolling-weekday@example.com", password: "password123", password_confirmation: "password123", role: :technician)
+        TechnicianProfile.create!(user: technician_user, trade_type: "General", availability: "Full-time", membership_level: "basic")
+
+        travel_to Time.zone.parse("2026-04-27 10:00:00") do # Monday
+          job = Job.create!(
+            company_profile: company_profile, title: "Rolling weekday rule", description: "desc", status: :open,
+            start_mode: :rolling_start, rolling_start_rule_type: :following_weekday, rolling_start_weekday: 1, rolling_start_weekday_time: "14:15",
+            hourly_rate_cents: 3_000, hours_per_day: 8, days: 2, go_live_at: 1.day.ago
+          )
+
+          patch "/api/v1/jobs/#{job.id}/claim", headers: auth_header_for(technician_user), as: :json
+          assert_response :ok
+          job.reload
+          assert_equal Time.zone.parse("2026-05-04 14:15:00"), job.scheduled_start_at
+        end
+      end
+
+      test "rolling start claim at late hour computes end time without invalid hour overflow" do
+        reset_technician_tier_rules!
+
+        company_user = User.create!(email: "company-rolling-late-hour@example.com", password: "password123", password_confirmation: "password123", role: :company)
+        company_profile = CompanyProfile.create!(user: company_user, membership_level: "premium", membership_fee_waived: true)
+        company_user.update_column(:company_profile_id, company_profile.id)
+        technician_user = User.create!(email: "tech-rolling-late-hour@example.com", password: "password123", password_confirmation: "password123", role: :technician)
+        TechnicianProfile.create!(user: technician_user, trade_type: "General", availability: "Full-time", membership_level: "basic")
+
+        travel_to Time.zone.parse("2026-05-01 18:30:00") do
+          job = Job.create!(
+            company_profile: company_profile,
+            title: "Rolling late hour claim",
+            description: "desc",
+            status: :open,
+            start_mode: :rolling_start,
+            hourly_rate_cents: 3_000,
+            hours_per_day: 12,
+            days: 1,
+            go_live_at: 1.day.ago
+          )
+
+          preferred_start = Time.zone.parse("2026-05-01 18:30:00")
+          patch "/api/v1/jobs/#{job.id}/claim",
+                params: { preferred_start_at: preferred_start.iso8601 },
+                headers: auth_header_for(technician_user),
+                as: :json
+          assert_response :ok
+          job.reload
+          assert_equal "filled", job.status
+          assert_equal preferred_start, job.scheduled_start_at
+          assert_equal Time.zone.parse("2026-05-02 07:30:00"), job.scheduled_end_at
+        end
+      end
+
       test "creating an open job sets go_live_at to now" do
         user = User.create!(
           email: "company-go-live-now-create@example.com",

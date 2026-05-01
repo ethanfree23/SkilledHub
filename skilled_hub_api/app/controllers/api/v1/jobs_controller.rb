@@ -14,6 +14,19 @@ module Api
           jobs = company_profile ? company_profile.jobs : Job.none
         elsif @current_user&.technician?
           technician_profile = @current_user.technician_profile
+          # #region agent log
+          debug_log(
+            hypothesis_id: 'B1',
+            location: 'jobs_controller.rb:index:technician_entry',
+            message: 'technician index entry',
+            data: {
+              status_param: params[:status].to_s,
+              include_past: params[:include_past].to_s,
+              technician_profile_id: technician_profile&.id,
+              initial_jobs_count: Job.count
+            }
+          )
+          # #endregion
           if %w[active reserved].include?(params[:status].to_s) && technician_profile
             # Claimed jobs (reserved or filled) - filter by start time for active vs reserved
             base_claimed = Job.joins(:job_applications)
@@ -52,6 +65,18 @@ module Api
                 .where.not(job_applications: { technician_profile_id: technician_profile.id })
                 .select(:id)
               jobs = jobs.where.not(id: claimed_by_others)
+              # #region agent log
+              debug_log(
+                hypothesis_id: 'B2',
+                location: 'jobs_controller.rb:index:pre_membership_filter',
+                message: 'pre membership gating sample',
+                data: {
+                  status_param: params[:status].to_s,
+                  pre_membership_count: jobs.count,
+                  sample_job_ids: jobs.limit(5).pluck(:id)
+                }
+              )
+              # #endregion
 
               # Membership gating needs fields like minimum_years_experience/go_live_at.
               # Avoid partial SELECT(:id), which can raise missing-attribute errors here.
@@ -59,6 +84,17 @@ module Api
                 MembershipPolicy.job_visible_to_technician?(job: candidate, technician_profile: technician_profile)
               end.map(&:id)
               jobs = jobs.where(id: visible_ids)
+              # #region agent log
+              debug_log(
+                hypothesis_id: 'B3',
+                location: 'jobs_controller.rb:index:post_membership_filter',
+                message: 'post membership gating',
+                data: {
+                  visible_ids_count: visible_ids.length,
+                  visible_ids_sample: visible_ids.first(5)
+                }
+              )
+              # #endregion
             end
           end
         end
@@ -103,6 +139,18 @@ module Api
         end
 
         jobs = jobs.includes(:company_profile, :payments, job_applications: { technician_profile: :user })
+        # #region agent log
+        debug_log(
+          hypothesis_id: 'B4',
+          location: 'jobs_controller.rb:index:final_render',
+          message: 'jobs index final render',
+          data: {
+            status_param: params[:status].to_s,
+            final_count: jobs.count,
+            final_sample: jobs.limit(5).pluck(:id, :status, :go_live_at, :scheduled_end_at)
+          }
+        )
+        # #endregion
         
         render json: jobs,
                each_serializer: JobSerializer,
@@ -357,7 +405,11 @@ module Api
       # Technician claims a job (first-come-first-served, like Uber driver accepting a ride)
       def claim
         job = Job.find(params[:id])
-        result = Jobs::ClaimJobService.call(job: job, technician_user: @current_user)
+        result = Jobs::ClaimJobService.call(
+          job: job,
+          technician_user: @current_user,
+          preferred_start_at: params[:preferred_start_at]
+        )
         return render json: { error: result[:error] }, status: (result[:status] || :unprocessable_entity) if result[:error]
 
         render json: job, serializer: JobSerializer, include: [:company_profile, { job_applications: { technician_profile: :user } }], status: :ok
@@ -395,7 +447,9 @@ module Api
         params.permit(:title, :description, :required_documents, :required_certifications, :location, :status, :company_profile_id, :timeline, :skip_card_validation,
                       :scheduled_start_at, :scheduled_end_at, :price_cents, :hourly_rate_cents, :hours_per_day, :days,
                       :address, :city, :state, :zip_code, :country,
-                      :skill_class, :minimum_years_experience, :notes, :go_live_at, :start_mode)
+                      :skill_class, :minimum_years_experience, :notes, :go_live_at, :start_mode,
+                      :rolling_start_rule_type, :rolling_start_exact_start_at, :rolling_start_days_after_acceptance,
+                      :rolling_start_weekday, :rolling_start_weekday_time)
       end
 
       def jobs_overlap?(job_a, job_b)
@@ -449,6 +503,22 @@ module Api
       def can_manage_job?(job)
         return true if @current_user&.admin?
         @current_user&.company? && job.company_profile_id == @current_user.company_profile&.id
+      end
+
+      def debug_log(hypothesis_id:, location:, message:, data:)
+        File.open(Rails.root.join('..', 'debug-f0f940.log'), 'a') do |f|
+          f.puts({
+            sessionId: 'f0f940',
+            runId: 'initial',
+            hypothesisId: hypothesis_id,
+            location: location,
+            message: message,
+            data: data,
+            timestamp: (Time.now.to_f * 1000).to_i
+          }.to_json)
+        end
+      rescue StandardError
+        nil
       end
     end
   end

@@ -28,6 +28,13 @@ module Api
 
       def create
         email = params[:email].to_s.strip.downcase
+        phone = params[:phone].to_s.strip
+        city = params[:city].to_s.strip
+        state = params[:state].to_s.strip
+        zip_code = params[:zip_code].to_s.strip
+        address = params[:address].to_s.strip
+        country = params[:country].to_s.strip.presence || "United States"
+
         if blocked_signup_email?(email) || params[:honeypot].to_s.present?
           block_marketing_email!(email)
           return render json: { error: "Registration is unavailable for this email." }, status: :forbidden
@@ -35,13 +42,11 @@ module Api
 
         # Registration only allows technician or company; admin is created manually
         permitted_role = %w[technician company].include?(params[:role].to_s) ? params[:role] : 'technician'
-        city = params[:city].to_s.strip
-        if permitted_role == 'technician' && city.blank?
-          return render json: { error: "city is required for technician signup" }, status: :unprocessable_entity
-        end
-        if permitted_role == 'company' && params[:state].to_s.strip.blank?
-          return render json: { error: "state is required for company signup" }, status: :unprocessable_entity
-        end
+        return render json: { error: "phone is required for signup" }, status: :unprocessable_entity if phone.blank?
+        return render json: { error: "city is required for signup" }, status: :unprocessable_entity if city.blank?
+        return render json: { error: "state is required for signup" }, status: :unprocessable_entity if state.blank?
+        return render json: { error: "zip_code is required for signup" }, status: :unprocessable_entity if zip_code.blank?
+
         membership_level = MembershipPolicy.normalized_level(params[:membership_tier] || params[:membership_level], audience: permitted_role)
         unless MembershipPolicy.level_valid?(membership_level, audience: permitted_role)
           return render json: { error: "membership_tier is not valid for the selected role" }, status: :unprocessable_entity
@@ -57,7 +62,10 @@ module Api
             profile = CompanyProfile.new(
               user: user,
               membership_level: membership_level,
-              state: params[:state].to_s.strip.presence,
+              phone: phone.presence,
+              state: state.presence,
+              service_cities: city.present? ? [city] : [],
+              location: [city.presence, [state.presence, zip_code.presence].compact.join(" ")].compact.join(", ").presence,
               electrical_license_number: params[:electrical_license_number].to_s.strip.presence
             )
             unless profile.save
@@ -71,7 +79,12 @@ module Api
               trade_type: 'General',
               experience_years: 0,
               availability: 'Full-time',
+              phone: phone,
+              address: address.presence,
               city: city,
+              state: state,
+              zip_code: zip_code,
+              country: country,
               membership_level: membership_level
             )
           end

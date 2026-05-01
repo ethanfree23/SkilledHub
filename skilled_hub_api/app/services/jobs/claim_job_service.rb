@@ -1,13 +1,16 @@
 module Jobs
   class ClaimJobService
-    def self.call(job:, technician_user:, offer: nil)
-      new(job: job, technician_user: technician_user, offer: offer).call
+    LUNCH_HOURS = 1
+
+    def self.call(job:, technician_user:, offer: nil, preferred_start_at: nil)
+      new(job: job, technician_user: technician_user, offer: offer, preferred_start_at: preferred_start_at).call
     end
 
-    def initialize(job:, technician_user:, offer: nil)
+    def initialize(job:, technician_user:, offer: nil, preferred_start_at: nil)
       @job = job
       @technician_user = technician_user
       @offer = offer
+      @preferred_start_at = preferred_start_at
     end
 
     def call
@@ -83,24 +86,77 @@ module Jobs
     def ensure_schedule_for_start_mode!
       return if @job.hard_start?
 
-      start_at = Time.current
+      start_at = resolved_rolling_start_at
+      raise ArgumentError, "A start date/time is required for this rolling-start job." if start_at.blank?
+
       @job.scheduled_start_at = start_at
-      @job.scheduled_end_at ||= derived_end_at(start_at)
+      @job.scheduled_end_at = derived_end_at(start_at)
       @job.save!
+    rescue ArgumentError => e
+      @schedule_error_message = e.message
     end
 
     def derived_end_at(start_at)
       days = [@job.days.to_i, 1].max
       hours = [@job.hours_per_day.to_i, 1].max
-      start_at + (days - 1).days + hours.hours
+      end_date = add_business_days(start_at.to_date, days - 1)
+      end_day_start = Time.zone.local(
+        end_date.year,
+        end_date.month,
+        end_date.day,
+        start_at.hour,
+        start_at.min,
+        0
+      )
+      end_day_start + (hours + LUNCH_HOURS).hours
     end
 
     def schedule_invalid?
-      @job.scheduled_start_at.blank? || @job.scheduled_end_at.blank?
+      @schedule_error_message.present? || @job.scheduled_start_at.blank? || @job.scheduled_end_at.blank?
     end
 
     def schedule_error_message
-      "This job has no scheduled times. The company must set start and end times before technicians can claim it."
+      @schedule_error_message || "This job has no scheduled times. The company must set start and end times before technicians can claim it."
+    end
+
+    def resolved_rolling_start_at
+      now = Time.current
+
+      case @job.rolling_start_rule_type.to_s
+      when "exact_datetime"
+        start_at = @job.rolling_start_exact_start_at
+        raise ArgumentError, "This rolling-start job is missing its required exact start date/time." if start_at.blank?
+        return start_at
+      when "days_after_acceptance"
+        days = @job.rolling_start_days_after_acceptance.to_i
+        raise ArgumentError, "This rolling-start job is missing its days-after-acceptance setting." if days <= 0
+        return now + days.days
+      when "following_weekday"
+        weekday = @job.rolling_start_weekday
+        raw_time = @job.rolling_start_weekday_time.to_s
+        raise ArgumentError, "This rolling-start job is missing its weekday rule." if weekday.blank?
+        hh, mm = raw_time.split(":").map(&:to_i)
+        raise ArgumentError, "This rolling-start job is missing its weekday start time." unless raw_time.match?(/\A\d{2}:\d{2}\z/)
+        delta_days = (weekday.to_i - now.wday) % 7
+        delta_days = 7 if delta_days.zero?
+        target_day = now.to_date + delta_days.days
+        return Time.zone.local(target_day.year, target_day.month, target_day.day, hh, mm, 0)
+      else
+        parsed = Time.zone.parse(@preferred_start_at.to_s)
+        return parsed if parsed.present?
+        return now if @offer.present?
+        raise ArgumentError, "Pick a preferred start date/time before claiming this rolling-start job."
+      end
+    end
+
+    def add_business_days(date, business_days)
+      result = date
+      remaining = [business_days.to_i, 0].max
+      while remaining.positive?
+        result += 1.day
+        remaining -= 1 unless result.saturday? || result.sunday?
+      end
+      result
     end
 
     def overlapping_claim?(technician_profile)

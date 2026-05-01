@@ -3,15 +3,35 @@ require "test_helper"
 module Api
   module V1
     class UsersControllerTest < ActionDispatch::IntegrationTest
-      test "technician signup requires city" do
+      def base_signup_params(overrides = {})
+        {
+          email: "user-#{SecureRandom.hex(4)}@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: "technician",
+          membership_tier: "basic",
+          phone: "713-555-1212",
+          address: "123 Main St",
+          city: "Houston",
+          state: "Texas",
+          zip_code: "77007",
+          country: "United States"
+        }.merge(overrides)
+      end
+
+      test "signup requires phone" do
         post "/api/v1/users",
-             params: {
-               email: "tech-no-city@example.com",
-               password: "password123",
-               password_confirmation: "password123",
-               role: "technician",
-               membership_tier: "basic"
-             },
+             params: base_signup_params(phone: ""),
+             as: :json
+
+        assert_response :unprocessable_entity
+        body = JSON.parse(response.body)
+        assert_match(/phone is required/i, body["error"].to_s)
+      end
+
+      test "signup requires city" do
+        post "/api/v1/users",
+             params: base_signup_params(city: ""),
              as: :json
 
         assert_response :unprocessable_entity
@@ -19,53 +39,9 @@ module Api
         assert_match(/city is required/i, body["error"].to_s)
       end
 
-      test "technician signup stores city in profile" do
+      test "signup requires state" do
         post "/api/v1/users",
-             params: {
-               email: "tech-with-city@example.com",
-               password: "password123",
-               password_confirmation: "password123",
-               role: "technician",
-               membership_tier: "basic",
-               city: "Houston"
-             },
-             as: :json
-
-        assert_response :created
-        user = User.find_by!(email: "tech-with-city@example.com")
-        profile = user.technician_profile
-        assert_not_nil profile
-        assert_equal "Houston", profile.city
-      end
-
-      test "company signup does not require city" do
-        post "/api/v1/users",
-             params: {
-               email: "company-no-city@example.com",
-               password: "password123",
-               password_confirmation: "password123",
-               role: "company",
-               membership_tier: "basic",
-               state: "Texas",
-               electrical_license_number: "TECL-12345"
-             },
-             as: :json
-
-        assert_response :created
-        user = User.find_by!(email: "company-no-city@example.com")
-        assert_equal "company", user.role
-        assert_not_nil user.company_profile
-      end
-
-      test "company signup requires state" do
-        post "/api/v1/users",
-             params: {
-               email: "company-no-state@example.com",
-               password: "password123",
-               password_confirmation: "password123",
-               role: "company",
-               membership_tier: "basic"
-             },
+             params: base_signup_params(state: ""),
              as: :json
 
         assert_response :unprocessable_entity
@@ -73,16 +49,74 @@ module Api
         assert_match(/state is required/i, body["error"].to_s)
       end
 
+      test "signup requires zip code" do
+        post "/api/v1/users",
+             params: base_signup_params(zip_code: ""),
+             as: :json
+
+        assert_response :unprocessable_entity
+        body = JSON.parse(response.body)
+        assert_match(/zip_code is required/i, body["error"].to_s)
+      end
+
+      test "technician signup stores phone and location fields in profile" do
+        post "/api/v1/users",
+             params: base_signup_params(
+               email: "tech-with-location@example.com",
+               role: "technician",
+               phone: "713-444-9988",
+               address: "500 Market St",
+               city: "Houston",
+               state: "Texas",
+               zip_code: "77002"
+             ),
+             as: :json
+
+        assert_response :created
+        user = User.find_by!(email: "tech-with-location@example.com")
+        profile = user.technician_profile
+        assert_not_nil profile
+        assert_equal "713-444-9988", profile.phone
+        assert_equal "500 Market St", profile.address
+        assert_equal "Houston", profile.city
+        assert_equal "Texas", profile.state
+        assert_equal "77002", profile.zip_code
+      end
+
+      test "company signup stores phone and normalized location fields in profile" do
+        post "/api/v1/users",
+             params: base_signup_params(
+               email: "company-with-location@example.com",
+               role: "company",
+               phone: "713-333-1122",
+               city: "Houston",
+               state: "Texas",
+               zip_code: "77007",
+               electrical_license_number: "TECL-12345"
+             ),
+             as: :json
+
+        assert_response :created
+        user = User.find_by!(email: "company-with-location@example.com")
+        assert_equal "company", user.role
+        profile = user.company_profile
+        assert_not_nil profile
+        assert_equal "713-333-1122", profile.phone
+        assert_equal "Texas", profile.state
+        assert_equal ["Houston"], profile.service_cities
+        assert_match(/Houston/i, profile.location.to_s)
+        assert_match(/77007/i, profile.location.to_s)
+      end
+
       test "company signup in statewide-license state requires electrical license number" do
         post "/api/v1/users",
-             params: {
+             params: base_signup_params(
                email: "company-california-no-license@example.com",
-               password: "password123",
-               password_confirmation: "password123",
                role: "company",
-               membership_tier: "basic",
-               state: "California"
-             },
+               state: "California",
+               city: "Los Angeles",
+               zip_code: "90012"
+             ),
              as: :json
 
         assert_response :unprocessable_entity
@@ -95,14 +129,13 @@ module Api
         PlatformSetting.set_local_only_license_state_codes!(["NY"])
 
         post "/api/v1/users",
-             params: {
+             params: base_signup_params(
                email: "company-newyork-no-license@example.com",
-               password: "password123",
-               password_confirmation: "password123",
                role: "company",
-               membership_tier: "basic",
-               state: "New York"
-             },
+               city: "New York",
+               state: "New York",
+               zip_code: "10001"
+             ),
              as: :json
 
         assert_response :created

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_27_141000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_01_150000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -229,7 +229,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_27_141000) do
     t.text "notes"
     t.datetime "go_live_at"
     t.integer "start_mode", default: 0, null: false
+    t.integer "rolling_start_rule_type", default: 0, null: false
+    t.datetime "rolling_start_exact_start_at"
+    t.integer "rolling_start_days_after_acceptance"
+    t.integer "rolling_start_weekday"
+    t.string "rolling_start_weekday_time"
     t.index ["company_profile_id"], name: "index_jobs_on_company_profile_id"
+    t.index ["rolling_start_rule_type"], name: "index_jobs_on_rolling_start_rule_type"
     t.index ["start_mode"], name: "index_jobs_on_start_mode"
   end
 

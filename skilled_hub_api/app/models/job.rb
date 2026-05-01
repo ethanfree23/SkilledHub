@@ -2,6 +2,12 @@ class Job < ApplicationRecord
 
   enum status: { open: 0, reserved: 1, accepted: 2, completed: 3, filled: 4, finished: 5 }
   enum start_mode: { hard_start: 0, rolling_start: 1 }
+  enum rolling_start_rule_type: {
+    none: 0,
+    exact_datetime: 1,
+    days_after_acceptance: 2,
+    following_weekday: 3
+  }, _scopes: false
 
   belongs_to :company_profile
 
