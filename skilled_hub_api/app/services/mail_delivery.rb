@@ -1,19 +1,12 @@
 # frozen_string_literal: true
 
+require_relative "../../config/mail_env"
+
 # Wraps mail sends so SMTP/template failures do not fail HTTP requests.
 # Uses deliver_now (not deliver_later) so sends run inline and never depend on Active Job.
 module MailDelivery
-  # Mirrors config/environments/production.rb mail delivery branch selection.
-  def self.mailtrap_http_delivery?
-    flag = ENV["MAILTRAP_USE_HTTP"].to_s.strip.downcase
-    return false if %w[false 0 no].include?(flag)
-    return true if %w[true 1 yes].include?(flag)
-
-    ENV["MAILTRAP_USE_HTTP"].blank? && ENV["MAILTRAP_API_TOKEN"].present?
-  end
-
   def self.audit_status
-    mailtrap_http = mailtrap_http_delivery?
+    mailtrap_http = MailEnv.mailtrap_http_delivery?
 
     delivery_mode =
       if mailtrap_http

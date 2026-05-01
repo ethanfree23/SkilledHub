@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require_relative "../mail_env"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -75,7 +76,7 @@ Rails.application.configure do
   config.action_mailer.perform_caching = false
 
   # Mailtrap HTTP vs SMTP: set MAILTRAP_USE_HTTP=false to force SMTP even if MAILTRAP_API_TOKEN is set.
-  mailtrap_http = MailDelivery.mailtrap_http_delivery?
+  mailtrap_http = MailEnv.mailtrap_http_delivery?
 
   if mailtrap_http
     config.action_mailer.delivery_method = :mailtrap_http
@@ -124,7 +125,7 @@ Rails.application.configure do
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.after_initialize do
-    mailtrap_http = MailDelivery.mailtrap_http_delivery?
+    mailtrap_http = MailEnv.mailtrap_http_delivery?
 
     if mailtrap_http
       Rails.logger.warn(
