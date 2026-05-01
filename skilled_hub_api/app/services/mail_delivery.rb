@@ -61,7 +61,7 @@ module MailDelivery
       Rails.logger.error("[mail] #{e.class}: #{e.message}\n#{e.backtrace.first(12).join("\n")}")
       msg = "#{e.class}: #{e.message}"
       if !mailtrap_http && e.class.name == "Net::OpenTimeout"
-        msg += " Outbound SMTP is blocked on many cloud hosts (Railway, etc.). Use Mailtrap over HTTPS instead: set MAILTRAP_USE_HTTP=true and MAILTRAP_API_TOKEN to your Sending API token (port 443, not 587)."
+        msg += " Outbound SMTP is blocked on many cloud hosts (Railway, etc.). Switch to Mailtrap’s HTTP API (HTTPS)—do not change SMTP_PORT. Set MAILTRAP_USE_HTTP=true and put your Sending API token in MAILTRAP_API_TOKEN or SMTP_PASSWORD; leave SMTP_PORT at 587 or unset."
       end
       { success: false, error: msg }
     end
