@@ -9,18 +9,18 @@ class UserMailer < ApplicationMailer
     mail(to: @email, subject: 'Welcome to TechFlash!')
   end
 
-  # reason: :self_service (forgot password) or :admin_provisioned
-  def password_reset_instructions(user, reason: :self_service)
+  # Sent when an admin provisions a user or resends the setup link (same URL as forgot-password flow).
+  def admin_account_setup_email(user)
     @user = user
-    @reason = reason
     @reset_url = frontend_reset_password_url(user.password_reset_token)
-    subject =
-      if reason == :admin_provisioned
-        'Welcome aboard — your TechFlash account is ready'
-      else
-        'Reset your TechFlash password'
-      end
-    mail(to: user.email, subject: subject)
+    mail(to: user.email, subject: 'Welcome aboard — your TechFlash account is ready')
+  end
+
+  # Forgot-password / self-service reset only.
+  def password_reset_instructions(user)
+    @user = user
+    @reset_url = frontend_reset_password_url(user.password_reset_token)
+    mail(to: user.email, subject: 'Reset your TechFlash password')
   end
 
   def job_posted_email(job)

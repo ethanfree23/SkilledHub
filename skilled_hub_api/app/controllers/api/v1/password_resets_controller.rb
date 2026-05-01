@@ -10,7 +10,7 @@ module Api
         if user.present?
           user.generate_password_reset_token!
           MailDelivery.safe_deliver do
-            UserMailer.password_reset_instructions(user, reason: :self_service).deliver_now
+            UserMailer.password_reset_instructions(user).deliver_now
           end
         end
         head :no_content

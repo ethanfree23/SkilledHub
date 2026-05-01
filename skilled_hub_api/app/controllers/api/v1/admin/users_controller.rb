@@ -126,7 +126,7 @@ module Api
 
           if send_email
             MailDelivery.safe_deliver do
-              UserMailer.password_reset_instructions(user, reason: :admin_provisioned).deliver_now
+              UserMailer.admin_account_setup_email(user).deliver_now
             end
           end
 

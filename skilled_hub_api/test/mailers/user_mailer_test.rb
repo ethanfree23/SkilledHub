@@ -29,8 +29,10 @@ class UserMailerTest < ActionMailer::TestCase
     end
   end
 
-  test "password reset supports admin provisioned subject variant" do
-    mail = UserMailer.password_reset_instructions(@fixtures[:admin_user], reason: :admin_provisioned)
+  test "admin account setup email uses welcome aboard subject" do
+    user = @fixtures[:technician_user]
+    user.generate_password_reset_token! unless user.password_reset_token_active?
+    mail = UserMailer.admin_account_setup_email(user)
     assert_match(/account is ready/i, mail.subject)
   end
 
@@ -39,7 +41,10 @@ class UserMailerTest < ActionMailer::TestCase
   def build_all_messages
     {
       welcome_email: UserMailer.welcome_email(@fixtures[:admin_user]),
-      password_reset_instructions: UserMailer.password_reset_instructions(@fixtures[:admin_user], reason: :self_service),
+      password_reset_instructions: UserMailer.password_reset_instructions(@fixtures[:admin_user]),
+      admin_account_setup_email: UserMailer.admin_account_setup_email(@fixtures[:technician_user].tap do |u|
+        u.generate_password_reset_token! unless u.password_reset_token_active?
+      end),
       job_posted_email: UserMailer.job_posted_email(@fixtures[:job]),
       job_claimed_email: UserMailer.job_claimed_email(@fixtures[:job]),
       job_accepted_email: UserMailer.job_accepted_email(@fixtures[:job]),

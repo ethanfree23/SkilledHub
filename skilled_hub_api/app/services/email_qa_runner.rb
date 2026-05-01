@@ -9,7 +9,8 @@ class EmailQaRunner
 
   TEMPLATE_DEFS = [
     Template.new(key: "welcome_email", name: "Welcome email", description: "Signup welcome message", active: true),
-    Template.new(key: "password_reset_instructions", name: "Password reset instructions", description: "Self-service password reset email", active: true),
+    Template.new(key: "password_reset_instructions", name: "Password reset instructions", description: "Forgot-password reset email", active: true),
+    Template.new(key: "admin_account_setup", name: "Admin account setup", description: "Welcome aboard when admin creates a user", active: true),
     Template.new(key: "job_posted_email", name: "Job posted", description: "Company notice after posting", active: true),
     Template.new(key: "job_claimed_email", name: "Job claimed", description: "Company notice after claim", active: true),
     Template.new(key: "payment_confirmation_email", name: "Payment confirmation", description: "Company charge confirmation", active: true),
@@ -122,7 +123,11 @@ class EmailQaRunner
     when "welcome_email"
       UserMailer.welcome_email(@fixtures[:admin_user])
     when "password_reset_instructions"
-      UserMailer.password_reset_instructions(@fixtures[:admin_user], reason: :self_service)
+      UserMailer.password_reset_instructions(@fixtures[:admin_user])
+    when "admin_account_setup"
+      technician = @fixtures[:technician_user]
+      technician.generate_password_reset_token! unless technician.password_reset_token_active?
+      UserMailer.admin_account_setup_email(technician)
     when "job_posted_email"
       UserMailer.job_posted_email(@fixtures[:job])
     when "job_claimed_email"

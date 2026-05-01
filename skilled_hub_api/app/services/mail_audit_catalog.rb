@@ -12,9 +12,16 @@ class MailAuditCatalog
     {
       key: "password_reset_instructions",
       name: "Password reset instructions",
-      trigger: "Forgot password and admin password setup/provisioning",
+      trigger: "User requests forgot-password reset",
       status: "active",
-      source: "Api::V1::PasswordResetsController#create, Api::V1::Admin::UsersController#password_setup, AdminAccountProvisioner"
+      source: "Api::V1::PasswordResetsController#create"
+    },
+    {
+      key: "admin_account_setup",
+      name: "Admin account setup",
+      trigger: "Admin provisions a user or resends password setup email",
+      status: "active",
+      source: "AdminAccountProvisioner, Api::V1::Admin::UsersController#password_setup"
     },
     {
       key: "job_posted_email",

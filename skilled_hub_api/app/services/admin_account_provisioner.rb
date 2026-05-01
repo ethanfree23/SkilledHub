@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Creates technician or company users from the admin panel with email-derived temp password
-# and sends the standard password-reset email.
+# and emails admin_account_setup (welcome + setup link).
 module AdminAccountProvisioner
   class Error < StandardError; end
 
@@ -196,7 +196,7 @@ module AdminAccountProvisioner
 
   def send_reset_email(user)
     MailDelivery.safe_deliver do
-      UserMailer.password_reset_instructions(user, reason: :admin_provisioned).deliver_now
+      UserMailer.admin_account_setup_email(user).deliver_now
     end
   end
 
