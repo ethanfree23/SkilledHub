@@ -5,6 +5,20 @@ import {
   adminMailtrapAuditAPI,
   adminMembershipTierConfigsAPI,
 } from '../../api/api';
+import AlertModal from '../AlertModal';
+import { auth } from '../../auth';
+
+/** Must match EmailQaRunner::CONFIRMATION_TEXT on the API. */
+const EMAIL_QA_PHRASE = 'SEND_TEST_EMAILS';
+
+/** Accepts SEND_TEST_EMAILS, common typo SEND TEST EMAILS (spaces), case-insensitive. */
+function parseEmailQaConfirmation(raw) {
+  if (raw == null || typeof raw !== 'string') return '';
+  const t = raw.trim();
+  const normalized = t.toUpperCase().replace(/\s+/g, '_').replace(/_+/g, '_');
+  if (normalized === EMAIL_QA_PHRASE) return EMAIL_QA_PHRASE;
+  return t;
+}
 
 const US_STATE_OPTIONS = [
   ['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'],
@@ -72,8 +86,10 @@ export default function SystemControlsPricing() {
   const [emailQaPreview, setEmailQaPreview] = useState(null);
   const [emailQaBusyKey, setEmailQaBusyKey] = useState(null);
   const [emailQaConfirmation, setEmailQaConfirmation] = useState('');
+  const [emailQaRecipient, setEmailQaRecipient] = useState('');
   const [emailQaLastSendSummary, setEmailQaLastSendSummary] = useState(null);
   const [emailQaSendAllProgress, setEmailQaSendAllProgress] = useState(null);
+  const [emailQaSuccessAlert, setEmailQaSuccessAlert] = useState(null);
   const previewPanelRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -162,6 +178,12 @@ export default function SystemControlsPricing() {
     if (systemSubTab !== 'email_qa') return;
     loadEmailQaTemplates();
   }, [systemSubTab, loadEmailQaTemplates]);
+
+  const emailQaDeliveryEmail = () => {
+    const o = emailQaRecipient.trim();
+    if (o) return o;
+    return auth.getUser()?.email || 'your admin email';
+  };
 
   useEffect(() => {
     if (!emailQaPreview || !previewPanelRef.current) return;
@@ -294,7 +316,7 @@ export default function SystemControlsPricing() {
     setEmailQaBusyKey(`preview:${templateKey}`);
     setEmailQaError(null);
     try {
-      const res = await adminEmailQaAPI.preview(templateKey);
+      const res = await adminEmailQaAPI.preview(templateKey, emailQaRecipient);
       setEmailQaPreview(res || null);
     } catch (e) {
       setEmailQaError(e.message || 'Failed to preview template');
@@ -305,15 +327,16 @@ export default function SystemControlsPricing() {
   };
 
   const sendOneEmailTemplate = async (templateKey) => {
-    const confirm = emailQaConfirmation.trim();
-    if (confirm !== 'SEND_TEST_EMAILS') {
-      setEmailQaError('Type SEND_TEST_EMAILS in the confirmation field (exact phrase).');
+    const confirm = parseEmailQaConfirmation(emailQaConfirmation);
+    if (confirm !== EMAIL_QA_PHRASE) {
+      setEmailQaError(`Type ${EMAIL_QA_PHRASE} (underscores between words, not spaces).`);
       return;
     }
     setEmailQaBusyKey(`send:${templateKey}`);
     setEmailQaError(null);
     try {
-      const res = await adminEmailQaAPI.sendOne(templateKey, confirm);
+      const recipientOpt = emailQaRecipient.trim();
+      const res = await adminEmailQaAPI.sendOne(templateKey, confirm, recipientOpt || undefined);
       setEmailQaLastSendSummary({
         type: 'single',
         success: !!res?.delivered,
@@ -321,6 +344,14 @@ export default function SystemControlsPricing() {
         to: res?.to || [],
         mailError: res?.mail_error || null,
       });
+      if (res?.delivered) {
+        const tpl = emailQaTemplates.find((t) => t.key === templateKey);
+        const toAddr = Array.isArray(res?.to) && res.to.length ? res.to[0] : emailQaDeliveryEmail();
+        setEmailQaSuccessAlert({
+          title: 'Test email sent',
+          message: `"${tpl?.name || templateKey}" was sent successfully to ${toAddr}.`,
+        });
+      }
     } catch (e) {
       setEmailQaError(e.message || 'Failed to send test email');
       setEmailQaLastSendSummary(null);
@@ -330,10 +361,10 @@ export default function SystemControlsPricing() {
   };
 
   const sendAllEmailTemplates = async () => {
-    const confirm = emailQaConfirmation.trim();
-    if (confirm !== 'SEND_TEST_EMAILS') {
+    const confirm = parseEmailQaConfirmation(emailQaConfirmation);
+    if (confirm !== EMAIL_QA_PHRASE) {
       setEmailQaError(
-        'Type SEND_TEST_EMAILS in the confirmation field (exact text) before sending.',
+        `Type ${EMAIL_QA_PHRASE} (underscores between words) before sending.`,
       );
       return;
     }
@@ -346,6 +377,7 @@ export default function SystemControlsPricing() {
     setEmailQaLastSendSummary(null);
     const errors = [];
     let deliveredCount = 0;
+    const recipientOpt = emailQaRecipient.trim();
     try {
       for (let i = 0; i < emailQaTemplates.length; i += 1) {
         const t = emailQaTemplates[i];
@@ -355,7 +387,7 @@ export default function SystemControlsPricing() {
           templateKey: t.key,
         });
         try {
-          const res = await adminEmailQaAPI.sendOne(t.key, confirm);
+          const res = await adminEmailQaAPI.sendOne(t.key, confirm, recipientOpt || undefined);
           if (res?.delivered) deliveredCount += 1;
           else {
             errors.push({
@@ -376,6 +408,15 @@ export default function SystemControlsPricing() {
         totalCount: emailQaTemplates.length,
         errors,
       });
+      if (deliveredCount > 0) {
+        const allOk = deliveredCount === emailQaTemplates.length;
+        setEmailQaSuccessAlert({
+          title: allOk ? 'All test emails sent' : 'Some test emails sent',
+          message: allOk
+            ? `${deliveredCount} templates were sent successfully to your admin email.`
+            : `${deliveredCount} of ${emailQaTemplates.length} templates were sent successfully. See failures below for the rest.`,
+        });
+      }
     } catch (e) {
       setEmailQaError(e.message || 'Send all stopped unexpectedly.');
     } finally {
@@ -818,12 +859,30 @@ export default function SystemControlsPricing() {
 
       {systemSubTab === 'email_qa' && (
         <div className="space-y-4">
-          <div className="text-sm text-gray-600 space-y-2 max-w-3xl">
+          <div className="text-sm text-gray-600 space-y-3 max-w-3xl">
             <p>
               Preview and send fixture-based test emails for every transactional template.
-              Test sends always go only to your currently signed-in admin email.
+              Choose where test mail is delivered below (defaults to your signed-in admin if left blank).
             </p>
-            <p>
+            <div className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 text-gray-800 space-y-2">
+              <label className="block font-semibold text-gray-900" htmlFor="email-qa-recipient">
+                Deliver test sends to
+              </label>
+              <input
+                id="email-qa-recipient"
+                type="email"
+                autoComplete="email"
+                value={emailQaRecipient}
+                onChange={(e) => setEmailQaRecipient(e.target.value)}
+                placeholder={auth.getUser()?.email || 'you@example.com'}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono bg-white"
+              />
+              <p className="text-gray-600">
+                Leave blank to use <span className="font-mono">{auth.getUser()?.email || '—'}</span>.
+                Mailtrap may report delivered while the inbox still sorts mail — check spam and search by sender domain.
+              </p>
+            </div>
+            <p className="text-sm">
               Sending requires explicit confirmation text each time to avoid accidental blasts.
             </p>
           </div>
@@ -837,7 +896,7 @@ export default function SystemControlsPricing() {
           <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-900">Send confirmation guard</h3>
             <p className="text-xs text-gray-600">
-              Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> to send (leading/trailing spaces are OK). If the phrase is wrong, you will see a red error when you click Send.
+              Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> — underscores required (not spaces). Case and extra spaces are OK; &quot;SEND TEST EMAILS&quot; is normalized automatically.
             </p>
             <p className="text-xs text-gray-500">
               Send all runs one template per request so production gateways do not time out on a single long call.
@@ -1144,6 +1203,14 @@ export default function SystemControlsPricing() {
           </div>
         </div>
       )}
+
+      <AlertModal
+        isOpen={emailQaSuccessAlert != null}
+        onClose={() => setEmailQaSuccessAlert(null)}
+        title={emailQaSuccessAlert?.title ?? ''}
+        message={emailQaSuccessAlert?.message ?? ''}
+        variant="success"
+      />
     </div>
   );
 }

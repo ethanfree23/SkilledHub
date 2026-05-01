@@ -71,6 +71,46 @@ module Api
           assert_equal [admin.email], ActionMailer::Base.deliveries.last.to
         end
 
+        test "send one can deliver to optional to_email" do
+          admin = create_admin!("qa-admin-override@example.com")
+          other = "other-inbox@example.com"
+          with_mail_env do
+            post "/api/v1/admin/email_qa/send",
+                 params: {
+                   template_key: "welcome_email",
+                   confirmation: EmailQaRunner::CONFIRMATION_TEXT,
+                   to_email: other
+                 },
+                 headers: auth_header_for(admin),
+                 as: :json
+          end
+
+          assert_response :ok
+          body = JSON.parse(response.body)
+          assert_equal true, body["delivered"]
+          assert_equal [other], body["to"]
+          assert_equal 1, ActionMailer::Base.deliveries.size
+          assert_equal [other], ActionMailer::Base.deliveries.last.to
+        end
+
+        test "send one rejects invalid to_email" do
+          admin = create_admin!("qa-admin-bad-to@example.com")
+          with_mail_env do
+            post "/api/v1/admin/email_qa/send",
+                 params: {
+                   template_key: "welcome_email",
+                   confirmation: EmailQaRunner::CONFIRMATION_TEXT,
+                   to_email: "not-an-email"
+                 },
+                 headers: auth_header_for(admin),
+                 as: :json
+          end
+
+          assert_response :unprocessable_entity
+          body = JSON.parse(response.body)
+          assert_match(/invalid|email/i, body["error"].to_s)
+        end
+
         test "send all returns per-template results" do
           admin = create_admin!("qa-admin-send-all@example.com")
 

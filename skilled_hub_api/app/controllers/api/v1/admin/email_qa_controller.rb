@@ -12,7 +12,7 @@ module Api
         end
 
         def preview
-          runner = EmailQaRunner.new(admin_user: current_user)
+          runner = EmailQaRunner.new(admin_user: current_user, to_email: params[:to_email])
           payload = runner.preview(params[:template_key])
           render json: payload, status: :ok
         rescue ArgumentError => e
@@ -20,7 +20,7 @@ module Api
         end
 
         def send_one
-          runner = EmailQaRunner.new(admin_user: current_user)
+          runner = EmailQaRunner.new(admin_user: current_user, to_email: params[:to_email])
           payload = runner.send_one(
             template_key: params[:template_key],
             confirmation: params[:confirmation]
@@ -31,7 +31,7 @@ module Api
         end
 
         def send_all
-          runner = EmailQaRunner.new(admin_user: current_user)
+          runner = EmailQaRunner.new(admin_user: current_user, to_email: params[:to_email])
           results = runner.send_all(confirmation: params[:confirmation])
           render json: { results: results }, status: :ok
         rescue ArgumentError => e

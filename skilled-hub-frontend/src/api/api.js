@@ -297,21 +297,33 @@ export const adminMailtrapAuditAPI = {
 
 export const adminEmailQaAPI = {
   listTemplates: () => apiRequest('/admin/email_qa/templates'),
-  preview: (templateKey) =>
-    apiRequest('/admin/email_qa/preview', {
+  preview: (templateKey, toEmail) => {
+    const body = { template_key: templateKey };
+    const r = toEmail != null && String(toEmail).trim() !== '';
+    if (r) body.to_email = String(toEmail).trim();
+    return apiRequest('/admin/email_qa/preview', {
       method: 'POST',
-      body: JSON.stringify({ template_key: templateKey }),
-    }),
-  sendOne: (templateKey, confirmation) =>
-    apiRequest('/admin/email_qa/send', {
+      body: JSON.stringify(body),
+    });
+  },
+  sendOne: (templateKey, confirmation, toEmail) => {
+    const body = { template_key: templateKey, confirmation };
+    const r = toEmail != null && String(toEmail).trim() !== '';
+    if (r) body.to_email = String(toEmail).trim();
+    return apiRequest('/admin/email_qa/send', {
       method: 'POST',
-      body: JSON.stringify({ template_key: templateKey, confirmation }),
-    }),
-  sendAll: (confirmation) =>
-    apiRequest('/admin/email_qa/send_all', {
+      body: JSON.stringify(body),
+    });
+  },
+  sendAll: (confirmation, toEmail) => {
+    const body = { confirmation };
+    const r = toEmail != null && String(toEmail).trim() !== '';
+    if (r) body.to_email = String(toEmail).trim();
+    return apiRequest('/admin/email_qa/send_all', {
       method: 'POST',
-      body: JSON.stringify({ confirmation }),
-    }),
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 export const adminReferralsAPI = {

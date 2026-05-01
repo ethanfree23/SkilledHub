@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 class EmailQaRunner
   CONFIRMATION_TEXT = "SEND_TEST_EMAILS"
 
@@ -38,9 +40,21 @@ class EmailQaRunner
     end
   end
 
-  def initialize(admin_user:)
+  def initialize(admin_user:, to_email: nil)
     @admin_user = admin_user
+    @to_email = self.class.normalize_optional_email(to_email)
     @fixtures = EmailQaFixtureFactory.new(admin_user: admin_user).build
+  end
+
+  def self.normalize_optional_email(raw)
+    s = raw.to_s.strip
+    return nil if s.blank?
+
+    unless URI::MailTo::EMAIL_REGEXP.match?(s)
+      raise ArgumentError, "Invalid test recipient email address."
+    end
+
+    s.downcase
   end
 
   def preview(template_key)
@@ -50,7 +64,7 @@ class EmailQaRunner
     {
       template_key: template_key,
       subject: mail.subject.to_s,
-      to: [@admin_user.email],
+      to: [effective_to_email],
       html_body: html_part_of(mail),
       text_body: text_part_of(mail)
     }
@@ -68,7 +82,7 @@ class EmailQaRunner
     out = {
       template_key: template_key,
       delivered: delivered,
-      to: [@admin_user.email],
+      to: [effective_to_email],
       subject: mail.subject.to_s
     }
     out[:mail_error] = result[:error] if delivered == false && result[:error].present?
@@ -92,6 +106,10 @@ class EmailQaRunner
   end
 
   private
+
+  def effective_to_email
+    @to_email.presence || @admin_user.email.to_s.downcase
+  end
 
   def ensure_confirmation!(value)
     return if value.to_s == CONFIRMATION_TEXT
@@ -143,7 +161,7 @@ class EmailQaRunner
   end
 
   def force_recipient!(mail)
-    mail.to = [@admin_user.email]
+    mail.to = [effective_to_email]
     mail.cc = nil
     mail.bcc = nil
   end
