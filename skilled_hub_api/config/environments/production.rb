@@ -93,13 +93,17 @@ Rails.application.configure do
     smtp_auth = :plain unless %i[plain login cram_md5].include?(smtp_auth)
 
     config.action_mailer.delivery_method = :smtp
+    # open_timeout/read_timeout: optional via env. Note: many PaaS block outbound SMTP entirely —
+    # MAILTRAP_USE_HTTP=true avoids SMTP (uses HTTPS to send.api.mailtrap.io).
     config.action_mailer.smtp_settings = {
       address:              ENV['SMTP_ADDRESS'],
       port:                 (ENV['SMTP_PORT'] || 587).to_i,
       user_name:            ENV['SMTP_USERNAME'],
       password:             ENV['SMTP_PASSWORD'],
       authentication:       smtp_auth,
-      enable_starttls_auto:  true
+      enable_starttls_auto:  true,
+      open_timeout:          ENV.fetch('SMTP_OPEN_TIMEOUT', 30).to_i,
+      read_timeout:          ENV.fetch('SMTP_READ_TIMEOUT', 60).to_i
     }
   end
 
