@@ -73,6 +73,7 @@ export default function SystemControlsPricing() {
   const [emailQaBusyKey, setEmailQaBusyKey] = useState(null);
   const [emailQaConfirmation, setEmailQaConfirmation] = useState('');
   const [emailQaLastSendSummary, setEmailQaLastSendSummary] = useState(null);
+  const [emailQaSendAllProgress, setEmailQaSendAllProgress] = useState(null);
   const previewPanelRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -323,21 +324,42 @@ export default function SystemControlsPricing() {
   };
 
   const sendAllEmailTemplates = async () => {
+    if (!emailQaTemplates.length) {
+      setEmailQaError('Load templates first (click Refresh).');
+      return;
+    }
     setEmailQaBusyKey('send_all');
     setEmailQaError(null);
+    setEmailQaLastSendSummary(null);
+    const errors = [];
+    let deliveredCount = 0;
     try {
-      const res = await adminEmailQaAPI.sendAll(emailQaConfirmation);
-      const results = Array.isArray(res?.results) ? res.results : [];
-      const deliveredCount = results.filter((row) => row.delivered).length;
+      for (let i = 0; i < emailQaTemplates.length; i += 1) {
+        const t = emailQaTemplates[i];
+        setEmailQaSendAllProgress({
+          current: i + 1,
+          total: emailQaTemplates.length,
+          templateKey: t.key,
+        });
+        try {
+          const res = await adminEmailQaAPI.sendOne(t.key, emailQaConfirmation);
+          if (res?.delivered) deliveredCount += 1;
+          else errors.push({ key: t.key, message: 'Not delivered — check mail env on the API host.' });
+        } catch (e) {
+          errors.push({ key: t.key, message: e.message || 'Request failed' });
+        }
+        await new Promise((r) => setTimeout(r, 120));
+      }
       setEmailQaLastSendSummary({
         type: 'all',
         deliveredCount,
-        totalCount: results.length,
+        totalCount: emailQaTemplates.length,
+        errors,
       });
     } catch (e) {
-      setEmailQaError(e.message || 'Failed to send all test emails');
-      setEmailQaLastSendSummary(null);
+      setEmailQaError(e.message || 'Send all stopped unexpectedly.');
     } finally {
+      setEmailQaSendAllProgress(null);
       setEmailQaBusyKey(null);
     }
   };
@@ -797,6 +819,9 @@ export default function SystemControlsPricing() {
             <p className="text-xs text-gray-600">
               Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> to enable send actions.
             </p>
+            <p className="text-xs text-gray-500">
+              Send all runs one template per request so production gateways do not time out on a single long call.
+            </p>
             <input
               type="text"
               value={emailQaConfirmation}
@@ -810,12 +835,33 @@ export default function SystemControlsPricing() {
               disabled={emailQaBusyKey === 'send_all' || emailQaConfirmation !== 'SEND_TEST_EMAILS'}
               className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {emailQaBusyKey === 'send_all' ? 'Sending all…' : 'Send all test emails'}
+              {emailQaBusyKey === 'send_all' && emailQaSendAllProgress
+                ? `Sending ${emailQaSendAllProgress.current} / ${emailQaSendAllProgress.total}…`
+                : 'Send all test emails'}
             </button>
-            {emailQaLastSendSummary?.type === 'all' && (
-              <p className="text-sm text-gray-700">
-                Delivered {emailQaLastSendSummary.deliveredCount} / {emailQaLastSendSummary.totalCount} templates.
+            {emailQaBusyKey === 'send_all' && emailQaSendAllProgress?.templateKey && (
+              <p className="text-xs text-gray-600 font-mono">
+                Current: {emailQaSendAllProgress.templateKey}
               </p>
+            )}
+            {emailQaLastSendSummary?.type === 'all' && (
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>
+                  Delivered {emailQaLastSendSummary.deliveredCount} / {emailQaLastSendSummary.totalCount} templates.
+                </p>
+                {Array.isArray(emailQaLastSendSummary.errors) && emailQaLastSendSummary.errors.length > 0 && (
+                  <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
+                    <p className="font-medium mb-1">Failures</p>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      {emailQaLastSendSummary.errors.map((err) => (
+                        <li key={err.key}>
+                          <span className="font-mono">{err.key}</span>: {err.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -864,7 +910,11 @@ export default function SystemControlsPricing() {
                         <button
                           type="button"
                           onClick={() => sendOneEmailTemplate(template.key)}
-                          disabled={emailQaBusyKey === `send:${template.key}` || emailQaConfirmation !== 'SEND_TEST_EMAILS'}
+                          disabled={
+                            emailQaBusyKey === `send:${template.key}` ||
+                            emailQaBusyKey === 'send_all' ||
+                            emailQaConfirmation !== 'SEND_TEST_EMAILS'
+                          }
                           className="px-3 py-1.5 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
                         >
                           {emailQaBusyKey === `send:${template.key}` ? 'Sending…' : 'Send test'}
