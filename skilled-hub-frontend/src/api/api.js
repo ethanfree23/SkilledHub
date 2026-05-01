@@ -291,6 +291,29 @@ export const adminLicensingSettingsAPI = {
     }),
 };
 
+export const adminMailtrapAuditAPI = {
+  get: () => apiRequest('/admin/mailtrap_audit'),
+};
+
+export const adminEmailQaAPI = {
+  listTemplates: () => apiRequest('/admin/email_qa/templates'),
+  preview: (templateKey) =>
+    apiRequest('/admin/email_qa/preview', {
+      method: 'POST',
+      body: JSON.stringify({ template_key: templateKey }),
+    }),
+  sendOne: (templateKey, confirmation) =>
+    apiRequest('/admin/email_qa/send', {
+      method: 'POST',
+      body: JSON.stringify({ template_key: templateKey, confirmation }),
+    }),
+  sendAll: (confirmation) =>
+    apiRequest('/admin/email_qa/send_all', {
+      method: 'POST',
+      body: JSON.stringify({ confirmation }),
+    }),
+};
+
 export const adminReferralsAPI = {
   issueReward: (id) =>
     apiRequest(`/admin/referrals/${id}/issue_reward`, {
@@ -354,9 +377,10 @@ export const jobsAPI = {
       method: 'DELETE',
     }),
 
-  claim: (id) =>
+  claim: (id, payload = {}) =>
     apiRequest(`/jobs/${id}/claim`, {
       method: 'PATCH',
+      body: JSON.stringify(payload),
     }),
 
   deny: (id) =>
@@ -386,6 +410,31 @@ export const jobsAPI = {
 
   getLocations: () =>
     apiRequest('/jobs/locations'),
+
+  getCounterOffers: (jobId) =>
+    apiRequest(`/jobs/${jobId}/counter_offers`),
+
+  createCounterOffer: (jobId, payload) =>
+    apiRequest(`/jobs/${jobId}/counter_offers`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  acceptCounterOffer: (counterOfferId) =>
+    apiRequest(`/counter_offers/${counterOfferId}/accept`, {
+      method: 'PATCH',
+    }),
+
+  declineCounterOffer: (counterOfferId) =>
+    apiRequest(`/counter_offers/${counterOfferId}/decline`, {
+      method: 'PATCH',
+    }),
+
+  counterCounterOffer: (counterOfferId, payload) =>
+    apiRequest(`/counter_offers/${counterOfferId}/counter`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
 };
 
 export const jobIssueReportsAPI = {
@@ -406,6 +455,29 @@ export const savedJobSearchesAPI = {
   remove: (id) =>
     apiRequest(`/saved_job_searches/${id}`, {
       method: 'DELETE',
+    }),
+};
+
+export const jobCounterOffersAPI = {
+  listForJob: (jobId) =>
+    apiRequest(`/jobs/${jobId}/counter_offers`),
+  createForJob: (jobId, payload) =>
+    apiRequest(`/jobs/${jobId}/counter_offers`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  accept: (id) =>
+    apiRequest(`/counter_offers/${id}/accept`, {
+      method: 'PATCH',
+    }),
+  decline: (id) =>
+    apiRequest(`/counter_offers/${id}/decline`, {
+      method: 'PATCH',
+    }),
+  counter: (id, payload) =>
+    apiRequest(`/counter_offers/${id}/counter`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
     }),
 };
 

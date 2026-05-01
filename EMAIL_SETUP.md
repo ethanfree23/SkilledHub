@@ -4,17 +4,26 @@ TechFlash sends automated emails for key events. Configure your mailer to delive
 
 ## Email Events
 
-| Event | Recipient | When |
-|-------|-----------|------|
-| Welcome | New user | User signs up |
-| Job posted | Company | Company creates a job |
-| Job claimed | Company | Technician claims a job |
-| Job accepted | Technician | Company accepts technician |
-| New message | Other party | Someone sends a message |
-| Payment confirmation | Company | Company pays for a job |
-| Payment received | Technician | Funds released to technician |
-| Review received | Reviewee | Someone leaves a review |
-| Review reminder | Company/Technician | 3–7 days after job complete, if no review yet |
+Live transactional automations currently in the app:
+
+- Welcome email (new user signup)
+- Password reset instructions (self-service + admin setup/provisioning paths)
+- Job posted (company notice)
+- Job claimed (company notice)
+- Payment confirmation (company, paid claims)
+- Technician claimed job confirmation
+- Job completed notices (company + technician)
+- New message notification (job-thread conversations)
+- Payment received (technician)
+- Review received
+- Review reminder (scheduled task)
+- Job issue report (admin notice)
+- Admin feedback/suggestion report
+- Counter-offer updates (received, accepted, declined, countered)
+
+Implemented but currently inactive:
+
+- `job_accepted_email` (mailer exists but no active trigger)
 
 ---
 
@@ -93,11 +102,26 @@ Configure `config/environments/production.rb` with the same SMTP settings block.
 
 ---
 
+## Mailtrap HTTP Mode (optional in production)
+
+The app can also deliver through Mailtrap Transactional HTTP API.
+
+Set:
+
+```
+MAILTRAP_USE_HTTP=true
+MAILTRAP_API_TOKEN=your_mailtrap_token
+MAILER_FROM=noreply@yourdomain.com
+```
+
+If `MAILTRAP_USE_HTTP=true`, the app requires either `MAILTRAP_API_TOKEN` or `SMTP_PASSWORD` (used as a token fallback).
+
+---
+
 ## Background Jobs
 
-Emails are sent with `deliver_later` (ActiveJob). In development, Rails uses the `:async` adapter by default, which runs jobs in a thread. If emails don’t send, ensure no errors in the Rails log when the event occurs.
-
-For production, use a real queue (Sidekiq, Resque, etc.) and set `config.active_job.queue_adapter`.
+Transactional emails are sent inline through `MailDelivery.safe_deliver` using `deliver_now`.
+If delivery fails, the app logs an error and continues request handling.
 
 ---
 
@@ -114,3 +138,37 @@ Example cron (daily at 9am):
 ```
 0 9 * * * cd /path/to/skilled_hub_api && bundle exec rake skilled_hub:review_reminders
 ```
+
+---
+
+## Verification Checklist (Mailtrap + Triggers)
+
+Use this sequence to verify setup and delivery:
+
+1. **Check admin audit panel**
+   - Open `Settings` -> `System controls` -> `Mailtrap`.
+   - Confirm delivery mode and required env flags show as present.
+
+2. **Connection-level test**
+   - Rails task:
+     - `cd skilled_hub_api && bundle exec rake mail:test_smtp`
+   - Optional direct SMTP ping (no Rails mailer):
+     - `cd skilled_hub_api && ruby script/mailtrap_smtp_ping.rb`
+   - Confirm these test messages arrive in Mailtrap.
+
+3. **Trigger-level tests**
+   - Perform in-app actions and confirm matching emails appear in Mailtrap:
+     - signup -> welcome
+     - forgot password -> reset
+     - create job -> job posted
+     - claim job -> claimed + technician confirmation (+ payment confirmation when paid)
+     - finish job -> completion notices
+     - send job-thread message -> new message
+     - submit review -> review received
+     - run `bundle exec rake skilled_hub:review_reminders` -> reminder emails
+     - counter-offer create/accept/decline/counter -> respective notifications
+
+4. **If emails do not appear**
+   - Check API logs for `[mail]` lines from `MailDelivery.safe_deliver`.
+   - Verify `MAILER_FROM`, provider mode vars, and provider credentials.
+   - Re-run connection tests before re-testing triggers.

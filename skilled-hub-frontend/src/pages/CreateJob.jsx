@@ -27,12 +27,36 @@ const CLASS_SUGGESTIONS = [
   'Plumbing',
   'General Labor',
 ];
+const WEEKDAY_OPTIONS = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+];
 
 const getDefaultStart = () => {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(8, 0, 0, 0);
   return tomorrow;
+};
+
+const isWeekend = (date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+const addBusinessDays = (date, businessDays) => {
+  const result = new Date(date);
+  let remaining = Math.max(0, businessDays);
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    if (!isWeekend(result)) remaining -= 1;
+  }
+  return result;
 };
 
 /**
@@ -46,8 +70,7 @@ const computeEndFromPricing = (startStr, days, hoursPerDay) => {
   if (isNaN(start.getTime())) return '';
   const hpd = Math.max(1, parseInt(hoursPerDay, 10) || 8);
   const d = Math.max(1, parseInt(days, 10) || 1);
-  const end = new Date(start);
-  end.setDate(end.getDate() + d - 1);
+  const end = addBusinessDays(start, d - 1);
   const endHour = start.getHours() + hpd + LUNCH_HOURS;
   end.setHours(endHour, start.getMinutes(), 0, 0);
   const pad = (n) => String(n).padStart(2, '0');
@@ -73,10 +96,18 @@ const CreateJob = () => {
   const [hoursPerDay, setHoursPerDay] = useState("8");
   const [days, setDays] = useState("");
   const [status, setStatus] = useState("open");
+  const [startMode, setStartMode] = useState("hard_start");
+  const [rollingStartRuleType, setRollingStartRuleType] = useState('none');
+  const [rollingStartExactStartAt, setRollingStartExactStartAt] = useState('');
+  const [rollingStartDaysAfterAcceptance, setRollingStartDaysAfterAcceptance] = useState('1');
+  const [rollingStartWeekday, setRollingStartWeekday] = useState('1');
+  const [rollingStartWeekdayTime, setRollingStartWeekdayTime] = useState('08:00');
   const [scheduledStartAt, setScheduledStartAt] = useState(toDatetimeLocal(defaultStart));
   const [scheduledEndAt, setScheduledEndAt] = useState(
     computeEndFromPricing(toDatetimeLocal(defaultStart), 1, 8)
   );
+  const [useCustomGoLiveAt, setUseCustomGoLiveAt] = useState(false);
+  const [goLiveAt, setGoLiveAt] = useState(toDatetimeLocal(new Date()));
   const [saving, setSaving] = useState(false);
   const [companyProfileId, setCompanyProfileId] = useState(null);
   const [companyQuery, setCompanyQuery] = useState('');
@@ -161,9 +192,10 @@ const CreateJob = () => {
 
   // Auto-compute end date/time from start + days + hours per day (+ 1 hr lunch)
   useEffect(() => {
+    if (startMode === 'rolling_start') return;
     const computed = computeEndFromPricing(scheduledStartAt, days, hoursPerDay);
     if (computed) setScheduledEndAt(computed);
-  }, [scheduledStartAt, days, hoursPerDay]);
+  }, [scheduledStartAt, days, hoursPerDay, startMode]);
 
   const hr = parseFloat(hourlyRate) || 0;
   const hpd = parseInt(hoursPerDay, 10) || 8;
@@ -210,9 +242,24 @@ const CreateJob = () => {
         zip_code: zipCode,
         country,
         status,
+        start_mode: startMode,
         company_profile_id: companyProfileId,
-        scheduled_start_at: scheduledStartAt ? new Date(scheduledStartAt).toISOString() : null,
+        scheduled_start_at: startMode === 'rolling_start' ? null : (scheduledStartAt ? new Date(scheduledStartAt).toISOString() : null),
         scheduled_end_at: scheduledEndAt ? new Date(scheduledEndAt).toISOString() : null,
+        go_live_at: useCustomGoLiveAt && goLiveAt ? new Date(goLiveAt).toISOString() : null,
+        rolling_start_rule_type: startMode === 'rolling_start' ? rollingStartRuleType : 'none',
+        rolling_start_exact_start_at: startMode === 'rolling_start' && rollingStartRuleType === 'exact_datetime' && rollingStartExactStartAt
+          ? new Date(rollingStartExactStartAt).toISOString()
+          : null,
+        rolling_start_days_after_acceptance: startMode === 'rolling_start' && rollingStartRuleType === 'days_after_acceptance'
+          ? Math.max(1, parseInt(rollingStartDaysAfterAcceptance, 10) || 1)
+          : null,
+        rolling_start_weekday: startMode === 'rolling_start' && rollingStartRuleType === 'following_weekday'
+          ? parseInt(rollingStartWeekday, 10)
+          : null,
+        rolling_start_weekday_time: startMode === 'rolling_start' && rollingStartRuleType === 'following_weekday'
+          ? rollingStartWeekdayTime
+          : null,
       };
       if (isAdmin) {
         payload.skip_card_validation = !enforceCardValidation;
@@ -379,6 +426,31 @@ const CreateJob = () => {
             </select>
           </div>
         </div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+          <h3 className="font-medium text-gray-900">Go Live</h3>
+          <p className="text-xs text-gray-500">
+            By default, this job goes live when you post it.
+          </p>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={useCustomGoLiveAt}
+              onChange={(e) => setUseCustomGoLiveAt(e.target.checked)}
+            />
+            Set different go-live date
+          </label>
+          {useCustomGoLiveAt && (
+            <div>
+              <label className="block font-medium mb-1 text-sm">Go live date & time</label>
+              <DateTimeInput
+                id="create-job-go-live-at"
+                value={goLiveAt}
+                onChange={(e) => setGoLiveAt(e.target.value)}
+                className="w-full"
+              />
+            </div>
+          )}
+        </div>
         <div>
           <label className="block font-medium mb-1">Notes and conditions</label>
           <p className="text-xs text-gray-500 mb-2">
@@ -497,6 +569,85 @@ const CreateJob = () => {
             </div>
           )}
         </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block font-medium mb-1">Start Mode</label>
+            <select
+              className="w-full border px-3 py-2 rounded"
+              value={startMode}
+              onChange={(e) => setStartMode(e.target.value)}
+            >
+              <option value="hard_start">Hard start date/time</option>
+              <option value="rolling_start">Rolling start (starts when accepted)</option>
+            </select>
+          </div>
+          {startMode === 'rolling_start' && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">For rolling start jobs, start scheduling is set at claim time using the rule below.</p>
+              <div>
+                <label className="block font-medium mb-1 text-sm">Rolling start rule</label>
+                <select
+                  className="w-full border px-3 py-2 rounded bg-white"
+                  value={rollingStartRuleType}
+                  onChange={(e) => setRollingStartRuleType(e.target.value)}
+                >
+                  <option value="none">Technician chooses when claiming</option>
+                  <option value="exact_datetime">Exact date/time required</option>
+                  <option value="days_after_acceptance">X days after acceptance</option>
+                  <option value="following_weekday">Following weekday at time</option>
+                </select>
+              </div>
+              {rollingStartRuleType === 'exact_datetime' && (
+                <div>
+                  <label className="block font-medium mb-1 text-sm">Exact start date & time</label>
+                  <DateTimeInput
+                    id="create-job-rolling-exact-start"
+                    value={rollingStartExactStartAt}
+                    onChange={(e) => setRollingStartExactStartAt(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              )}
+              {rollingStartRuleType === 'days_after_acceptance' && (
+                <div>
+                  <label className="block font-medium mb-1 text-sm">Days after acceptance</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full border px-3 py-2 rounded bg-white"
+                    value={rollingStartDaysAfterAcceptance}
+                    onChange={(e) => setRollingStartDaysAfterAcceptance(e.target.value)}
+                  />
+                </div>
+              )}
+              {rollingStartRuleType === 'following_weekday' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-medium mb-1 text-sm">Following weekday</label>
+                    <select
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      value={rollingStartWeekday}
+                      onChange={(e) => setRollingStartWeekday(e.target.value)}
+                    >
+                      {WEEKDAY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-medium mb-1 text-sm">Start time</label>
+                    <input
+                      type="time"
+                      className="w-full border px-3 py-2 rounded bg-white"
+                      value={rollingStartWeekdayTime}
+                      onChange={(e) => setRollingStartWeekdayTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block font-medium mb-1">Start Date & Time</label>
@@ -505,6 +656,7 @@ const CreateJob = () => {
               value={scheduledStartAt}
               onChange={(e) => setScheduledStartAt(e.target.value)}
               className="w-full"
+              disabled={startMode === 'rolling_start'}
             />
           </div>
           <div>

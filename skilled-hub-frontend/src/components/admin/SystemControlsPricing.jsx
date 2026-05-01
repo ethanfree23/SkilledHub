@@ -1,5 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { adminLicensingSettingsAPI, adminMembershipTierConfigsAPI } from '../../api/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  adminEmailQaAPI,
+  adminLicensingSettingsAPI,
+  adminMailtrapAuditAPI,
+  adminMembershipTierConfigsAPI,
+} from '../../api/api';
 
 const US_STATE_OPTIONS = [
   ['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'],
@@ -58,6 +63,17 @@ export default function SystemControlsPricing() {
   const [localOnlyStateCodes, setLocalOnlyStateCodes] = useState([]);
   const [savingLicensing, setSavingLicensing] = useState(false);
   const [stateSearch, setStateSearch] = useState('');
+  const [mailtrapAudit, setMailtrapAudit] = useState(null);
+  const [mailtrapLoading, setMailtrapLoading] = useState(false);
+  const [mailtrapError, setMailtrapError] = useState(null);
+  const [emailQaTemplates, setEmailQaTemplates] = useState([]);
+  const [emailQaLoading, setEmailQaLoading] = useState(false);
+  const [emailQaError, setEmailQaError] = useState(null);
+  const [emailQaPreview, setEmailQaPreview] = useState(null);
+  const [emailQaBusyKey, setEmailQaBusyKey] = useState(null);
+  const [emailQaConfirmation, setEmailQaConfirmation] = useState('');
+  const [emailQaLastSendSummary, setEmailQaLastSendSummary] = useState(null);
+  const previewPanelRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,6 +122,50 @@ export default function SystemControlsPricing() {
     if (systemSubTab !== 'licensing') return;
     loadLicensing();
   }, [systemSubTab, loadLicensing]);
+
+  const loadMailtrapAudit = useCallback(async () => {
+    setMailtrapLoading(true);
+    setMailtrapError(null);
+    try {
+      const res = await adminMailtrapAuditAPI.get();
+      setMailtrapAudit(res || null);
+    } catch (e) {
+      setMailtrapError(e.message || 'Failed to load mail audit');
+      setMailtrapAudit(null);
+    } finally {
+      setMailtrapLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (systemSubTab !== 'mailtrap') return;
+    loadMailtrapAudit();
+  }, [systemSubTab, loadMailtrapAudit]);
+
+  const loadEmailQaTemplates = useCallback(async () => {
+    setEmailQaLoading(true);
+    setEmailQaError(null);
+    try {
+      const res = await adminEmailQaAPI.listTemplates();
+      const templates = Array.isArray(res?.templates) ? res.templates : [];
+      setEmailQaTemplates(templates);
+    } catch (e) {
+      setEmailQaError(e.message || 'Failed to load email QA templates');
+      setEmailQaTemplates([]);
+    } finally {
+      setEmailQaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (systemSubTab !== 'email_qa') return;
+    loadEmailQaTemplates();
+  }, [systemSubTab, loadEmailQaTemplates]);
+
+  useEffect(() => {
+    if (!emailQaPreview || !previewPanelRef.current) return;
+    previewPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [emailQaPreview]);
 
   const updateRow = (id, field, value) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -229,6 +289,59 @@ export default function SystemControlsPricing() {
     }
   };
 
+  const previewEmailTemplate = async (templateKey) => {
+    setEmailQaBusyKey(`preview:${templateKey}`);
+    setEmailQaError(null);
+    try {
+      const res = await adminEmailQaAPI.preview(templateKey);
+      setEmailQaPreview(res || null);
+    } catch (e) {
+      setEmailQaError(e.message || 'Failed to preview template');
+      setEmailQaPreview(null);
+    } finally {
+      setEmailQaBusyKey(null);
+    }
+  };
+
+  const sendOneEmailTemplate = async (templateKey) => {
+    setEmailQaBusyKey(`send:${templateKey}`);
+    setEmailQaError(null);
+    try {
+      const res = await adminEmailQaAPI.sendOne(templateKey, emailQaConfirmation);
+      setEmailQaLastSendSummary({
+        type: 'single',
+        success: !!res?.delivered,
+        templateKey,
+        to: res?.to || [],
+      });
+    } catch (e) {
+      setEmailQaError(e.message || 'Failed to send test email');
+      setEmailQaLastSendSummary(null);
+    } finally {
+      setEmailQaBusyKey(null);
+    }
+  };
+
+  const sendAllEmailTemplates = async () => {
+    setEmailQaBusyKey('send_all');
+    setEmailQaError(null);
+    try {
+      const res = await adminEmailQaAPI.sendAll(emailQaConfirmation);
+      const results = Array.isArray(res?.results) ? res.results : [];
+      const deliveredCount = results.filter((row) => row.delivered).length;
+      setEmailQaLastSendSummary({
+        type: 'all',
+        deliveredCount,
+        totalCount: results.length,
+      });
+    } catch (e) {
+      setEmailQaError(e.message || 'Failed to send all test emails');
+      setEmailQaLastSendSummary(null);
+    } finally {
+      setEmailQaBusyKey(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex border-b border-gray-200" role="tablist" aria-label="System controls sections">
@@ -257,6 +370,32 @@ export default function SystemControlsPricing() {
           }`}
         >
           Licensing
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={systemSubTab === 'mailtrap'}
+          onClick={() => setSystemSubTab('mailtrap')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+            systemSubTab === 'mailtrap'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-600 border-transparent hover:text-gray-900'
+          }`}
+        >
+          Mailtrap
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={systemSubTab === 'email_qa'}
+          onClick={() => setSystemSubTab('email_qa')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+            systemSubTab === 'email_qa'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-600 border-transparent hover:text-gray-900'
+          }`}
+        >
+          Email QA
         </button>
       </div>
 
@@ -522,6 +661,261 @@ export default function SystemControlsPricing() {
           >
             {savingLicensing ? 'Saving…' : 'Save licensing exceptions'}
           </button>
+        </div>
+      )}
+
+      {systemSubTab === 'mailtrap' && (
+        <div className="space-y-4">
+          <div className="text-sm text-gray-600 space-y-2 max-w-3xl">
+            <p>
+              This panel shows the current outbound email delivery health and every automated
+              transactional email currently wired in the app.
+            </p>
+            <p>
+              Values are read-only and never expose credentials. Use this view to confirm what is live
+              and what still needs environment configuration.
+            </p>
+          </div>
+
+          {mailtrapError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {mailtrapError}
+            </div>
+          )}
+
+          {mailtrapLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Delivery configuration health</h3>
+                  <button
+                    type="button"
+                    onClick={loadMailtrapAudit}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <span className="font-medium">Mode:</span>{' '}
+                  <span className="font-mono">{mailtrapAudit?.mail_delivery?.delivery_mode || 'unknown'}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {[
+                    ['MAILER_FROM', mailtrapAudit?.mail_delivery?.from_present],
+                    ['SMTP_ADDRESS', mailtrapAudit?.mail_delivery?.smtp_address_present],
+                    ['SMTP_USERNAME', mailtrapAudit?.mail_delivery?.smtp_username_present],
+                    ['SMTP_PASSWORD', mailtrapAudit?.mail_delivery?.smtp_password_present],
+                    ['MAILTRAP_API_TOKEN', mailtrapAudit?.mail_delivery?.mailtrap_token_present],
+                    ['Can Send Mail', mailtrapAudit?.mail_delivery?.can_send],
+                  ].map(([label, present]) => (
+                    <div key={label} className="rounded-lg border border-gray-200 px-3 py-2 text-xs">
+                      <div className="text-gray-500">{label}</div>
+                      <div className={`font-semibold ${present ? 'text-green-700' : 'text-amber-700'}`}>
+                        {present ? 'Present' : 'Missing'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!mailtrapAudit?.mail_delivery?.can_send && (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+                    Mail delivery cannot send yet. Configure required SMTP/Mailtrap variables before expecting transactional emails.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Live automated emails</h3>
+                <div className="space-y-2">
+                  {(mailtrapAudit?.live_automations || []).map((item) => (
+                    <div key={item.key} className="rounded-lg border border-gray-200 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">{item.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          {item.status}
+                        </span>
+                        <span className="font-mono text-xs text-gray-500">{item.key}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 mt-1">{item.trigger}</p>
+                      <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Implemented but inactive</h3>
+                {(mailtrapAudit?.inactive_automations || []).length === 0 ? (
+                  <p className="text-sm text-gray-600">No inactive automations found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(mailtrapAudit?.inactive_automations || []).map((item) => (
+                      <div key={item.key} className="rounded-lg border border-gray-200 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-gray-900">{item.name}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300">
+                            {item.status}
+                          </span>
+                          <span className="font-mono text-xs text-gray-500">{item.key}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">{item.trigger}</p>
+                        <p className="text-xs text-gray-500 mt-1">Source: {item.source}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {systemSubTab === 'email_qa' && (
+        <div className="space-y-4">
+          <div className="text-sm text-gray-600 space-y-2 max-w-3xl">
+            <p>
+              Preview and send fixture-based test emails for every transactional template.
+              Test sends always go only to your currently signed-in admin email.
+            </p>
+            <p>
+              Sending requires explicit confirmation text each time to avoid accidental blasts.
+            </p>
+          </div>
+
+          {emailQaError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {emailQaError}
+            </div>
+          )}
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">Send confirmation guard</h3>
+            <p className="text-xs text-gray-600">
+              Type <code className="bg-gray-100 px-1 rounded">SEND_TEST_EMAILS</code> to enable send actions.
+            </p>
+            <input
+              type="text"
+              value={emailQaConfirmation}
+              onChange={(e) => setEmailQaConfirmation(e.target.value)}
+              placeholder="SEND_TEST_EMAILS"
+              className="w-full border rounded-lg px-3 py-2 text-sm font-mono"
+            />
+            <button
+              type="button"
+              onClick={sendAllEmailTemplates}
+              disabled={emailQaBusyKey === 'send_all' || emailQaConfirmation !== 'SEND_TEST_EMAILS'}
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {emailQaBusyKey === 'send_all' ? 'Sending all…' : 'Send all test emails'}
+            </button>
+            {emailQaLastSendSummary?.type === 'all' && (
+              <p className="text-sm text-gray-700">
+                Delivered {emailQaLastSendSummary.deliveredCount} / {emailQaLastSendSummary.totalCount} templates.
+              </p>
+            )}
+          </div>
+
+          {emailQaLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Templates</h3>
+                  <button
+                    type="button"
+                    onClick={loadEmailQaTemplates}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
+                  {emailQaTemplates.map((template) => (
+                    <div key={template.key} className="rounded-lg border border-gray-200 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">{template.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                          template.active
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-gray-100 text-gray-700 border-gray-300'
+                        }`}
+                        >
+                          {template.active ? 'active' : 'inactive'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-600 mt-1">{template.description}</p>
+                      <p className="text-xs font-mono text-gray-500 mt-1">{template.key}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => previewEmailTemplate(template.key)}
+                          disabled={emailQaBusyKey === `preview:${template.key}`}
+                          className="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          {emailQaBusyKey === `preview:${template.key}` ? 'Loading…' : 'Preview'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => sendOneEmailTemplate(template.key)}
+                          disabled={emailQaBusyKey === `send:${template.key}` || emailQaConfirmation !== 'SEND_TEST_EMAILS'}
+                          className="px-3 py-1.5 text-xs font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                        >
+                          {emailQaBusyKey === `send:${template.key}` ? 'Sending…' : 'Send test'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {emailQaLastSendSummary?.type === 'single' && (
+                  <p className="text-sm text-gray-700">
+                    {emailQaLastSendSummary.success ? 'Sent' : 'Failed'}: {emailQaLastSendSummary.templateKey}
+                  </p>
+                )}
+              </div>
+
+              <div ref={previewPanelRef} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">Preview</h3>
+                {!emailQaPreview ? (
+                  <p className="text-sm text-gray-600">Select a template and click Preview.</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500">Template key</p>
+                      <p className="font-mono text-xs text-gray-700">{emailQaPreview.template_key}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Subject</p>
+                      <p className="text-sm text-gray-800">{emailQaPreview.subject}</p>
+                    </div>
+                    <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 inline-block">
+                      Preview loaded for {emailQaPreview.template_key}
+                    </p>
+                    <div>
+                      <p className="text-xs text-gray-500">Text body</p>
+                      <pre className="text-xs whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-64 overflow-auto">
+                        {emailQaPreview.text_body || '(no text body)'}
+                      </pre>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">HTML body</p>
+                      <div className="text-xs bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-64 overflow-auto">
+                        {emailQaPreview.html_body
+                          ? <div dangerouslySetInnerHTML={{ __html: emailQaPreview.html_body }} />
+                          : '(no html body)'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

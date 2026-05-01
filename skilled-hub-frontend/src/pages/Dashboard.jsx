@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { jobsAPI, ratingsAPI, feedbackAPI, adminAPI, profilesAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
 import AppHeader from '../components/AppHeader';
-import { filterJobsWithinRadius, needsTechnicianMapSetup } from '../utils/technicianMap';
+import { filterJobsWithinRadius, formatDistanceMi, haversineMiles, needsTechnicianMapSetup } from '../utils/technicianMap';
 import { FaBriefcase, FaCheckSquare, FaWrench, FaFolderOpen, FaDollarSign, FaStar, FaChartLine, FaUsers, FaUserCog, FaBuilding, FaCommentDots } from 'react-icons/fa';
 
 // open, claimed (filled but not started), active (in progress), completed, expired
@@ -85,7 +85,7 @@ const loadGoogleMapsScript = () => {
       return;
     }
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&v=weekly&loading=async`;
     script.async = true;
     script.defer = true;
     script.dataset.techflashGoogleMaps = '1';
@@ -346,9 +346,20 @@ const Dashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     if (user?.role !== 'technician') return undefined;
-    const intervalId = window.setInterval(() => {
-      fetchDashboard();
-    }, 30000);
+    const refreshOpenJobsOnly = async () => {
+      try {
+        const openJobsRes = await jobsAPI.getAll({ status: 'open' }).catch(() => []);
+        const now = Date.now();
+        const liveOpenJobs = (Array.isArray(openJobsRes) ? openJobsRes : []).filter((job) => {
+          const endAt = job?.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
+          return endAt == null || endAt >= now;
+        });
+        setOpenJobs(liveOpenJobs);
+      } catch {
+        /* ignore background refresh errors */
+      }
+    };
+    const intervalId = window.setInterval(refreshOpenJobsOnly, 30000);
     return () => window.clearInterval(intervalId);
   }, [user?.role]);
 
@@ -377,6 +388,9 @@ const Dashboard = ({ user, onLogout }) => {
           const endAt = job?.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
           return endAt == null || endAt >= now;
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H1',location:'Dashboard.jsx:fetchDashboard-technician',message:'technician open jobs payload summary',data:{openJobsCount:Array.isArray(openJobsRes)?openJobsRes.length:-1,liveOpenJobsCount:liveOpenJobs.length,sample:(liveOpenJobs||[]).slice(0,3).map((j)=>({id:j?.id,title:j?.title,lat:j?.latitude,lng:j?.longitude,location:j?.location,address:j?.address}))},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         setJobs(jobsRes);
         setOpenJobs(liveOpenJobs);
         setTechnicianProfile(technicianProfileRes);
@@ -735,15 +749,183 @@ const sortByMostRecent = (list) => {
   });
 };
 
-const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
+const TechnicianNearbyJobPreviewModal = ({
+  jobId,
+  job,
+  loading,
+  error,
+  distanceMiles,
+  onClose,
+  navigate,
+}) => {
+  if (jobId == null) return null;
+
+  const companyName = job?.company_profile?.company_name;
+  const rateLabel =
+    job?.hourly_rate_cents != null ? `${formatCurrency(job.hourly_rate_cents)}/hr` : null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/45 backdrop-blur-[1px]"
+        aria-label="Close job preview"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nearby-job-preview-title"
+        className="relative w-full max-w-lg max-h-[min(85vh,32rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl flex flex-col"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 shrink-0">
+          <div className="min-w-0">
+            <h2 id="nearby-job-preview-title" className="text-lg font-semibold text-gray-900 line-clamp-2">
+              {loading ? 'Loading…' : job?.title || `Job #${jobId}`}
+            </h2>
+            {!loading && job && (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {statusLabel(job)}
+                {Number.isFinite(distanceMiles) ? (
+                  <span className="text-xs text-gray-500">{formatDistanceMi(distanceMiles)} away</span>
+                ) : null}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+            aria-label="Close"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 text-sm text-gray-700">
+          {loading && <p className="text-gray-500">Fetching job details…</p>}
+          {!loading && error && <p className="text-red-600">{error}</p>}
+          {!loading && !error && job && (
+            <div className="space-y-3">
+              {companyName && (
+                <p>
+                  <span className="font-medium text-gray-800">Company:</span>{' '}
+                  {companyName}
+                </p>
+              )}
+              {(job.location || job.city) && (
+                <p>
+                  <span className="font-medium text-gray-800">Location:</span>{' '}
+                  {job.location ||
+                    [job.address, job.city, job.state, job.zip_code].filter(Boolean).join(', ')}
+                </p>
+              )}
+              {job.skill_class && (
+                <p>
+                  <span className="font-medium text-gray-800">Trade:</span> {job.skill_class}
+                </p>
+              )}
+              {(rateLabel || job.hours_per_day != null || job.days != null) && (
+                <p className="text-gray-800">
+                  {[rateLabel, job.hours_per_day != null ? `${job.hours_per_day} hrs/day` : null, job.days != null ? `${job.days} day${job.days !== 1 ? 's' : ''}` : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
+              {(job.scheduled_start_at || job.scheduled_end_at) && (
+                <p>
+                  <span className="font-medium text-gray-800">Schedule:</span>{' '}
+                  {formatDate(job.scheduled_start_at)} — {formatDate(job.scheduled_end_at)}
+                </p>
+              )}
+              {job.description && (
+                <div>
+                  <p className="font-medium text-gray-800 mb-1">Description</p>
+                  <p className="whitespace-pre-wrap text-gray-600 leading-relaxed">{job.description}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 px-5 py-4 flex flex-wrap justify-end gap-2 shrink-0 bg-gray-50/80">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              navigate(`/jobs/${jobId}`);
+            }}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Open full job page
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TECH_HOME_MARKER = {
+  fill: '#dc2626',
+  stroke: '#ffffff',
+};
+
+const TECH_JOB_MARKER = {
+  fill: '#2563eb',
+  stroke: '#ffffff',
+  selectedFill: '#1d4ed8',
+};
+
+/** Raster-style circle markers — more reliable across Maps builds than SymbolPath-only icons in flex layouts. */
+function svgCircleMarkerIconUrl(fillColor, strokeColor, radiusPx) {
+  const pad = 3;
+  const size = radiusPx * 2 + pad * 2;
+  const c = size / 2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${c}" cy="${c}" r="${radiusPx}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2"/></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+/** When jobs share the technician's coordinates (0 mi), spread pins in a small ring so blue markers aren't hidden under the home marker. */
+function displayPositionsForJobMarkers(jobs, homeLatLng) {
+  if (!jobs?.length) return [];
+  const clusterMi = 0.18;
+  return jobs.map((job, idx) => {
+    const lat = Number(job.latitude);
+    const lng = Number(job.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { lat, lng };
+    if (!homeLatLng) return { lat, lng };
+    const mi = haversineMiles(homeLatLng.lat, homeLatLng.lng, lat, lng);
+    if (mi > clusterMi) return { lat, lng };
+    const ring = Math.floor(idx / 8);
+    const slot = idx % 8;
+    const theta = (slot / 8) * 2 * Math.PI + ring * 0.55;
+    const rDeg = 0.00034 * (ring + 1);
+    return {
+      lat: lat + rDeg * Math.cos(theta),
+      lng: lng + (rDeg * Math.sin(theta)) / Math.cos((lat * Math.PI) / 180),
+    };
+  });
+}
+
+const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSelectJob, mapPanNonce = 0 }) => {
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
   const [mapsReady, setMapsReady] = useState(googleMapsLoaded || Boolean(window.google?.maps));
   const [loadError, setLoadError] = useState(null);
+  const [fallbackCoordsByJobId, setFallbackCoordsByJobId] = useState({});
 
-  const technicianLat = technicianProfile?.latitude;
-  const technicianLng = technicianProfile?.longitude;
+  const technicianLat = Number(technicianProfile?.latitude);
+  const technicianLng = Number(technicianProfile?.longitude);
   const hasTechnicianCoords = Number.isFinite(technicianLat) && Number.isFinite(technicianLng);
   const homeLatLng = hasTechnicianCoords ? { lat: technicianLat, lng: technicianLng } : null;
 
@@ -767,6 +949,29 @@ const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
     ]
   );
 
+  const normalizedJobs = useMemo(
+    () =>
+      (jobs || [])
+        .map((job) => {
+          const lat = Number(job?.latitude);
+          const lng = Number(job?.longitude);
+          const fallbackCoords = fallbackCoordsByJobId[job?.id];
+          const fallbackLat = Number(fallbackCoords?.lat);
+          const fallbackLng = Number(fallbackCoords?.lng);
+          const resolvedLat = Number.isFinite(lat) ? lat : fallbackLat;
+          const resolvedLng = Number.isFinite(lng) ? lng : fallbackLng;
+          if (!Number.isFinite(resolvedLat) || !Number.isFinite(resolvedLng)) return null;
+          return { ...job, latitude: resolvedLat, longitude: resolvedLng };
+        })
+        .filter(Boolean),
+    [jobs, fallbackCoordsByJobId]
+  );
+
+  const selectedMapJob = useMemo(
+    () => normalizedJobs.find((job) => job.id === selectedMapJobId) || null,
+    [normalizedJobs, selectedMapJobId]
+  );
+
   const selectedLatLng =
     Number.isFinite(selectedMapJob?.latitude) && Number.isFinite(selectedMapJob?.longitude)
       ? { lat: selectedMapJob.latitude, lng: selectedMapJob.longitude }
@@ -774,7 +979,7 @@ const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
 
   const fallbackQuery = hasTechnicianCoords
     ? `${technicianLat},${technicianLng}`
-    : (homeAddressQuery || selectedMapJob?.location || 'United States');
+    : (homeAddressQuery || selectedMapJob?.location || normalizedJobs[0]?.location || 'United States');
   const fallbackEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fallbackQuery)}&z=10&output=embed`;
 
   useEffect(() => {
@@ -795,6 +1000,44 @@ const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
   }, []);
 
   useEffect(() => {
+    if (!mapsReady || !window.google?.maps?.Geocoder) return;
+    const needsResolution = (jobs || []).filter((job) => {
+      const hasCoords = Number.isFinite(Number(job?.latitude)) && Number.isFinite(Number(job?.longitude));
+      const hasFallback = Number.isFinite(Number(fallbackCoordsByJobId[job?.id]?.lat)) && Number.isFinite(Number(fallbackCoordsByJobId[job?.id]?.lng));
+      return !hasCoords && !hasFallback;
+    });
+    // #region agent log
+    fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H2',location:'Dashboard.jsx:TechnicianOpenJobsMap-geocodeEffect',message:'geocode fallback eligibility',data:{mapsReady,jobsCount:(jobs||[]).length,needsResolutionCount:needsResolution.length,sample:(needsResolution||[]).slice(0,3).map((j)=>({id:j?.id,title:j?.title,location:j?.location,address:j?.address,city:j?.city,state:j?.state}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    if (!needsResolution.length) return;
+
+    const geocoder = new window.google.maps.Geocoder();
+    let cancelled = false;
+    needsResolution.slice(0, 25).forEach((job) => {
+      const query = [job?.address, job?.city, job?.state, job?.zip_code, job?.country, job?.location]
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(', ');
+      if (!query) return;
+      geocoder.geocode({ address: query }, (results, status) => {
+        if (cancelled) return;
+        // #region agent log
+        fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H3',location:'Dashboard.jsx:TechnicianOpenJobsMap-geocodeCallback',message:'geocode callback result',data:{jobId:job?.id,status,hasResult:Boolean(results?.[0]?.geometry?.location),queryPreview:query.slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        if (status !== 'OK' || !results?.[0]?.geometry?.location) return;
+        const loc = results[0].geometry.location;
+        setFallbackCoordsByJobId((prev) => ({
+          ...prev,
+          [job.id]: { lat: loc.lat(), lng: loc.lng() },
+        }));
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapsReady, jobs, fallbackCoordsByJobId]);
+
+  useEffect(() => {
     if (!mapsReady || !mapContainerRef.current || !window.google?.maps) return;
 
     const maps = window.google.maps;
@@ -812,6 +1055,13 @@ const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
+    const markerDisplayPositions = displayPositionsForJobMarkers(normalizedJobs, homeLatLng);
+
+    const homeRadius = 9;
+    const homeIconSize = homeRadius * 2 + 6;
+    const homeIconUrl = svgCircleMarkerIconUrl(TECH_HOME_MARKER.fill, TECH_HOME_MARKER.stroke, homeRadius);
+
+    // Draw home first with lower z-index so overlapping job markers (above) stay visible.
     if (homeLatLng) {
       markersRef.current.push(
         new maps.Marker({
@@ -819,49 +1069,97 @@ const TechnicianOpenJobsMap = ({ technicianProfile, selectedMapJob }) => {
           position: homeLatLng,
           title: 'Your location',
           icon: {
-            path: maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#2563eb',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
+            url: homeIconUrl,
+            scaledSize: new maps.Size(homeIconSize, homeIconSize),
+            anchor: new maps.Point(homeIconSize / 2, homeIconSize / 2),
           },
+          zIndex: 100,
         })
       );
     }
 
-    if (selectedLatLng) {
-      markersRef.current.push(
-        new maps.Marker({
-          map: mapRef.current,
-          position: selectedLatLng,
-          title: selectedMapJob?.title || 'Selected job',
-        })
-      );
-    }
+    normalizedJobs.forEach((job, idx) => {
+      const isSelected = job.id === selectedMapJobId;
+      const pos = markerDisplayPositions[idx] || { lat: job.latitude, lng: job.longitude };
+      const jobRadius = isSelected ? 11 : 9;
+      const jobIconSize = jobRadius * 2 + 6;
+      const fill = isSelected ? TECH_JOB_MARKER.selectedFill : TECH_JOB_MARKER.fill;
+      const jobIconUrl = svgCircleMarkerIconUrl(fill, TECH_JOB_MARKER.stroke, jobRadius);
+      const marker = new maps.Marker({
+        map: mapRef.current,
+        position: { lat: pos.lat, lng: pos.lng },
+        title: job.title || `Job #${job.id}`,
+        animation: isSelected ? maps.Animation.DROP : undefined,
+        icon: {
+          url: jobIconUrl,
+          scaledSize: new maps.Size(jobIconSize, jobIconSize),
+          anchor: new maps.Point(jobIconSize / 2, jobIconSize / 2),
+        },
+        zIndex: isSelected ? 900 : 800,
+      });
+      marker.addListener('click', () => {
+        onSelectJob?.(job.id);
+      });
+      markersRef.current.push(marker);
+    });
+    // #region agent log
+    fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H4',location:'Dashboard.jsx:TechnicianOpenJobsMap-markerEffect',message:'marker render summary',data:{mapsReady,normalizedJobsCount:normalizedJobs.length,selectedMapJobId,markerCount:markersRef.current.length,homeLatLngPresent:Boolean(homeLatLng),sample:(normalizedJobs||[]).slice(0,3).map((j)=>({id:j.id,lat:j.latitude,lng:j.longitude}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
-    if (homeLatLng && selectedLatLng) {
+    if (homeLatLng && (selectedLatLng || normalizedJobs.length)) {
       const bounds = new maps.LatLngBounds();
       bounds.extend(homeLatLng);
-      bounds.extend(selectedLatLng);
+      if (selectedLatLng) {
+        bounds.extend(selectedLatLng);
+      } else {
+        markerDisplayPositions.forEach((pos) => bounds.extend(pos));
+      }
       mapRef.current.fitBounds(bounds, 90);
-      return;
+    } else {
+      mapRef.current.setCenter(homeLatLng || selectedLatLng || defaultCenter);
+      mapRef.current.setZoom(homeLatLng ? 11 : normalizedJobs.length ? 9 : 6);
     }
 
-    mapRef.current.setCenter(homeLatLng || selectedLatLng || defaultCenter);
-    mapRef.current.setZoom(homeLatLng ? 11 : 6);
-  }, [mapsReady, homeLatLng, selectedLatLng, selectedMapJob?.title]);
+    // Maps embedded in flex/grid often need a resize tick before markers/tiles paint reliably.
+    const mapEl = mapRef.current;
+    requestAnimationFrame(() => {
+      maps.event.trigger(mapEl, 'resize');
+    });
+    const resizeLater = window.setTimeout(() => {
+      maps.event.trigger(mapEl, 'resize');
+    }, 200);
+    return () => window.clearTimeout(resizeLater);
+  }, [mapsReady, homeLatLng, selectedLatLng, selectedMapJobId, normalizedJobs, onSelectJob]);
+
+  // Parent bumps mapPanNonce when the user asks to focus a job ("Show on map", list row, or marker click).
+  useEffect(() => {
+    if (!mapsReady || !mapRef.current || !selectedLatLng || mapPanNonce < 1) return;
+    const map = mapRef.current;
+    map.panTo(selectedLatLng);
+    const z = map.getZoom();
+    if (z < 12) map.setZoom(13);
+  }, [mapsReady, mapPanNonce, selectedLatLng]);
 
   if (loadError) {
+    const keyMissing = !GOOGLE_MAPS_API_KEY;
+    const hint = keyMissing
+      ? 'Add VITE_GOOGLE_MAPS_API_KEY to skilled-hub-frontend/.env (enable the Maps JavaScript API for this key), then restart the Vite dev server. Without it, only this preview opens — blue job pins need the interactive map.'
+      : 'The Maps script failed to load. Confirm the API key, billing, and that “Maps JavaScript API” is enabled for your Google Cloud project.';
     return (
-      <iframe
-        title="Open jobs map area view"
-        src={fallbackEmbedUrl}
-        className="h-full w-full min-h-[24rem] border-0"
-        loading="eager"
-        fetchPriority="high"
-        referrerPolicy="no-referrer-when-downgrade"
-      />
+      <div className="relative h-full w-full min-h-[24rem] bg-slate-200">
+        <iframe
+          title="Open jobs map area view"
+          src={fallbackEmbedUrl}
+          className="h-full w-full min-h-[24rem] border-0"
+          loading="eager"
+          fetchPriority="high"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg bg-slate-900/88 px-3 py-2.5 text-xs text-white shadow-lg">
+          <p className="font-semibold text-amber-200">Preview map — job markers unavailable</p>
+          <p className="mt-1 leading-snug text-slate-100">{hint}</p>
+        </div>
+      </div>
     );
   }
 
@@ -1052,23 +1350,65 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
   const inProgress = jobs?.in_progress || [];
   const completed = jobs?.completed || [];
   const [selectedMapJobId, setSelectedMapJobId] = useState(null);
+  const [nearbyJobPreviewId, setNearbyJobPreviewId] = useState(null);
+  const [nearbyPreviewJob, setNearbyPreviewJob] = useState(null);
+  const [nearbyPreviewLoading, setNearbyPreviewLoading] = useState(false);
+  const [nearbyPreviewError, setNearbyPreviewError] = useState(null);
   const [reviewedJobIds, setReviewedJobIds] = useState(new Set());
+  /** Incremented when the user explicitly focuses a job so the map pans/zooms (fitBounds alone is often invisible). */
+  const [mapPanNonce, setMapPanNonce] = useState(0);
   const searchRadiusMiles = 150;
-  const technicianLat = technicianProfile?.latitude;
-  const technicianLng = technicianProfile?.longitude;
+  /** When nothing falls within `searchRadiusMiles`, still show every open job the API returned (sorted by distance). */
+  const fallbackRadiusMiles = 25_000;
+  const technicianLat = Number(technicianProfile?.latitude);
+  const technicianLng = Number(technicianProfile?.longitude);
 
-  const nearbyOpenJobs = filterJobsWithinRadius(openJobs, technicianLat, technicianLng, searchRadiusMiles);
+  const nearbyOpenJobs = useMemo(
+    () => filterJobsWithinRadius(openJobs, technicianLat, technicianLng, searchRadiusMiles),
+    [openJobs, technicianLat, technicianLng]
+  );
+
+  const mapDisplayJobs = useMemo(() => {
+    if (nearbyOpenJobs.length > 0) return nearbyOpenJobs;
+    return filterJobsWithinRadius(openJobs, technicianLat, technicianLng, fallbackRadiusMiles);
+  }, [openJobs, nearbyOpenJobs, technicianLat, technicianLng]);
 
   useEffect(() => {
-    if (!nearbyOpenJobs.length) {
+    if (!mapDisplayJobs.length) {
       setSelectedMapJobId(null);
       return;
     }
-    const stillExists = nearbyOpenJobs.some((job) => job.id === selectedMapJobId);
+    const stillExists = mapDisplayJobs.some((job) => job.id === selectedMapJobId);
     if (!stillExists) {
-      setSelectedMapJobId(nearbyOpenJobs[0].id);
+      setSelectedMapJobId(mapDisplayJobs[0].id);
     }
-  }, [nearbyOpenJobs, selectedMapJobId]);
+  }, [mapDisplayJobs, selectedMapJobId]);
+
+  useEffect(() => {
+    if (nearbyJobPreviewId == null) {
+      setNearbyPreviewJob(null);
+      setNearbyPreviewError(null);
+      setNearbyPreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setNearbyPreviewLoading(true);
+    setNearbyPreviewError(null);
+    jobsAPI
+      .getById(nearbyJobPreviewId)
+      .then((data) => {
+        if (!cancelled) setNearbyPreviewJob(data);
+      })
+      .catch(() => {
+        if (!cancelled) setNearbyPreviewError('Could not load this job. Try again or open the full job page.');
+      })
+      .finally(() => {
+        if (!cancelled) setNearbyPreviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nearbyJobPreviewId]);
 
   useEffect(() => {
     if (user?.role === 'technician') {
@@ -1078,11 +1418,33 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
     }
   }, [user?.role]);
 
-  const selectedMapJob = nearbyOpenJobs.find((job) => job.id === selectedMapJobId) || null;
+  const selectedMapJob = mapDisplayJobs.find((job) => job.id === selectedMapJobId) || null;
+  const nearbyPreviewDistance = mapDisplayJobs.find((job) => job.id === nearbyJobPreviewId)?.distanceMiles;
   const needsExactAddressPrompt = needsTechnicianMapSetup(technicianProfile);
+
+  const openNearbyJobPreview = (jobId) => {
+    setSelectedMapJobId(jobId);
+    setNearbyJobPreviewId(jobId);
+    setMapPanNonce((n) => n + 1);
+  };
+
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H5',location:'Dashboard.jsx:TechnicianDashboardContent-nearbyJobs',message:'nearby jobs computed',data:{openJobsCount:(openJobs||[]).length,nearbyOpenJobsCount:nearbyOpenJobs.length,selectedMapJobId,technicianLat,technicianLng,sample:(nearbyOpenJobs||[]).slice(0,3).map((j)=>({id:j?.id,title:j?.title,distanceMiles:j?.distanceMiles,lat:j?.latitude,lng:j?.longitude}))},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [openJobs, nearbyOpenJobs, selectedMapJobId, technicianLat, technicianLng]);
 
   return (
     <>
+      <TechnicianNearbyJobPreviewModal
+        jobId={nearbyJobPreviewId}
+        job={nearbyPreviewJob}
+        loading={nearbyPreviewLoading}
+        error={nearbyPreviewError}
+        distanceMiles={nearbyPreviewDistance}
+        onClose={() => setNearbyJobPreviewId(null)}
+        navigate={navigate}
+      />
       {needsExactAddressPrompt && (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 shadow-sm">
           <p className="font-semibold text-sm sm:text-base mb-1">Add your exact address for better map matching</p>
@@ -1103,12 +1465,22 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
           <div className="xl:col-span-2 min-h-[24rem] bg-slate-100 relative">
             <TechnicianOpenJobsMap
               technicianProfile={technicianProfile}
-              selectedMapJob={selectedMapJob}
+              jobs={mapDisplayJobs}
+              selectedMapJobId={selectedMapJobId}
+              mapPanNonce={mapPanNonce}
+              onSelectJob={(jobId) => openNearbyJobPreview(jobId)}
             />
-            {!selectedMapJob && (
+            {openJobs.length === 0 && (
               <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
                 <div className="rounded-full bg-slate-900/45 text-white text-xs sm:text-sm px-4 py-2 backdrop-blur-[1px]">
                   No jobs available in your area right now
+                </div>
+              </div>
+            )}
+            {openJobs.length > 0 && nearbyOpenJobs.length === 0 && mapDisplayJobs.length > 0 && (
+              <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
+                <div className="rounded-full bg-amber-900/55 text-white text-xs sm:text-sm px-4 py-2 backdrop-blur-[1px] max-w-lg text-center">
+                  No listings within {searchRadiusMiles} mi — showing all open jobs you can access (by distance).
                 </div>
               </div>
             )}
@@ -1121,15 +1493,16 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
               </span>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Open jobs refresh every 30 seconds and show a {searchRadiusMiles}-mile radius from your profile location.
+              Open listings here refresh every 30 seconds without reloading the rest of the dashboard. We prioritize jobs within{' '}
+              {searchRadiusMiles} miles of your profile; if none match, we still list every open job you can access.
             </p>
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {nearbyOpenJobs.slice(0, 25).map((job) => (
+              {mapDisplayJobs.slice(0, 25).map((job) => (
                 <button
                   key={job.id}
                   type="button"
-                  onClick={() => setSelectedMapJobId(job.id)}
-                  className={`w-full text-left rounded-lg border px-3 py-2 transition ${
+                  onClick={() => openNearbyJobPreview(job.id)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition cursor-pointer ${
                     selectedMapJobId === job.id
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -1138,11 +1511,14 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
                   <p className="text-sm font-semibold text-gray-900 line-clamp-1">{job.title}</p>
                   <p className="text-xs text-gray-600 line-clamp-1">
                     {job.location || 'Location pending'}
-                    {Number.isFinite(job.distanceMiles) ? ` • ${job.distanceMiles.toFixed(1)} mi` : ''}
+                    {Number.isFinite(job.distanceMiles) ? ` • ${formatDistanceMi(job.distanceMiles)}` : ''}
                   </p>
+                  <div className="mt-2 flex justify-end">
+                    <span className="text-xs font-medium text-blue-700">Show on map</span>
+                  </div>
                 </button>
               ))}
-              {!nearbyOpenJobs.length && (
+              {!mapDisplayJobs.length && (
                 <p className="text-sm text-gray-500">No open jobs available.</p>
               )}
             </div>

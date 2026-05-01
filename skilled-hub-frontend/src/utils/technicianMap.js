@@ -11,13 +11,23 @@ export const haversineMiles = (lat1, lon1, lat2, lon2) => {
 };
 
 export const filterJobsWithinRadius = (jobs, centerLat, centerLng, radiusMiles) => {
+  const normalizedCenterLat = Number(centerLat);
+  const normalizedCenterLng = Number(centerLng);
+  const hasCenterCoords = Number.isFinite(normalizedCenterLat) && Number.isFinite(normalizedCenterLng);
   return (jobs || [])
-    .map((job) => ({
-      ...job,
-      distanceMiles: haversineMiles(centerLat, centerLng, job?.latitude, job?.longitude),
-    }))
+    .map((job) => {
+      const jobLat = Number(job?.latitude);
+      const jobLng = Number(job?.longitude);
+      const hasJobCoords = Number.isFinite(jobLat) && Number.isFinite(jobLng);
+      return {
+        ...job,
+        latitude: hasJobCoords ? jobLat : job?.latitude,
+        longitude: hasJobCoords ? jobLng : job?.longitude,
+        distanceMiles: haversineMiles(normalizedCenterLat, normalizedCenterLng, jobLat, jobLng),
+      };
+    })
     .filter((job) => {
-      if (centerLat == null || centerLng == null) return true;
+      if (!hasCenterCoords) return true;
       if (!Number.isFinite(job.distanceMiles)) return true;
       return job.distanceMiles <= radiusMiles;
     })
@@ -28,7 +38,16 @@ export const filterJobsWithinRadius = (jobs, centerLat, centerLng, radiusMiles) 
     });
 };
 
+/** Human-readable distance for job lists (avoids misleading "0.0 mi" when very close). */
+export const formatDistanceMi = (miles) => {
+  if (!Number.isFinite(miles)) return '';
+  if (miles < 0.05) return '<0.1 mi';
+  if (miles < 10) return `${miles.toFixed(1)} mi`;
+  return `${Math.round(miles)} mi`;
+};
+
 export const needsTechnicianMapSetup = (profile) => (
+  !String(profile?.address || '').trim() ||
   !String(profile?.city || '').trim() ||
   !String(profile?.state || '').trim() ||
   !String(profile?.country || '').trim()

@@ -509,6 +509,11 @@ const JobList = () => {
                     </h3>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {getStatusBadge(job)}
+                      {job.pending_counter_offer && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded">
+                          Counter pending
+                        </span>
+                      )}
                       {auth.isTechnician() && savedSearches.some((s) => matchesSavedSearch(job, s)) && (
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                           Saved search

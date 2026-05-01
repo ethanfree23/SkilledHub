@@ -9,11 +9,29 @@ import { EXPERIENCE_YEAR_OPTIONS } from '../constants/experienceSelect';
 import { companyChargeFromJobAmount, formatPlatformFeePercent } from '../utils/companyPlatformFee';
 import { auth } from '../auth';
 
+const WEEKDAY_OPTIONS = [
+  { value: '0', label: 'Sunday' },
+  { value: '1', label: 'Monday' },
+  { value: '2', label: 'Tuesday' },
+  { value: '3', label: 'Wednesday' },
+  { value: '4', label: 'Thursday' },
+  { value: '5', label: 'Friday' },
+  { value: '6', label: 'Saturday' },
+];
+
 const toDatetimeLocal = (d) => {
   if (!d) return '';
   const date = new Date(d);
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const hasCustomGoLiveAt = (job) => {
+  if (!job?.go_live_at || !job?.created_at) return false;
+  const goLiveMs = new Date(job.go_live_at).getTime();
+  const createdMs = new Date(job.created_at).getTime();
+  if (!Number.isFinite(goLiveMs) || !Number.isFinite(createdMs)) return false;
+  return Math.abs(goLiveMs - createdMs) > 60 * 1000;
 };
 
 const EditJob = () => {
@@ -25,7 +43,7 @@ const EditJob = () => {
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
     title: '', description: '', skill_class: '', minimum_years_experience: '', notes: '', required_certifications: [''], address: '', city: '', state: '', zip_code: '', country: '', status: 'open',
-    hourly_rate_cents: '', hours_per_day: '8', days: '',
+    hourly_rate_cents: '', hours_per_day: '8', days: '', start_mode: 'hard_start',
   });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -34,6 +52,13 @@ const EditJob = () => {
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'success', onCloseAction: null });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [platformFeePercent, setPlatformFeePercent] = useState(null);
+  const [useCustomGoLiveAt, setUseCustomGoLiveAt] = useState(false);
+  const [goLiveAt, setGoLiveAt] = useState('');
+  const [rollingStartRuleType, setRollingStartRuleType] = useState('none');
+  const [rollingStartExactStartAt, setRollingStartExactStartAt] = useState('');
+  const [rollingStartDaysAfterAcceptance, setRollingStartDaysAfterAcceptance] = useState('1');
+  const [rollingStartWeekday, setRollingStartWeekday] = useState('1');
+  const [rollingStartWeekdayTime, setRollingStartWeekdayTime] = useState('08:00');
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -59,6 +84,7 @@ const EditJob = () => {
           zip_code: data.zip_code || '',
           country: data.country || 'United States',
           status: data.status || 'open',
+          start_mode: data.start_mode || 'hard_start',
           hourly_rate_cents: hasNewPricing ? (data.hourly_rate_cents / 100).toFixed(2) : '',
           hours_per_day: data.hours_per_day ?? 8,
           days: data.days ?? '',
@@ -67,6 +93,14 @@ const EditJob = () => {
         const defaultEnd = currentEnd ? new Date(currentEnd) : new Date(Date.now() + 24 * 60 * 60 * 1000);
         setExtendEndAt(toDatetimeLocal(currentEnd || defaultEnd));
         setError(null);
+        const customGoLive = hasCustomGoLiveAt(data);
+        setUseCustomGoLiveAt(customGoLive);
+        setGoLiveAt(toDatetimeLocal(data.go_live_at || new Date()));
+        setRollingStartRuleType(data.rolling_start_rule_type || 'none');
+        setRollingStartExactStartAt(toDatetimeLocal(data.rolling_start_exact_start_at));
+        setRollingStartDaysAfterAcceptance(data.rolling_start_days_after_acceptance != null ? String(data.rolling_start_days_after_acceptance) : '1');
+        setRollingStartWeekday(data.rolling_start_weekday != null ? String(data.rolling_start_weekday) : '1');
+        setRollingStartWeekdayTime(data.rolling_start_weekday_time || '08:00');
 
         let pct = data.company_profile?.effective_commission_percent;
         if (pct == null && data.company_profile_id) {
@@ -165,6 +199,21 @@ const EditJob = () => {
         zip_code: form.zip_code,
         country: form.country,
         status: form.status,
+        start_mode: form.start_mode,
+        go_live_at: useCustomGoLiveAt && goLiveAt ? new Date(goLiveAt).toISOString() : null,
+        rolling_start_rule_type: form.start_mode === 'rolling_start' ? rollingStartRuleType : 'none',
+        rolling_start_exact_start_at: form.start_mode === 'rolling_start' && rollingStartRuleType === 'exact_datetime' && rollingStartExactStartAt
+          ? new Date(rollingStartExactStartAt).toISOString()
+          : null,
+        rolling_start_days_after_acceptance: form.start_mode === 'rolling_start' && rollingStartRuleType === 'days_after_acceptance'
+          ? Math.max(1, parseInt(rollingStartDaysAfterAcceptance, 10) || 1)
+          : null,
+        rolling_start_weekday: form.start_mode === 'rolling_start' && rollingStartRuleType === 'following_weekday'
+          ? parseInt(rollingStartWeekday, 10)
+          : null,
+        rolling_start_weekday_time: form.start_mode === 'rolling_start' && rollingStartRuleType === 'following_weekday'
+          ? rollingStartWeekdayTime
+          : null,
       };
       if (jobAmount > 0) {
         payload.hourly_rate_cents = Math.round(hr * 100);
@@ -381,6 +430,101 @@ const EditJob = () => {
               <p><span className="font-medium">Job total:</span> ${jobAmount.toFixed(2)}</p>
               <p><span className="font-medium">You pay (incl. {feeLabel}% fee):</span> ${companyCharge.toFixed(2)}</p>
             </div>
+          )}
+        </div>
+        <div>
+          <label className="block font-medium mb-1">Start Mode</label>
+          <select
+            className="w-full border px-3 py-2 rounded"
+            name="start_mode"
+            value={form.start_mode}
+            onChange={handleChange}
+          >
+            <option value="hard_start">Hard start date/time</option>
+            <option value="rolling_start">Rolling start (starts when accepted)</option>
+          </select>
+        </div>
+        {form.start_mode === 'rolling_start' && (
+          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+            <h3 className="font-medium text-gray-900">Rolling start rule</h3>
+            <select
+              className="w-full border px-3 py-2 rounded bg-white"
+              value={rollingStartRuleType}
+              onChange={(e) => setRollingStartRuleType(e.target.value)}
+            >
+              <option value="none">Technician chooses when claiming</option>
+              <option value="exact_datetime">Exact date/time required</option>
+              <option value="days_after_acceptance">X days after acceptance</option>
+              <option value="following_weekday">Following weekday at time</option>
+            </select>
+            {rollingStartRuleType === 'exact_datetime' && (
+              <div>
+                <label className="block font-medium mb-1 text-sm">Exact start date & time</label>
+                <DateTimeInput
+                  id="edit-job-rolling-exact-start"
+                  value={rollingStartExactStartAt}
+                  onChange={(e) => setRollingStartExactStartAt(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            )}
+            {rollingStartRuleType === 'days_after_acceptance' && (
+              <div>
+                <label className="block font-medium mb-1 text-sm">Days after acceptance</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full border px-3 py-2 rounded bg-white"
+                  value={rollingStartDaysAfterAcceptance}
+                  onChange={(e) => setRollingStartDaysAfterAcceptance(e.target.value)}
+                />
+              </div>
+            )}
+            {rollingStartRuleType === 'following_weekday' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium mb-1 text-sm">Following weekday</label>
+                  <select
+                    className="w-full border px-3 py-2 rounded bg-white"
+                    value={rollingStartWeekday}
+                    onChange={(e) => setRollingStartWeekday(e.target.value)}
+                  >
+                    {WEEKDAY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-medium mb-1 text-sm">Start time</label>
+                  <input
+                    type="time"
+                    className="w-full border px-3 py-2 rounded bg-white"
+                    value={rollingStartWeekdayTime}
+                    onChange={(e) => setRollingStartWeekdayTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        <div>
+          <label className="block font-medium mb-1">Go Live</label>
+          <p className="text-xs text-gray-500 mb-2">By default, this job goes live when posted/opened.</p>
+          <label className="inline-flex items-center gap-2 text-sm mb-2">
+            <input
+              type="checkbox"
+              checked={useCustomGoLiveAt}
+              onChange={(e) => setUseCustomGoLiveAt(e.target.checked)}
+            />
+            Set different go-live date
+          </label>
+          {useCustomGoLiveAt && (
+            <DateTimeInput
+              id="edit-job-go-live-at"
+              value={goLiveAt}
+              onChange={(e) => setGoLiveAt(e.target.value)}
+              className="w-full"
+            />
           )}
         </div>
         <div>

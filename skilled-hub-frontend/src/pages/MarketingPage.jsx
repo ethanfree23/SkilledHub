@@ -59,7 +59,7 @@ const MarketingPage = ({ onLoginSuccess }) => {
       className="min-h-screen text-gray-800"
       style={{
         background:
-          'linear-gradient(135deg, #F7F7F7 0%, #F7F7F7 25%, rgba(254, 103, 17, 0.08) 50%, rgba(254, 103, 17, 0.2) 75%, rgba(254, 103, 17, 0.35) 100%)',
+          'linear-gradient(135deg, rgba(254, 103, 17, 0.08) 0%, rgba(254, 103, 17, 0.18) 50%, rgba(254, 103, 17, 0.3) 100%)',
       }}
     >
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-orange-100/50 shadow-sm">
@@ -77,8 +77,8 @@ const MarketingPage = ({ onLoginSuccess }) => {
         </div>
       </header>
 
-      <section className="relative min-h-screen pt-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex items-center">
-        <div className="absolute inset-0 -z-10">
+      <section className="relative min-h-screen pt-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex items-center isolate">
+        <div className="absolute inset-0 z-0">
           <video
             className="h-full w-full object-cover"
             autoPlay
@@ -86,30 +86,34 @@ const MarketingPage = ({ onLoginSuccess }) => {
             loop
             playsInline
             preload="metadata"
-            poster="/techflash-logo.png"
           >
             <source src={heroVideoSrc} type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-white/66" />
-          <div className="absolute inset-0 bg-gradient-to-br from-[#F7F7F7]/72 via-[#F7F7F7]/60 to-[#FE6711]/20" />
         </div>
-
-        <div className="max-w-5xl mx-auto text-center relative w-full">
-          <div className="inline-block px-4 py-2 mb-6 rounded-full bg-[#FE6711]/20 text-[#d1540a] font-semibold text-sm">
-            Instant short-term jobs for skilled technicians
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-gray-800 leading-tight">
-            Uber-like,
-            <br />
-            for the trades.
-          </h1>
-          <p className="mt-6 text-xl text-gray-600 max-w-2xl mx-auto">
-            The instant job board for the trades. Claim nearby same-day and next-day work in minutes, with clear pay and a fast, reliable workflow.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm font-semibold text-gray-700">
-            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Claim in minutes</span>
-            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Short-term gigs</span>
-            <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Clear pay upfront</span>
+        <div className="max-w-5xl mx-auto text-center relative z-10 w-full">
+          <div className="mx-auto w-full max-w-4xl rounded-3xl border border-orange-300 bg-[#FE6711]/80 px-6 py-8 shadow-xl sm:px-10 sm:py-10">
+            <div className="inline-block px-4 py-2 mb-6 rounded-full border border-black bg-white/20 text-white font-semibold text-sm">
+              Instant short-term jobs for skilled technicians
+            </div>
+            <h1
+              className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-white leading-tight"
+              style={{ textShadow: '-1px -1px 0 #000000, 1px -1px 0 #000000, -1px 1px 0 #000000, 1px 1px 0 #000000' }}
+            >
+              Uber-like,
+              <br />
+              for the trades.
+            </h1>
+            <p
+              className="mt-6 text-xl text-white max-w-2xl mx-auto"
+              style={{ textShadow: '-1px -1px 0 #d1540a, 1px -1px 0 #d1540a, -1px 1px 0 #d1540a, 1px 1px 0 #d1540a' }}
+            >
+              The instant job board for the trades. Claim nearby same-day and next-day work in minutes, with clear pay and a fast, reliable workflow.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm font-semibold text-gray-700">
+              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Claim in minutes</span>
+              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Short-term gigs</span>
+              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Clear pay upfront</span>
+            </div>
           </div>
 
           <div className="mt-10 rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">

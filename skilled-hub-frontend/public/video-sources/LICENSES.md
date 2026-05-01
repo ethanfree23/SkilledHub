@@ -1,7 +1,7 @@
 # Hero collage source record
 
 Final output: `public/hero-collage-loop.mp4`
-Generated on: 2026-04-26
+Generated on: 2026-04-27
 
 ## Source clips used
 
@@ -20,9 +20,9 @@ Generated on: 2026-04-26
    - Download URL used: https://cdn.coverr.co/videos/coverr-a-handyman-at-work-251/1080p.mp4
    - Usage note: Coverr page marks this clip as "Free Commercial Rights".
 
-4. HVAC context (heater activation)
-   - Source page: https://coverr.co/videos/turning-on-a-heater-n2ztt0vrpb
-   - Download URL used: https://cdn.coverr.co/videos/coverr-turning-on-a-heater-4566/1080p.mp4
+4. Electrical worker context (guy adjusting electric fan)
+   - Source page: https://coverr.co/videos/un-chico-ajusta-un-ventilador-electrico-en-la-oficina-x20vvo0i0i
+   - Download URL used: https://cdn.coverr.co/videos/coverr-a-young-man-adjusts-an-electric-fan-in-the-office-8393/1080p.mp4
    - Usage note: Coverr page marks this clip as "Free Commercial Rights".
 
 5. Electrical context (extension cord on jobsite)
@@ -37,7 +37,7 @@ The montage was generated with ffmpeg and exported as:
 - Pixel format: yuv420p
 - Resolution: 1920x1080
 - Framerate: 30 fps
-- Duration: ~14.17 seconds
+- Duration: ~13.80 seconds
 
 ## Compliance reminder
 

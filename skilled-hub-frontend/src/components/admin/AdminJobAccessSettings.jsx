@@ -79,6 +79,10 @@ export default function AdminJobAccessSettings() {
           <span className="font-medium text-gray-900">X hours after</span> the job&apos;s go-live date.
         </p>
         <p>
+          Standard release order should be <span className="font-medium text-gray-900">premium first</span>, then pro, then basic.
+          Recommended defaults: premium = 0h, pro = 24h, basic = 48h.
+        </p>
+        <p>
           Configure extra early-access eligibility rules with the additional features popup. Jobs still enforce each
           listing&apos;s own minimum years requirement.
         </p>

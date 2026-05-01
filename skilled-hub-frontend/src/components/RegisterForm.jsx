@@ -5,6 +5,7 @@ import { auth } from '../auth';
 import CardPaymentForm from './CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
 import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
+import { US_STATES } from '../data/statesByCountry';
 
 const styles = {
   default: {
@@ -52,6 +53,8 @@ const mapTier = (tier) => ({
   requiresPayment: (Number(tier.monthly_fee_cents) || 0) > 0,
 });
 
+const roleLabel = (role) => (role === 'company' ? 'Company' : 'Technician');
+
 const RegisterForm = ({
   onLoginSuccess,
   variant = 'default',
@@ -78,8 +81,11 @@ const RegisterForm = ({
     email: initialEmail,
     password: '',
     password_confirmation: '',
+    phone: '',
+    address: '',
     city: '',
     state: '',
+    zip_code: '',
     electrical_license_number: '',
     role: initialRole,
     membership_tier: 'basic',
@@ -151,24 +157,39 @@ const RegisterForm = ({
       setError('Passwords do not match');
       return false;
     }
-    if (registerData.role === 'technician' && !registerData.city.trim()) {
-      setError('City is required for technician accounts.');
+    if (registerData.honeypot) {
+      setError('Registration is unavailable for this email.');
       return false;
     }
-    if (registerData.role === 'company' && !registerData.state.trim()) {
-      setError('State is required for company accounts.');
+    return true;
+  };
+
+  const validateStepTwo = () => {
+    if (!registerData.phone.trim()) {
+      setError('Phone is required.');
       return false;
     }
+    if (!registerData.city.trim() || !registerData.state.trim() || !registerData.zip_code.trim()) {
+      setError('City, state, and zip are required.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateStepThree = () => {
+    if (!registerData.membership_tier) {
+      setError('Please select a membership tier.');
+      return false;
+    }
+
     const stateRequiresLicense =
       registerData.role === 'company' && requiresElectricalLicenseForState(registerData.state);
     if (stateRequiresLicense && !registerData.electrical_license_number.trim()) {
       setError('This state requires an electrical license number.');
       return false;
     }
-    if (registerData.honeypot) {
-      setError('Registration is unavailable for this email.');
-      return false;
-    }
+
     return true;
   };
 
@@ -197,8 +218,16 @@ const RegisterForm = ({
       setStep(2);
       return;
     }
+    if (step === 2 && !validateStepTwo()) return;
     if (step === 2) {
+      setError('');
       setStep(3);
+      return;
+    }
+    if (step === 3 && !validateStepThree()) return;
+    if (step === 3) {
+      setError('');
+      setStep(4);
       return;
     }
 
@@ -232,7 +261,7 @@ const RegisterForm = ({
       )}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Step {step} of 3</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Step {step} of 4</p>
         {step > 1 && (
           <button
             type="button"
@@ -309,7 +338,7 @@ const RegisterForm = ({
 
           <div>
             <label htmlFor={`${idPrefix}-role`} className={`block text-sm font-medium ${v.label}`}>
-              I am a:
+              Account Type
             </label>
             <select
               id={`${idPrefix}-role`}
@@ -329,67 +358,6 @@ const RegisterForm = ({
             </select>
           </div>
 
-          {registerData.role === 'technician' && (
-            <div>
-              <label htmlFor={`${idPrefix}-city`} className={`block text-sm font-medium ${v.label}`}>
-                City
-              </label>
-              <input
-                type="text"
-                id={`${idPrefix}-city`}
-                name="city"
-                value={registerData.city}
-                onChange={(e) =>
-                  setRegisterData((prev) => ({ ...prev, city: e.target.value }))
-                }
-                required
-                placeholder="e.g. Houston"
-                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
-              />
-            </div>
-          )}
-
-          {registerData.role === 'company' && (
-            <>
-              <div>
-                <label htmlFor={`${idPrefix}-state`} className={`block text-sm font-medium ${v.label}`}>
-                  State
-                </label>
-                <input
-                  type="text"
-                  id={`${idPrefix}-state`}
-                  name="state"
-                  value={registerData.state}
-                  onChange={(e) =>
-                    setRegisterData((prev) => ({ ...prev, state: e.target.value }))
-                  }
-                  required
-                  placeholder="e.g. Texas"
-                  className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
-                />
-              </div>
-              {requiresElectricalLicenseForState(registerData.state) && (
-                <div>
-                  <label htmlFor={`${idPrefix}-electrical-license-number`} className={`block text-sm font-medium ${v.label}`}>
-                    Electrical license number
-                  </label>
-                  <input
-                    type="text"
-                    id={`${idPrefix}-electrical-license-number`}
-                    name="electrical_license_number"
-                    value={registerData.electrical_license_number}
-                    onChange={(e) =>
-                      setRegisterData((prev) => ({ ...prev, electrical_license_number: e.target.value }))
-                    }
-                    required
-                    placeholder="Enter TECL license number"
-                    className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
-                  />
-                </div>
-              )}
-            </>
-          )}
-
           <div className="absolute left-[-9999px] top-0 opacity-0 pointer-events-none">
             <label htmlFor={`${idPrefix}-consent-check`}>Consent check</label>
             <input
@@ -408,6 +376,122 @@ const RegisterForm = ({
       )}
 
       {step === 2 && (
+        <div className="space-y-4">
+          <div>
+            <label htmlFor={`${idPrefix}-phone`} className={`block text-sm font-medium ${v.label}`}>
+              Phone
+            </label>
+            <input
+              type="tel"
+              id={`${idPrefix}-phone`}
+              name="phone"
+              value={registerData.phone}
+              onChange={(e) =>
+                setRegisterData((prev) => ({ ...prev, phone: e.target.value }))
+              }
+              required
+              placeholder="e.g. (713) 555-0134"
+              className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+            />
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+            <h3 className="font-medium text-gray-900">Location</h3>
+            <div>
+              <label htmlFor={`${idPrefix}-address`} className={`block text-sm font-medium ${v.label}`}>
+                Street Address (optional)
+              </label>
+              <input
+                type="text"
+                id={`${idPrefix}-address`}
+                name="address"
+                value={registerData.address}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, address: e.target.value }))
+                }
+                placeholder="e.g. 123 Main St"
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              />
+            </div>
+            <div>
+              <label htmlFor={`${idPrefix}-city`} className={`block text-sm font-medium ${v.label}`}>
+                City
+              </label>
+              <input
+                type="text"
+                id={`${idPrefix}-city`}
+                name="city"
+                value={registerData.city}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, city: e.target.value }))
+                }
+                required
+                placeholder="e.g. Houston"
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              />
+            </div>
+            <div>
+              <label htmlFor={`${idPrefix}-state`} className={`block text-sm font-medium ${v.label}`}>
+                State
+              </label>
+              <select
+                id={`${idPrefix}-state`}
+                name="state"
+                value={registerData.state}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, state: e.target.value }))
+                }
+                required
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              >
+                <option value="">Select a state</option>
+                {US_STATES.map((usState) => (
+                  <option key={usState} value={usState}>
+                    {usState}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={`${idPrefix}-zip-code`} className={`block text-sm font-medium ${v.label}`}>
+                Zip Code
+              </label>
+              <input
+                type="text"
+                id={`${idPrefix}-zip-code`}
+                name="zip_code"
+                value={registerData.zip_code}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, zip_code: e.target.value }))
+                }
+                required
+                placeholder="e.g. 77007"
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              />
+            </div>
+          </div>
+          {registerData.role === 'company' && requiresElectricalLicenseForState(registerData.state) && (
+            <div>
+              <label htmlFor={`${idPrefix}-electrical-license-number`} className={`block text-sm font-medium ${v.label}`}>
+                Electrical license number
+              </label>
+              <input
+                type="text"
+                id={`${idPrefix}-electrical-license-number`}
+                name="electrical_license_number"
+                value={registerData.electrical_license_number}
+                onChange={(e) =>
+                  setRegisterData((prev) => ({ ...prev, electrical_license_number: e.target.value }))
+                }
+                required
+                placeholder="Enter TECL license number"
+                className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 3 && (
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
             Select your membership tier for {registerData.role === 'company' ? 'companies' : 'techs'}.
@@ -433,13 +517,15 @@ const RegisterForm = ({
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
             <p><span className="font-semibold">Email:</span> {registerData.email}</p>
-            <p><span className="font-semibold">Account type:</span> {registerData.role}</p>
-            {registerData.role === 'technician' && <p><span className="font-semibold">City:</span> {registerData.city}</p>}
-            {registerData.role === 'company' && <p><span className="font-semibold">State:</span> {registerData.state}</p>}
+            <p><span className="font-semibold">Account Type:</span> {roleLabel(registerData.role)}</p>
+            <p><span className="font-semibold">Phone:</span> {registerData.phone}</p>
+            <p><span className="font-semibold">City:</span> {registerData.city}</p>
+            <p><span className="font-semibold">State:</span> {registerData.state}</p>
+            <p><span className="font-semibold">Zip:</span> {registerData.zip_code}</p>
             {registerData.role === 'company' && requiresElectricalLicenseForState(registerData.state) && (
               <p><span className="font-semibold">Electrical license:</span> {registerData.electrical_license_number}</p>
             )}
@@ -476,12 +562,12 @@ const RegisterForm = ({
 
       <button
         type="submit"
-        disabled={loading || (step === 3 && selectedTier?.requiresPayment && !paymentToken)}
+        disabled={loading || (step === 4 && selectedTier?.requiresPayment && !paymentToken)}
         className={`w-full flex justify-center py-3 px-4 rounded-xl text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${v.button}`}
       >
         {loading
           ? 'Creating account...'
-          : step < 3
+          : step < 4
             ? 'Next'
             : 'Confirm and create account'}
       </button>

@@ -13,6 +13,15 @@ import AdminJobAccessSettings from '../components/admin/AdminJobAccessSettings';
 import { needsTechnicianMapSetup } from '../utils/technicianMap';
 import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
 
+const formatMembershipTier = (tier) => {
+  const raw = String(tier || '').trim();
+  if (!raw) return 'Basic';
+  return raw
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
 const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -473,6 +482,11 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
             {isTechnician && (
               <>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Membership tier</p>
+                  <p className="mt-1 text-lg font-semibold text-blue-900">{formatMembershipTier(profile?.membership_level)}</p>
+                  <p className="mt-1 text-xs text-blue-700">Your tier controls job access timing and platform commission.</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trade type</label>
                   <input name="trade_type" value={form.trade_type} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Electrician, Plumber" />

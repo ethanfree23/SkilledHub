@@ -14,6 +14,7 @@ const JobAddressFields = ({
   country,
   onChange,
   sectionTitle = 'Job Location',
+  styleVariant = 'default',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -152,8 +153,24 @@ const JobAddressFields = ({
     setManualExpanded(false);
   };
 
+  const isAuthVariant = styleVariant === 'auth';
+  const cardClass = isAuthVariant
+    ? 'rounded-xl border border-gray-200 bg-white p-4 space-y-4'
+    : 'border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4';
+  const inputClass = isAuthVariant
+    ? 'w-full border border-gray-300 px-3 py-2.5 rounded-xl bg-white shadow-sm focus:ring-[#3A7CA5] focus:border-[#3A7CA5]'
+    : 'w-full border px-3 py-2 rounded bg-white';
+  const linkClass = isAuthVariant
+    ? 'text-sm font-medium text-[#3A7CA5] hover:text-[#2F5D7C] underline'
+    : 'text-sm font-medium text-blue-700 hover:text-blue-900 underline';
+  const selectedStateClass = isAuthVariant
+    ? 'rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900'
+    : 'rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900';
+  const suggestionHoverClass = isAuthVariant ? 'hover:bg-[#eef5fb]' : 'hover:bg-blue-50';
+  const suggestionActiveClass = isAuthVariant ? 'bg-[#eef5fb]' : 'bg-blue-50';
+
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+    <div className={cardClass}>
       <h3 className="font-medium text-gray-900">{sectionTitle}</h3>
 
       {!manualExpanded && (
@@ -171,7 +188,7 @@ const JobAddressFields = ({
                 <input
                   type="text"
                   autoComplete="off"
-                  className="w-full border px-3 py-2 rounded bg-white"
+                  className={inputClass}
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -192,7 +209,7 @@ const JobAddressFields = ({
                       <li key={`${s.source}-${s.place_id || s.label}-${idx}`}>
                         <button
                           type="button"
-                          className={`w-full text-left px-3 py-2 hover:bg-blue-50 ${idx === highlight ? 'bg-blue-50' : ''}`}
+                          className={`w-full text-left px-3 py-2 ${suggestionHoverClass} ${idx === highlight ? suggestionActiveClass : ''}`}
                           onMouseEnter={() => setHighlight(idx)}
                           onClick={() => pickSuggestion(s)}
                         >
@@ -206,7 +223,7 @@ const JobAddressFields = ({
 
               <button
                 type="button"
-                className="text-sm font-medium text-blue-700 hover:text-blue-900 underline"
+                className={linkClass}
                 onClick={() => setManualExpanded(true)}
               >
                 Fill out form manually
@@ -215,11 +232,11 @@ const JobAddressFields = ({
           )}
 
           {usingText && (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+            <div className={selectedStateClass}>
               <span className="font-medium">Using:</span> {usingText}
               <button
                 type="button"
-                className="ml-3 text-blue-700 font-medium hover:underline"
+                className={`ml-3 font-medium hover:underline ${isAuthVariant ? 'text-[#3A7CA5]' : 'text-blue-700'}`}
                 onClick={clearSelection}
               >
                 Change address
@@ -234,7 +251,7 @@ const JobAddressFields = ({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="text-sm font-medium text-blue-700 hover:underline"
+              className={linkClass}
               onClick={() => {
                 setManualExpanded(false);
                 setSearchQuery('');
@@ -247,7 +264,7 @@ const JobAddressFields = ({
           <div>
             <label className="block font-medium mb-1 text-sm">Street address (optional)</label>
             <input
-              className="w-full border px-3 py-2 rounded bg-white"
+              className={inputClass}
               value={address}
               onChange={(e) => onChange({ address: e.target.value })}
               placeholder="e.g. 123 Main St"
@@ -256,7 +273,7 @@ const JobAddressFields = ({
           <div>
             <label className="block font-medium mb-1 text-sm">City</label>
             <input
-              className="w-full border px-3 py-2 rounded bg-white"
+              className={inputClass}
               value={city}
               onChange={(e) => onChange({ city: e.target.value })}
               placeholder="e.g. Houston"
@@ -275,7 +292,7 @@ const JobAddressFields = ({
           <div>
             <label className="block font-medium mb-1 text-sm">Zip Code</label>
             <input
-              className="w-full border px-3 py-2 rounded bg-white"
+              className={inputClass}
               value={zipCode}
               onChange={(e) => onChange({ zip_code: e.target.value })}
               placeholder="e.g. 77007"

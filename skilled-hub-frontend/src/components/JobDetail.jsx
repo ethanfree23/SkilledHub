@@ -18,6 +18,68 @@ const toDatetimeLocal = (d) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const hasCustomGoLiveAt = (job) => {
+  if (!job?.go_live_at || !job?.created_at) return false;
+  const goLiveMs = new Date(job.go_live_at).getTime();
+  const createdMs = new Date(job.created_at).getTime();
+  if (!Number.isFinite(goLiveMs) || !Number.isFinite(createdMs)) return false;
+  return Math.abs(goLiveMs - createdMs) > 60 * 1000;
+};
+
+const buildCounterDefaultsFromJob = (job) => ({
+  proposed_hourly_rate_cents: job?.hourly_rate_cents != null ? (job.hourly_rate_cents / 100).toFixed(2) : '',
+  proposed_hours_per_day: job?.hours_per_day != null ? String(job.hours_per_day) : '',
+  proposed_days: job?.days != null ? String(job.days) : '',
+  proposed_start_at: toDatetimeLocal(job?.scheduled_start_at),
+  proposed_end_at: toDatetimeLocal(job?.scheduled_end_at),
+});
+
+const normalizeCounterFieldValue = (field, value) => {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return '';
+  if (field === 'proposed_hourly_rate_cents') {
+    const num = Number(raw);
+    return Number.isFinite(num) ? String(Math.round(num * 100)) : raw;
+  }
+  if (field === 'proposed_hours_per_day' || field === 'proposed_days') {
+    const num = parseInt(raw, 10);
+    return Number.isFinite(num) ? String(num) : raw;
+  }
+  return raw;
+};
+
+const formatCounterOriginalValue = (field, value) => {
+  const normalized = normalizeCounterFieldValue(field, value);
+  if (!normalized) return 'not set';
+  if (field === 'proposed_hourly_rate_cents') return `$${(Number(normalized) / 100).toFixed(2)}/hr`;
+  if (field === 'proposed_hours_per_day') return `${normalized} hr/day`;
+  if (field === 'proposed_days') return `${normalized} days`;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return String(value);
+  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+const rollingRuleSummary = (job) => {
+  if (!job || job.start_mode !== 'rolling_start') return null;
+  const rule = job.rolling_start_rule_type || 'none';
+  if (rule === 'exact_datetime') {
+    if (!job.rolling_start_exact_start_at) return 'Rolling start: exact date/time required by company.';
+    return `Rolling start: company requires exact start at ${new Date(job.rolling_start_exact_start_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.`;
+  }
+  if (rule === 'days_after_acceptance') {
+    return `Rolling start: begins ${job.rolling_start_days_after_acceptance || 1} day(s) after acceptance.`;
+  }
+  if (rule === 'following_weekday') {
+    const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const weekday = Number.isFinite(Number(job.rolling_start_weekday))
+      ? weekdayLabels[Number(job.rolling_start_weekday)] || 'selected weekday'
+      : 'selected weekday';
+    const timeLabel = job.rolling_start_weekday_time || 'configured time';
+    return `Rolling start: begins the following ${weekday} at ${timeLabel} (never same-day).`;
+  }
+  return 'Rolling start: technician picks preferred start time when claiming.';
+};
+
 const JobDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -44,6 +106,8 @@ const JobDetail = () => {
     days: '',
     scheduled_start_at: '',
     scheduled_end_at: '',
+    go_live_at: '',
+    use_custom_go_live_at: false,
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [claimedBy, setClaimedBy] = useState(null);
@@ -69,6 +133,16 @@ const JobDetail = () => {
   const [reportBody, setReportBody] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [deletingJob, setDeletingJob] = useState(false);
+  const [counterOffers, setCounterOffers] = useState([]);
+  const [loadingCounterOffers, setLoadingCounterOffers] = useState(false);
+  const [submittingCounter, setSubmittingCounter] = useState(false);
+  const [counterForm, setCounterForm] = useState(buildCounterDefaultsFromJob(null));
+  const [counterOriginalValues, setCounterOriginalValues] = useState(buildCounterDefaultsFromJob(null));
+  const [showCounterModal, setShowCounterModal] = useState(false);
+  const [counterFieldEditor, setCounterFieldEditor] = useState(null);
+  const [counterFieldDraftValue, setCounterFieldDraftValue] = useState('');
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimPreferredStartAt, setClaimPreferredStartAt] = useState('');
 
   useEffect(() => {
     // Read user from localStorage on mount
@@ -87,6 +161,7 @@ const JobDetail = () => {
   useEffect(() => {
     if (id) {
       fetchJobDetails();
+      fetchCounterOffers();
     }
   }, [id]);
 
@@ -190,17 +265,120 @@ const JobDetail = () => {
     }
   };
 
-  const handleClaimJob = async () => {
+  const fetchCounterOffers = async () => {
+    try {
+      setLoadingCounterOffers(true);
+      const data = await jobsAPI.getCounterOffers(id);
+      setCounterOffers(Array.isArray(data) ? data : []);
+    } catch {
+      setCounterOffers([]);
+    } finally {
+      setLoadingCounterOffers(false);
+    }
+  };
+
+  const handleClaimJob = async (preferredStartAt = null) => {
     if (!user || user.role !== 'technician') return;
+    const rollingRuleType = job?.rolling_start_rule_type || 'none';
+    const requiresPreferredStart =
+      job?.start_mode === 'rolling_start' &&
+      (rollingRuleType === 'none' || !rollingRuleType);
+    if (requiresPreferredStart && !preferredStartAt) {
+      setClaimPreferredStartAt(toDatetimeLocal(new Date(Date.now() + 60 * 60 * 1000)));
+      setShowClaimModal(true);
+      return;
+    }
     try {
       setClaiming(true);
-      await jobsAPI.claim(id);
+      const payload = preferredStartAt ? { preferred_start_at: new Date(preferredStartAt).toISOString() } : {};
+      await jobsAPI.claim(id, payload);
       await fetchJobDetails();
+      setShowClaimModal(false);
     } catch (err) {
       setAlertModal({ isOpen: true, title: 'Unable to claim job', message: err.message || 'Failed to claim job', variant: 'error' });
     } finally {
       setClaiming(false);
     }
+  };
+
+  const buildCounterPayload = () => ({
+    proposed_hourly_rate_cents: counterForm.proposed_hourly_rate_cents
+      ? Math.round(parseFloat(counterForm.proposed_hourly_rate_cents) * 100)
+      : null,
+    proposed_hours_per_day: counterForm.proposed_hours_per_day ? parseInt(counterForm.proposed_hours_per_day, 10) : null,
+    proposed_days: counterForm.proposed_days ? parseInt(counterForm.proposed_days, 10) : null,
+    // Keep backend contract stable while removing start-mode choice in UI.
+    proposed_start_mode: 'hard_start',
+    proposed_start_at: counterForm.proposed_start_at ? new Date(counterForm.proposed_start_at).toISOString() : null,
+    proposed_end_at: counterForm.proposed_end_at ? new Date(counterForm.proposed_end_at).toISOString() : null,
+  });
+
+  const submitCounterOffer = async (e) => {
+    e?.preventDefault?.();
+    try {
+      setSubmittingCounter(true);
+      await jobsAPI.createCounterOffer(id, buildCounterPayload());
+      await fetchCounterOffers();
+      setAlertModal({ isOpen: true, title: 'Counter sent', message: 'Counter offer sent successfully.', variant: 'success' });
+    } catch (err) {
+      setAlertModal({ isOpen: true, title: 'Unable to send counter', message: err.message || 'Failed to send counter offer', variant: 'error' });
+    } finally {
+      setSubmittingCounter(false);
+    }
+  };
+
+  const respondToCounter = async (action, offerId) => {
+    try {
+      setSubmittingCounter(true);
+      if (action === 'accept') await jobsAPI.acceptCounterOffer(offerId);
+      if (action === 'decline') await jobsAPI.declineCounterOffer(offerId);
+      if (action === 'counter') await jobsAPI.counterCounterOffer(offerId, buildCounterPayload());
+      await Promise.all([fetchCounterOffers(), fetchJobDetails()]);
+    } catch (err) {
+      setAlertModal({ isOpen: true, title: 'Unable to respond', message: err.message || 'Failed to respond to counter offer', variant: 'error' });
+    } finally {
+      setSubmittingCounter(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!job) return;
+    const defaults = buildCounterDefaultsFromJob(job);
+    setCounterForm(defaults);
+    setCounterOriginalValues(defaults);
+  }, [job?.id, job?.hourly_rate_cents, job?.hours_per_day, job?.days, job?.scheduled_start_at, job?.scheduled_end_at]);
+
+  const isCounterFieldEdited = (field) =>
+    normalizeCounterFieldValue(field, counterForm[field]) !== normalizeCounterFieldValue(field, counterOriginalValues[field]);
+
+  const renderCounterLedger = (field) => {
+    if (!isCounterFieldEdited(field)) return null;
+    return (
+      <p className="text-xs text-red-600 mt-1">
+        Edited from: {formatCounterOriginalValue(field, counterOriginalValues[field])}
+      </p>
+    );
+  };
+
+  const openCounterModal = () => {
+    const defaults = buildCounterDefaultsFromJob(job);
+    setCounterForm(defaults);
+    setCounterOriginalValues(defaults);
+    setCounterFieldEditor(null);
+    setCounterFieldDraftValue('');
+    setShowCounterModal(true);
+  };
+
+  const openCounterFieldEditor = (field) => {
+    setCounterFieldEditor(field);
+    setCounterFieldDraftValue(counterForm[field] ?? '');
+  };
+
+  const saveCounterFieldEdit = () => {
+    if (!counterFieldEditor) return;
+    setCounterForm((prev) => ({ ...prev, [counterFieldEditor]: counterFieldDraftValue }));
+    setCounterFieldEditor(null);
+    setCounterFieldDraftValue('');
   };
 
   const isJobClaimedByMe = () => {
@@ -251,6 +429,8 @@ const JobDetail = () => {
       days: job.days != null ? String(job.days) : '',
       scheduled_start_at: toDatetimeLocal(job.scheduled_start_at),
       scheduled_end_at: toDatetimeLocal(job.scheduled_end_at),
+      go_live_at: toDatetimeLocal(job.go_live_at || new Date()),
+      use_custom_go_live_at: hasCustomGoLiveAt(job),
     });
     setShowEditModal(true);
   };
@@ -345,6 +525,7 @@ const JobDetail = () => {
         location: [editData.city, editData.state, editData.country].filter(Boolean).join(', '),
         scheduled_start_at: editData.scheduled_start_at ? new Date(editData.scheduled_start_at).toISOString() : null,
         scheduled_end_at: editData.scheduled_end_at ? new Date(editData.scheduled_end_at).toISOString() : null,
+        go_live_at: editData.use_custom_go_live_at && editData.go_live_at ? new Date(editData.go_live_at).toISOString() : null,
       };
       if (jobAmount > 0) {
         payload.hourly_rate_cents = Math.round(hr * 100);
@@ -514,6 +695,11 @@ const JobDetail = () => {
   }
 
   const currentUser = user || auth.getUser();
+  const pendingCounter = counterOffers.find((o) => o.status === 'pending_company' || o.status === 'pending_technician');
+  const canRespondToPendingCounter = !!pendingCounter && (
+    (currentUser?.role === 'company' && pendingCounter.status === 'pending_company') ||
+    (currentUser?.role === 'technician' && pendingCounter.status === 'pending_technician')
+  );
   const acceptedApp = job?.job_applications?.find(app => app.status === 'accepted' || app.status === 1);
   const claimedTechnician = claimedTechnicianData || acceptedApp?.technician_profile;
   const isCompanyViewingOwnClaimedJob = currentUser?.role === 'company' && job?.company_profile_id === companyProfileId && (job?.status === 'reserved' || job?.status === 'finished' || job?.status === 'filled') && (claimedTechnician || acceptedApp?.technician_profile_id);
@@ -523,6 +709,8 @@ const JobDetail = () => {
     (currentUser?.id && String(job?.company_profile?.user_id) === String(currentUser.id))
   );
   const canManageJob = isAdmin || isCompanyOwner;
+  const showTopTechOpenActions = currentUser?.role === 'technician' && job?.status === 'open';
+  const rollingSummaryText = rollingRuleSummary(job);
 
   const canReportIssue =
     currentUser &&
@@ -553,6 +741,35 @@ const JobDetail = () => {
             {getStatusBadge(job)}
           </div>
         </div>
+
+        {showTopTechOpenActions && (
+          <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+            {rollingSummaryText && (
+              <p className="text-sm text-gray-700 mb-3">{rollingSummaryText}</p>
+            )}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={handleClaimJob}
+                disabled={claiming}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
+              >
+                {claiming ? 'Claiming...' : 'Claim'}
+              </button>
+              <button
+                onClick={openCounterModal}
+                className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 transition-colors font-medium"
+              >
+                Counter
+              </button>
+              <button
+                onClick={handleMessageCompany}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+              >
+                Message
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {(job.go_live_at || (Array.isArray(job.timeline_events) && job.timeline_events.length > 0)) && (
@@ -761,6 +978,15 @@ const JobDetail = () => {
               </div>
               <div className="flex items-center">
                 <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm text-gray-500">Start mode</p>
+                  <p className="font-medium">{job.start_mode === 'rolling_start' ? 'Rolling start' : 'Hard start'}</p>
+                </div>
+              </div>
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                 </svg>
                 <div>
@@ -773,6 +999,67 @@ const JobDetail = () => {
                 </div>
               </div>
             </div>
+
+            {job.status === 'open' && (
+              <div className="mb-6 rounded-lg border border-gray-200 p-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Counter offers</h3>
+                {loadingCounterOffers ? (
+                  <p className="text-sm text-gray-500 mb-3">Loading...</p>
+                ) : (
+                  <div className="space-y-2 mb-3">
+                    {counterOffers.slice(0, 4).map((offer) => (
+                      <div key={offer.id} className="text-sm bg-gray-50 border border-gray-200 rounded p-2">
+                        <span className="font-medium">{offer.created_by_role === 'technician' ? 'Tech' : 'Company'}</span>
+                        {' '}offered ${offer.proposed_hourly_rate_cents ? (offer.proposed_hourly_rate_cents / 100).toFixed(2) : '—'}/hr, {offer.proposed_hours_per_day || '—'}h/day, {offer.proposed_days || '—'} days ({offer.status})
+                      </div>
+                    ))}
+                    {counterOffers.length === 0 && <p className="text-sm text-gray-500">No counter offers yet.</p>}
+                  </div>
+                )}
+                {(currentUser?.role === 'technician' || canRespondToPendingCounter) && (
+                  <form onSubmit={submitCounterOffer} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <input className="border rounded p-2 text-sm w-full" type="number" min="0" step="0.01" placeholder="$/hr" value={counterForm.proposed_hourly_rate_cents} onChange={(e) => setCounterForm((p) => ({ ...p, proposed_hourly_rate_cents: e.target.value }))} />
+                        {renderCounterLedger('proposed_hourly_rate_cents')}
+                      </div>
+                      <div>
+                        <input className="border rounded p-2 text-sm w-full" type="number" min="1" max="24" placeholder="hr/day" value={counterForm.proposed_hours_per_day} onChange={(e) => setCounterForm((p) => ({ ...p, proposed_hours_per_day: e.target.value }))} />
+                        {renderCounterLedger('proposed_hours_per_day')}
+                      </div>
+                      <div>
+                        <input className="border rounded p-2 text-sm w-full" type="number" min="1" placeholder="days" value={counterForm.proposed_days} onChange={(e) => setCounterForm((p) => ({ ...p, proposed_days: e.target.value }))} />
+                        {renderCounterLedger('proposed_days')}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <input className="border rounded p-2 text-sm w-full" type="datetime-local" value={counterForm.proposed_start_at} onChange={(e) => setCounterForm((p) => ({ ...p, proposed_start_at: e.target.value }))} />
+                        {renderCounterLedger('proposed_start_at')}
+                      </div>
+                      <div>
+                        <input className="border rounded p-2 text-sm w-full" type="datetime-local" value={counterForm.proposed_end_at} onChange={(e) => setCounterForm((p) => ({ ...p, proposed_end_at: e.target.value }))} />
+                        {renderCounterLedger('proposed_end_at')}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {currentUser?.role === 'technician' && (
+                        <button type="submit" disabled={submittingCounter} className="px-3 py-2 bg-indigo-600 text-white rounded text-sm disabled:opacity-50">
+                          {submittingCounter ? 'Sending...' : 'Send counter'}
+                        </button>
+                      )}
+                      {canRespondToPendingCounter && pendingCounter && (
+                        <>
+                          <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('accept', pendingCounter.id)} className="px-3 py-2 bg-green-600 text-white rounded text-sm disabled:opacity-50">Accept</button>
+                          <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('decline', pendingCounter.id)} className="px-3 py-2 bg-red-600 text-white rounded text-sm disabled:opacity-50">Decline</button>
+                          <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('counter', pendingCounter.id)} className="px-3 py-2 bg-amber-600 text-white rounded text-sm disabled:opacity-50">Counter</button>
+                        </>
+                      )}
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
 
             <div className="mb-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-3">Job Description</h3>
@@ -914,30 +1201,6 @@ const JobDetail = () => {
         </div>
 
         <div className="lg:col-span-1">
-          {currentUser?.role === 'technician' && job.status === 'open' && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Claim this Job</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                First come, first served. Click below to claim this job—it will be yours immediately.
-              </p>
-              <div className="space-y-3">
-                <button
-                  onClick={handleClaimJob}
-                  disabled={claiming}
-                  className="w-full px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 font-medium"
-                >
-                  {claiming ? 'Claiming...' : 'Claim Job'}
-                </button>
-                <button
-                  onClick={handleMessageCompany}
-                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Message Company
-                </button>
-              </div>
-            </div>
-          )}
-
           {currentUser?.role === 'technician' && (job.status === 'reserved' || job.status === 'filled') && isJobClaimedByMe() && (
             <div className="bg-white border border-gray-200 rounded-lg p-6 sticky top-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">Your Job</h3>
@@ -1153,12 +1416,186 @@ const JobDetail = () => {
                 <label className="block text-sm font-medium mb-1">End date & time</label>
                 <input type="datetime-local" name="scheduled_end_at" value={editData.scheduled_end_at} onChange={handleEditChange} className="w-full border rounded p-2" />
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Go Live</label>
+                <p className="text-xs text-gray-500 mb-2">By default, this job goes live when posted/opened.</p>
+                <label className="inline-flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    name="use_custom_go_live_at"
+                    checked={!!editData.use_custom_go_live_at}
+                    onChange={(e) => setEditData((prev) => ({ ...prev, use_custom_go_live_at: e.target.checked }))}
+                  />
+                  Set different go-live date
+                </label>
+                {editData.use_custom_go_live_at && (
+                  <input
+                    type="datetime-local"
+                    name="go_live_at"
+                    value={editData.go_live_at}
+                    onChange={handleEditChange}
+                    className="w-full border rounded p-2"
+                  />
+                )}
+              </div>
             </div>
             <div className="flex justify-end space-x-2">
               <button type="button" onClick={closeEditModal} className="px-4 py-2 bg-gray-200 rounded">Cancel</button>
               <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save'}</button>
             </div>
           </form>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={showCounterModal}
+        onRequestClose={() => setShowCounterModal(false)}
+        ariaHideApp={false}
+        className="fixed inset-0 flex items-center justify-center z-50 px-4"
+        overlayClassName="fixed inset-0 bg-black/40 z-40"
+      >
+        <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl max-h-[90vh] overflow-y-auto border border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Submit Counter Offer</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Original values are prefilled. Click a value to edit it.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+            <button type="button" onClick={() => openCounterFieldEditor('proposed_hourly_rate_cents')} className="text-left border border-gray-200 rounded-lg p-3 hover:border-amber-400 transition-colors">
+              <p className="text-xs text-gray-500">$/hr</p>
+              <p className="font-semibold text-gray-900">{counterForm.proposed_hourly_rate_cents || '—'}</p>
+              {renderCounterLedger('proposed_hourly_rate_cents')}
+            </button>
+            <button type="button" onClick={() => openCounterFieldEditor('proposed_hours_per_day')} className="text-left border border-gray-200 rounded-lg p-3 hover:border-amber-400 transition-colors">
+              <p className="text-xs text-gray-500">hr/day</p>
+              <p className="font-semibold text-gray-900">{counterForm.proposed_hours_per_day || '—'}</p>
+              {renderCounterLedger('proposed_hours_per_day')}
+            </button>
+            <button type="button" onClick={() => openCounterFieldEditor('proposed_days')} className="text-left border border-gray-200 rounded-lg p-3 hover:border-amber-400 transition-colors">
+              <p className="text-xs text-gray-500">days</p>
+              <p className="font-semibold text-gray-900">{counterForm.proposed_days || '—'}</p>
+              {renderCounterLedger('proposed_days')}
+            </button>
+            <button type="button" onClick={() => openCounterFieldEditor('proposed_start_at')} className="text-left border border-gray-200 rounded-lg p-3 hover:border-amber-400 transition-colors">
+              <p className="text-xs text-gray-500">Start date</p>
+              <p className="font-semibold text-gray-900">{counterForm.proposed_start_at || '—'}</p>
+              {renderCounterLedger('proposed_start_at')}
+            </button>
+            <button type="button" onClick={() => openCounterFieldEditor('proposed_end_at')} className="text-left border border-gray-200 rounded-lg p-3 hover:border-amber-400 transition-colors sm:col-span-2">
+              <p className="text-xs text-gray-500">End date</p>
+              <p className="font-semibold text-gray-900">{counterForm.proposed_end_at || '—'}</p>
+              {renderCounterLedger('proposed_end_at')}
+            </button>
+          </div>
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Recent counters</h3>
+            {loadingCounterOffers ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : counterOffers.length ? (
+              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                {counterOffers.slice(0, 6).map((offer) => (
+                  <div key={offer.id} className="text-sm bg-gray-50 border border-gray-200 rounded p-2">
+                    <span className="font-medium">{offer.created_by_role === 'technician' ? 'Tech' : 'Company'}</span>
+                    {' '}offered ${offer.proposed_hourly_rate_cents ? (offer.proposed_hourly_rate_cents / 100).toFixed(2) : '—'}/hr, {offer.proposed_hours_per_day || '—'}h/day, {offer.proposed_days || '—'} days ({offer.status})
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No counter offers yet.</p>
+            )}
+          </div>
+          {canRespondToPendingCounter && pendingCounter && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('accept', pendingCounter.id)} className="px-3 py-2 bg-green-600 text-white rounded text-sm disabled:opacity-50">Accept</button>
+              <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('decline', pendingCounter.id)} className="px-3 py-2 bg-red-600 text-white rounded text-sm disabled:opacity-50">Decline</button>
+              <button type="button" disabled={submittingCounter} onClick={() => respondToCounter('counter', pendingCounter.id)} className="px-3 py-2 bg-amber-600 text-white rounded text-sm disabled:opacity-50">Counter Back</button>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="px-4 py-2 rounded bg-gray-100 text-gray-800"
+              onClick={() => setShowCounterModal(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submittingCounter}
+              onClick={submitCounterOffer}
+              className="px-4 py-2 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+            >
+              {submittingCounter ? 'Sending...' : 'Send Counter'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={!!counterFieldEditor}
+        onRequestClose={() => setCounterFieldEditor(null)}
+        ariaHideApp={false}
+        className="fixed inset-0 flex items-center justify-center z-50 px-4"
+        overlayClassName="fixed inset-0 bg-black/40 z-40"
+      >
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-3">Edit value</h3>
+          {(counterFieldEditor === 'proposed_start_at' || counterFieldEditor === 'proposed_end_at') ? (
+            <input
+              type="datetime-local"
+              value={counterFieldDraftValue}
+              onChange={(e) => setCounterFieldDraftValue(e.target.value)}
+              className="w-full border rounded p-2"
+            />
+          ) : (
+            <input
+              type="number"
+              min={counterFieldEditor === 'proposed_hourly_rate_cents' ? 0 : 1}
+              max={counterFieldEditor === 'proposed_hours_per_day' ? 24 : undefined}
+              step={counterFieldEditor === 'proposed_hourly_rate_cents' ? '0.01' : '1'}
+              value={counterFieldDraftValue}
+              onChange={(e) => setCounterFieldDraftValue(e.target.value)}
+              className="w-full border rounded p-2"
+            />
+          )}
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => setCounterFieldEditor(null)} className="px-4 py-2 rounded bg-gray-100 text-gray-800">
+              Cancel
+            </button>
+            <button type="button" onClick={saveCounterFieldEdit} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+              Save
+            </button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={showClaimModal}
+        onRequestClose={() => setShowClaimModal(false)}
+        ariaHideApp={false}
+        className="fixed inset-0 flex items-center justify-center z-50 px-4"
+        overlayClassName="fixed inset-0 bg-black/40 z-40"
+      >
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-md border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Choose your start time</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This rolling-start job lets you pick when you can begin.
+          </p>
+          <input
+            type="datetime-local"
+            value={claimPreferredStartAt}
+            onChange={(e) => setClaimPreferredStartAt(e.target.value)}
+            className="w-full border rounded p-2"
+          />
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => setShowClaimModal(false)} className="px-4 py-2 rounded bg-gray-100 text-gray-800">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleClaimJob(claimPreferredStartAt)}
+              disabled={claiming || !claimPreferredStartAt}
+              className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {claiming ? 'Claiming...' : 'Confirm Claim'}
+            </button>
+          </div>
         </div>
       </Modal>
       <MessageModal
