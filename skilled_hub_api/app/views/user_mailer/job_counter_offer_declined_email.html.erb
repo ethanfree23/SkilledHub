@@ -1,0 +1,9 @@
+<h1 style="margin: 0 0 24px 0; font-size: 28px; font-weight: 800; color: #1a1a1a; line-height: 1.2;">Counter offer declined</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Hi,</p>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Your counter offer for <strong style="color: #FE6711;">&quot;<%= @job.title %>&quot;</strong> was declined.</p>
+
+<p style="margin: 0 0 24px 0; font-size: 16px; color: #374151; line-height: 1.6;">You can browse other jobs and submit a new offer where available.</p>
+
+<%= render partial: 'user_mailer/cta_button', locals: { text: 'Browse jobs', url: frontend_url('/jobs') } %>

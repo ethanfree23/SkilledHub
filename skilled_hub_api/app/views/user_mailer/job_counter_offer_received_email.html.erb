@@ -1,0 +1,17 @@
+<h1 style="margin: 0 0 24px 0; font-size: 28px; font-weight: 800; color: #1a1a1a; line-height: 1.2;">New counter offer</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Hi,</p>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">You have a new counter offer for <strong style="color: #FE6711;">&quot;<%= @job.title %>&quot;</strong>.</p>
+
+<div style="margin: 16px 0; padding: 16px 20px; background-color: #F7F7F7; border-radius: 12px; border-left: 4px solid #FE6711;">
+  <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em;">Proposed terms</p>
+  <p style="margin: 0 0 8px 0; font-size: 16px; color: #374151; line-height: 1.6;"><strong>Proposed rate:</strong> <%= @offer.proposed_hourly_rate_cents ? format("$%.2f/hr", @offer.proposed_hourly_rate_cents / 100.0) : "unchanged" %></p>
+  <p style="margin: 0 0 8px 0; font-size: 16px; color: #374151; line-height: 1.6;"><strong>Hours/day:</strong> <%= @offer.proposed_hours_per_day || "unchanged" %></p>
+  <p style="margin: 0 0 8px 0; font-size: 16px; color: #374151; line-height: 1.6;"><strong>Days:</strong> <%= @offer.proposed_days || "unchanged" %></p>
+  <p style="margin: 0; font-size: 16px; color: #374151; line-height: 1.6;"><strong>Start mode:</strong> <%= @offer.proposed_start_mode.humanize %></p>
+</div>
+
+<p style="margin: 0 0 24px 0; font-size: 16px; color: #374151; line-height: 1.6;">Sign in to TechFlash to respond.</p>
+
+<%= render partial: 'user_mailer/cta_button', locals: { text: 'Open Dashboard', url: frontend_url('/dashboard') } %>
