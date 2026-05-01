@@ -9,6 +9,21 @@ module MailEnv
     return false if %w[false 0 no].include?(flag)
     return true if %w[true 1 yes].include?(flag)
 
-    ENV["MAILTRAP_USE_HTTP"].blank? && ENV["MAILTRAP_API_TOKEN"].present?
+    return true if ENV["MAILTRAP_USE_HTTP"].blank? && ENV["MAILTRAP_API_TOKEN"].present?
+
+    # Railway often blocks outbound SMTP :587. If Mailtrap SMTP vars are set but the deploy never
+    # set MAILTRAP_USE_HTTP, prefer HTTPS (same token in SMTP_PASSWORD) so mail still sends.
+    if ENV["MAILTRAP_USE_HTTP"].blank? &&
+       ENV["SMTP_PASSWORD"].present? &&
+       ENV["SMTP_ADDRESS"].to_s.include?("mailtrap") &&
+       railway_host?
+      return true
+    end
+
+    false
+  end
+
+  def self.railway_host?
+    ENV.keys.any? { |k| k.start_with?("RAILWAY_") && ENV[k].present? }
   end
 end
