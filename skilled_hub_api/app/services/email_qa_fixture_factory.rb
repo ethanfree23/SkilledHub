@@ -67,6 +67,7 @@ class EmailQaFixtureFactory
     CompanyProfile.create!(
       user: company_user,
       company_name: "Email QA Company",
+      phone: "713-555-0100",
       membership_level: "basic",
       service_cities: ["Austin"]
     )
@@ -80,6 +81,7 @@ class EmailQaFixtureFactory
       user: technician_user,
       trade_type: "General",
       availability: "Full-time",
+      phone: "713-555-0101",
       membership_level: "basic",
       experience_years: 5,
       city: "Austin",
@@ -186,6 +188,9 @@ class EmailQaFixtureFactory
   end
 
   def ensure_membership_levels!(company_profile, technician_profile)
+    company_profile.update_column(:phone, "713-555-0100") if company_profile.phone.blank?
+    technician_profile.update_column(:phone, "713-555-0101") if technician_profile.phone.blank?
+
     company_target = MembershipPolicy.level_valid?("pro", audience: :company) ? "pro" : MembershipPolicy.default_slug_for(:company)
     technician_target = MembershipPolicy.level_valid?("premium", audience: :technician) ? "premium" : MembershipPolicy.default_slug_for(:technician)
     company_profile.update!(membership_level: company_target) if company_profile.membership_level != company_target

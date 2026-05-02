@@ -200,6 +200,41 @@ module Api
         assert_equal false, body.dig("user", "email_notification_preferences", "messages")
         assert_equal true, body.dig("user", "email_notification_preferences", "job_lifecycle")
       end
+
+      test "update me merges ui_preferences and preserves other keys" do
+        user = User.create!(
+          email: "ui-prefs-user@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :admin,
+          phone: "713-555-0100"
+        )
+        user.update_column(:ui_preferences, { "legacy_flag" => true })
+
+        cols = [
+          { key: "email", visible: false },
+          { key: "company", visible: true }
+        ]
+        cols_json = cols.map { |h| h.stringify_keys }
+
+        patch "/api/v1/users/me",
+              params: {
+                ui_preferences: {
+                  admin_users_table_columns: cols
+                }
+              },
+              headers: auth_header_for(user),
+              as: :json
+
+        assert_response :ok
+        user.reload
+        assert_equal true, user.ui_preferences_hash["legacy_flag"]
+        assert_equal cols_json, user.ui_preferences_hash["admin_users_table_columns"]
+
+        body = JSON.parse(response.body)
+        assert_equal cols_json, body.dig("user", "ui_preferences", "admin_users_table_columns")
+        assert_equal true, body.dig("user", "ui_preferences", "legacy_flag")
+      end
     end
   end
 end

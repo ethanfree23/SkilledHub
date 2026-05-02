@@ -6,6 +6,7 @@ class User < ApplicationRecord
   attr_accessor :password_set_actor
 
   validates :email, presence: true, uniqueness: { case_sensitive: false }
+  validates :phone, presence: true, if: :admin?, on: :update
   before_save :stamp_password_metadata, if: :will_save_change_to_password_digest?
 
   enum role: { technician: 0, company: 1, admin: 2 }
@@ -44,6 +45,7 @@ class User < ApplicationRecord
   has_many :feedback_submissions, dependent: :destroy
   has_many :crm_leads, foreign_key: :linked_user_id, dependent: :nullify, inverse_of: :linked_user
   has_many :user_login_events, dependent: :delete_all
+  has_many :email_delivery_logs, dependent: :delete_all
   has_many :job_issue_reports, dependent: :destroy
   has_many :sent_referrals, class_name: "ReferralSubmission", foreign_key: :referrer_user_id, dependent: :destroy, inverse_of: :referrer_user
   has_many :received_referrals, class_name: "ReferralSubmission", foreign_key: :referred_user_id, dependent: :nullify, inverse_of: :referred_user
@@ -81,6 +83,22 @@ class User < ApplicationRecord
   # This preference is reserved for future saved-search/new-job digest sends.
   def job_alert_notifications_enabled?
     self[:job_alert_notifications_enabled] != false
+  end
+
+  def ui_preferences_hash
+    raw = self[:ui_preferences]
+    h =
+      case raw
+      when Hash
+        raw
+      when nil
+        {}
+      else
+        JSON.parse(raw.to_s)
+      end
+    h.is_a?(Hash) ? h.deep_stringify_keys : {}
+  rescue JSON::ParserError
+    {}
   end
 
   private

@@ -109,6 +109,20 @@ export const membershipTierConfigsAPI = {
     apiRequest(`/membership_tier_configs?audience=${encodeURIComponent(audience)}`),
 };
 
+/** Current user membership (company or technician profile) — GET/PATCH /membership */
+export const membershipsAPI = {
+  get: () => apiRequest('/membership'),
+  update: ({ membership_level: membershipLevel, success_url: successUrl, cancel_url: cancelUrl }) =>
+    apiRequest('/membership', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        membership_level: membershipLevel,
+        ...(successUrl ? { success_url: successUrl } : {}),
+        ...(cancelUrl ? { cancel_url: cancelUrl } : {}),
+      }),
+    }),
+};
+
 export const licensingSettingsAPI = {
   get: () => apiRequest('/licensing_settings'),
 };

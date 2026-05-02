@@ -7,9 +7,15 @@ module Api
         include AuthTestHelper
 
         test "admin can update company membership pricing overrides" do
-          admin = User.create!(email: "admin-membership-pricing@example.com", password: "password123", password_confirmation: "password123", role: :admin)
+          admin = User.create!(
+            email: "admin-membership-pricing@example.com",
+            password: "password123",
+            password_confirmation: "password123",
+            role: :admin,
+            phone: "713-555-0400"
+          )
           company_user = User.create!(email: "company-membership-pricing@example.com", password: "password123", password_confirmation: "password123", role: :company)
-          company_profile = CompanyProfile.create!(user: company_user, membership_level: "basic")
+          company_profile = CompanyProfile.create!(user: company_user, membership_level: "basic", phone: "713-555-0401")
           company_user.update_column(:company_profile_id, company_profile.id)
 
           patch "/api/v1/admin/users/#{company_user.id}/membership_pricing",

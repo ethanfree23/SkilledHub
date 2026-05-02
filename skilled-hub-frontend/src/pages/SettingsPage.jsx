@@ -1,7 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import { profilesAPI, settingsAPI, authAPI, documentsAPI, licensingSettingsAPI, savedJobSearchesAPI } from '../api/api';
+import {
+  profilesAPI,
+  settingsAPI,
+  authAPI,
+  documentsAPI,
+  licensingSettingsAPI,
+  savedJobSearchesAPI,
+  membershipTierConfigsAPI,
+  membershipsAPI,
+} from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from '../components/CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
@@ -74,6 +83,10 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'success' });
   const [confirmCertId, setConfirmCertId] = useState(null);
   const [settingsTab, setSettingsTab] = useState('account');
+  const [membershipTierOptions, setMembershipTierOptions] = useState([]);
+  const [membershipTierEditing, setMembershipTierEditing] = useState(false);
+  const [membershipTierDraft, setMembershipTierDraft] = useState('');
+  const [savingMembership, setSavingMembership] = useState(false);
   const publishableKey = getStripePublishableKey();
   const stripe = useMemo(() => {
     if (window.Stripe && isValidStripePublishableKey(publishableKey)) {
@@ -86,6 +99,66 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const isTechnician = user?.role === 'technician';
   const isAdmin = user?.role === 'admin';
   const needsMapSetup = isTechnician && needsTechnicianMapSetup(profile);
+
+  const membershipTierSelectOptions = useMemo(() => {
+    const cur = String(profile?.membership_level || '').toLowerCase();
+    const opts = [...membershipTierOptions];
+    if (cur && !opts.some((o) => o.id === cur)) {
+      opts.push({ id: cur, name: formatMembershipTier(cur) });
+    }
+    return opts;
+  }, [membershipTierOptions, profile?.membership_level]);
+
+  const fetchProfile = useCallback(async (opts = {}) => {
+    const quiet = opts.quiet === true;
+    if (!quiet) setLoading(true);
+    setError(null);
+    const nameFields = () => ({
+      first_name: user?.first_name ?? auth.getUser()?.first_name ?? '',
+      last_name: user?.last_name ?? auth.getUser()?.last_name ?? '',
+    });
+    try {
+      if (isCompany) {
+        const p = await profilesAPI.getCompanyProfile();
+        setProfile(p);
+        setForm({
+          ...nameFields(),
+          company_name: p?.company_name || '',
+          industry: p?.industry || '',
+          location: p?.location || '',
+          state: p?.state || '',
+          electrical_license_number: p?.electrical_license_number || '',
+          bio: p?.bio || '',
+        });
+        return p;
+      }
+      if (isTechnician) {
+        const p = await profilesAPI.getTechnicianProfile();
+        setProfile(p);
+        setForm({
+          ...nameFields(),
+          trade_type: p?.trade_type || '',
+          experience_years: p?.experience_years ?? '',
+          availability: p?.availability || '',
+          bio: p?.bio || '',
+          location: p?.location || '',
+          address: p?.address || '',
+          city: p?.city || '',
+          state: p?.state || 'Texas',
+          zip_code: p?.zip_code || '',
+          country: p?.country || 'United States',
+        });
+        return p;
+      }
+      setProfile(null);
+      return null;
+    } catch {
+      setError('Failed to load profile');
+      return null;
+    } finally {
+      if (!quiet) setLoading(false);
+    }
+  }, [isCompany, isTechnician, user?.first_name, user?.last_name]);
 
   useEffect(() => {
     let active = true;
@@ -102,7 +175,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
   useEffect(() => {
     fetchProfile();
-  }, [user?.role]);
+  }, [fetchProfile]);
 
   useEffect(() => {
     if (isTechnician && profile?.id) {
@@ -153,47 +226,71 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
       .catch(() => setSavedAlertTemplates([]));
   }, [isTechnician]);
 
-  const fetchProfile = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (isCompany) {
-        const p = await profilesAPI.getCompanyProfile();
-        setProfile(p);
-        setForm({
-          company_name: p?.company_name || '',
-          industry: p?.industry || '',
-          location: p?.location || '',
-          state: p?.state || '',
-          electrical_license_number: p?.electrical_license_number || '',
-          bio: p?.bio || '',
-        });
-      } else if (isTechnician) {
-        const p = await profilesAPI.getTechnicianProfile();
-        setProfile(p);
-        setForm({
-          trade_type: p?.trade_type || '',
-          experience_years: p?.experience_years ?? '',
-          availability: p?.availability || '',
-          bio: p?.bio || '',
-          location: p?.location || '',
-          address: p?.address || '',
-          city: p?.city || '',
-          state: p?.state || 'Texas',
-          zip_code: p?.zip_code || '',
-          country: p?.country || 'United States',
-        });
-      } else {
-        setProfile(null);
-      }
-    } catch (err) {
-      setError('Failed to load profile');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!isTechnician && !isCompany) return undefined;
+    let cancelled = false;
+    membershipTierConfigsAPI
+      .list(isCompany ? 'company' : 'technician')
+      .then((res) => {
+        if (cancelled) return;
+        const list = Array.isArray(res?.membership_tier_configs) ? res.membership_tier_configs : [];
+        const mapped = list
+          .map((t) => ({
+            id: String(t.slug || '').toLowerCase(),
+            name: t.display_name || t.slug || '',
+          }))
+          .filter((t) => t.id);
+        setMembershipTierOptions(
+          mapped.length > 0
+            ? mapped
+            : [
+                { id: 'basic', name: 'Basic' },
+                { id: 'pro', name: 'Pro' },
+                { id: 'premium', name: 'Premium' },
+              ]
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMembershipTierOptions([
+            { id: 'basic', name: 'Basic' },
+            { id: 'pro', name: 'Pro' },
+            { id: 'premium', name: 'Premium' },
+          ]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTechnician, isCompany]);
 
-  const showProfileForm = isCompany || isTechnician;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'profile') setSettingsTab('profile');
+    const membershipParam = params.get('membership');
+    if (membershipParam === 'success' || membershipParam === 'cancel') {
+      setSettingsTab('profile');
+      const path = window.location.pathname || '/settings';
+      window.history.replaceState({}, '', path);
+      if (membershipParam === 'success') {
+        fetchProfile({ quiet: true }).then((p) => {
+          if (p && user && onUserUpdate) {
+            onUserUpdate({
+              ...user,
+              membership_level: p.membership_level ?? user.membership_level,
+            });
+          }
+          setAlertModal({
+            isOpen: true,
+            title: 'Welcome back',
+            message:
+              'If checkout completed, your new tier should appear above. If not, refresh the page in a few seconds.',
+            variant: 'success',
+          });
+        });
+      }
+    }
+  }, [fetchProfile, user, onUserUpdate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -239,14 +336,16 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           setSaving(false);
           return;
         }
+        const { first_name: _fn, last_name: _ln, ...companyPayload } = form;
         await profilesAPI.updateCompanyProfile(profile.id, {
-          ...form,
+          ...companyPayload,
           state: companyState,
           electrical_license_number: (form.electrical_license_number || '').trim(),
         });
-      } else {
+      } else if (isTechnician) {
+        const { first_name: _fn2, last_name: _ln2, ...techPayload } = form;
         await profilesAPI.updateTechnicianProfile(profile.id, {
-          ...form,
+          ...techPayload,
           experience_years: form.experience_years === '' ? null : parseInt(form.experience_years, 10),
         });
       }
@@ -478,6 +577,58 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     }
   };
 
+  const beginMembershipTierEdit = () => {
+    const raw = profile?.membership_level ?? user?.membership_level ?? 'basic';
+    setMembershipTierDraft(String(raw).toLowerCase());
+    setMembershipTierEditing(true);
+  };
+
+  const cancelMembershipTierEdit = () => {
+    setMembershipTierEditing(false);
+  };
+
+  const handleMembershipTierSave = async () => {
+    const level = String(membershipTierDraft || '').toLowerCase();
+    if (!level) return;
+    setSavingMembership(true);
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const res = await membershipsAPI.update({
+        membership_level: level,
+        success_url: `${origin}/settings?tab=profile&membership=success`,
+        cancel_url: `${origin}/settings?tab=profile&membership=cancel`,
+      });
+      const checkoutUrl = res?.checkout?.url;
+      if (checkoutUrl) {
+        window.location.href = checkoutUrl;
+        return;
+      }
+      const updatedProfile = await fetchProfile({ quiet: true });
+      if (updatedProfile && user && onUserUpdate) {
+        onUserUpdate({
+          ...user,
+          membership_level: updatedProfile.membership_level ?? user.membership_level,
+        });
+      }
+      setMembershipTierEditing(false);
+      setAlertModal({
+        isOpen: true,
+        title: 'Membership updated',
+        message: 'Your membership tier has been updated.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not update membership',
+        message: err.message || 'Try again later.',
+        variant: 'error',
+      });
+    } finally {
+      setSavingMembership(false);
+    }
+  };
+
   const handleAddCardConfirm = async ({ card, billing_details }) => {
     setPaymentError(null);
     setPaymentSuccess(null);
@@ -620,6 +771,66 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           {isAdmin ? (
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <p className="text-gray-500">Admin accounts do not have technician or company profiles, but you can update your name here.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                  <input
+                    name="first_name"
+                    value={form.first_name || ''}
+                    onChange={handleChange}
+                    className="w-full border rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                  <input
+                    name="last_name"
+                    value={form.last_name || ''}
+                    onChange={handleChange}
+                    className="w-full border rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+              </div>
+              <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </form>
+          ) : (
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            {isTechnician && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                <textarea
+                  name="bio"
+                  value={form.bio || ''}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="Tell others about yourself..."
+                />
+              </div>
+            )}
+
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-2 border-gray-200" />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-3xl text-gray-500 font-bold">
+                    {(form.first_name || user?.first_name || user?.email || '?')[0]?.toUpperCase() || '?'}
+                  </div>
+                )}
+                <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+                </label>
+              </div>
+              <div className="text-sm text-gray-500">Click to change photo</div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
                 <input
@@ -640,48 +851,6 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   required
                 />
               </div>
-              <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </form>
-          ) : (
-          <form onSubmit={handleProfileSubmit} className="space-y-4">
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-2 border-gray-200" />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-3xl text-gray-500 font-bold">
-                    {(form.first_name || user?.first_name || user?.email || '?')[0]?.toUpperCase() || '?'}
-                  </div>
-                )}
-                <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700">
-                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
-                </label>
-              </div>
-              <div className="text-sm text-gray-500">Click to change photo</div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
-              <input
-                name="first_name"
-                value={form.first_name || ''}
-                onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-              <input
-                name="last_name"
-                value={form.last_name || ''}
-                onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2"
-                required
-              />
             </div>
 
             {isCompany && (
@@ -726,23 +895,46 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
             {isTechnician && (
               <>
-                <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Membership tier</p>
-                  <p className="mt-1 text-lg font-semibold text-blue-900">{formatMembershipTier(profile?.membership_level)}</p>
-                  <p className="mt-1 text-xs text-blue-700">Your tier controls job access timing and platform commission.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trade type</label>
+                    <input name="trade_type" value={form.trade_type} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Electrician, Plumber" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Years of experience</label>
+                    <input type="number" min="0" name="experience_years" value={form.experience_years} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
+                    <input name="availability" value={form.availability} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Full-time, Part-time" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Trade type</label>
-                  <input name="trade_type" value={form.trade_type} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Electrician, Plumber" />
+
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h4 className="font-medium text-gray-900">Home address</h4>
+                    {needsMapSetup && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        Complete map setup
+                      </span>
+                    )}
+                  </div>
+                  <JobAddressFields
+                    sectionTitle="Technician Address"
+                    address={form.address}
+                    city={form.city}
+                    state={form.state}
+                    zipCode={form.zip_code}
+                    country={form.country}
+                    onChange={patchAddress}
+                  />
+                  {needsMapSetup && (
+                    <p className="mt-2 text-xs text-amber-800">
+                      Required to enable accurate map radius and distance sorting on your dashboard.
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Years of experience</label>
-                  <input type="number" min="0" name="experience_years" value={form.experience_years} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
-                  <input name="availability" value={form.availability} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Full-time, Part-time" />
-                </div>
+
                 <div className="border-t border-gray-200 pt-4 mt-4">
                   <h4 className="font-medium text-gray-900 mb-2">Certificates</h4>
                   <p className="text-sm text-gray-600 mb-3">
@@ -775,37 +967,74 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                     </label>
                   </div>
                 </div>
-                <div className="border-t border-gray-200 pt-4 mt-4">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h4 className="font-medium text-gray-900">Your Address</h4>
-                    {needsMapSetup && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-                        Complete map setup
-                      </span>
-                    )}
-                  </div>
-                  <JobAddressFields
-                    sectionTitle="Technician Address"
-                    address={form.address}
-                    city={form.city}
-                    state={form.state}
-                    zipCode={form.zip_code}
-                    country={form.country}
-                    onChange={patchAddress}
-                  />
-                  {needsMapSetup && (
-                    <p className="mt-2 text-xs text-amber-800">
-                      Required to enable accurate map radius and distance sorting on your dashboard.
-                    </p>
-                  )}
-                </div>
               </>
             )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-              <textarea name="bio" value={form.bio} onChange={handleChange} rows={4} className="w-full border rounded-lg px-3 py-2" placeholder="Tell others about yourself or your company..." />
-            </div>
+            {isCompany && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                <textarea
+                  name="bio"
+                  value={form.bio || ''}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="Tell others about your company..."
+                />
+              </div>
+            )}
+
+            {(isTechnician || isCompany) && (
+              <div className="relative rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                {!membershipTierEditing && (
+                  <button
+                    type="button"
+                    onClick={beginMembershipTierEdit}
+                    className="absolute top-3 right-3 text-sm font-medium text-blue-700 hover:text-blue-900"
+                  >
+                    Edit
+                  </button>
+                )}
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Membership tier</p>
+                {!membershipTierEditing ? (
+                  <p className="mt-1 text-lg font-semibold text-blue-900 pr-16">{formatMembershipTier(profile?.membership_level)}</p>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    <select
+                      value={membershipTierDraft}
+                      onChange={(e) => setMembershipTierDraft(e.target.value)}
+                      className="w-full max-w-md border rounded-lg px-3 py-2 text-sm bg-white"
+                      disabled={savingMembership}
+                    >
+                      {membershipTierSelectOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleMembershipTierSave}
+                        disabled={savingMembership}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {savingMembership ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelMembershipTierEdit}
+                        disabled={savingMembership}
+                        className="px-4 py-2 border border-gray-300 text-sm rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-blue-700">Your tier controls job access timing and platform commission.</p>
+              </div>
+            )}
 
             <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving...' : 'Save Changes'}

@@ -24,6 +24,7 @@ class AdminUserDetail
       logins: login_stats(user),
       messages: message_stats(user),
       referrals: referral_stats(user),
+      email_deliveries: email_delivery_payload(user),
       **role_analytics(user)
     }
   end
@@ -200,6 +201,33 @@ class AdminUserDetail
       job_threads_sent_in_period: messages_sent_job_threads(user, scoped_to_period: true),
       feedback_messages_sent_all_time: feedback_messages_sent(user, scoped_to_period: false),
       feedback_messages_sent_in_period: feedback_messages_sent(user, scoped_to_period: true)
+    }
+  end
+
+  def email_delivery_payload(user)
+    base = EmailDeliveryLog.where(user_id: user.id)
+    scoped =
+      if @since
+        base.where("email_delivery_logs.created_at >= ?", @since)
+      else
+        base
+      end
+
+    recent_rows =
+      scoped.order(created_at: :desc).limit(50).map do |row|
+        {
+          at: row.created_at&.iso8601,
+          mailer_class: row.mailer_class,
+          mailer_action: row.mailer_action,
+          subject: row.subject.to_s,
+          to_email: row.to_email,
+          status: "sent"
+        }
+      end
+
+    {
+      total_in_period: scoped.count,
+      recent: recent_rows
     }
   end
 

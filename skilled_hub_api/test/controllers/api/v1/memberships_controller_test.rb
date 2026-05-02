@@ -23,6 +23,7 @@ module Api
         user = User.create!(email: "membership-basic-company@example.com", password: "password123", password_confirmation: "password123", role: :company)
         profile = CompanyProfile.create!(
           user: user,
+          phone: "713-555-0200",
           membership_level: "pro",
           stripe_membership_subscription_id: "sub_test_123",
           membership_status: "active",

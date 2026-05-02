@@ -118,13 +118,19 @@ module Api
           :phone,
           :email_notifications_enabled,
           :job_alert_notifications_enabled,
-          email_notification_preferences: {}
+          email_notification_preferences: {},
+          ui_preferences: { admin_users_table_columns: %i[key visible] }
         ).to_h
         p.except!(:password, :password_confirmation) if p[:password].blank?
         if p.key?("email_notification_preferences")
           incoming = p["email_notification_preferences"].to_h
           merged = @current_user.email_notification_preferences_hash.merge(incoming.stringify_keys)
           p["email_notification_preferences"] = merged.to_json
+        end
+        if p.key?("ui_preferences")
+          incoming = p["ui_preferences"].to_h.deep_stringify_keys
+          merged = @current_user.ui_preferences_hash.merge(incoming)
+          p["ui_preferences"] = merged
         end
         p
       end

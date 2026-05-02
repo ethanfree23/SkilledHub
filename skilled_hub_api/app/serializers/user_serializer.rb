@@ -10,6 +10,7 @@ class UserSerializer < ActiveModel::Serializer
              :email_notifications_enabled,
              :email_notification_preferences,
              :job_alert_notifications_enabled,
+             :ui_preferences,
              :created_at,
              :updated_at
 
@@ -27,5 +28,9 @@ class UserSerializer < ActiveModel::Serializer
 
   def email_notification_preferences
     object.email_notification_preferences_hash
+  end
+
+  def ui_preferences
+    object.ui_preferences_hash
   end
 end 

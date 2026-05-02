@@ -911,21 +911,22 @@ const TECH_HOME_MARKER = {
 };
 
 const TECH_JOB_MARKER = {
-  fill: '#2563eb',
+  fill: '#16a34a',
   stroke: '#ffffff',
-  selectedFill: '#1d4ed8',
+  selectedFill: '#15803d',
 };
 
-/** Raster-style circle markers — more reliable across Maps builds than SymbolPath-only icons in flex layouts. */
-function svgCircleMarkerIconUrl(fillColor, strokeColor, radiusPx) {
+/** Green circle with "$" for job pins (data URL for Marker icon). */
+function svgDollarJobMarkerUrl(fillColor, strokeColor, radiusPx) {
   const pad = 3;
   const size = radiusPx * 2 + pad * 2;
   const c = size / 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${c}" cy="${c}" r="${radiusPx}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2"/></svg>`;
+  const fontSize = Math.max(10, Math.round(radiusPx * 1.05));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><circle cx="${c}" cy="${c}" r="${radiusPx}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2"/><text x="${c}" y="${c}" dominant-baseline="central" text-anchor="middle" fill="#ffffff" font-family="system-ui,-apple-system,BlinkMacSystemFont,sans-serif" font-weight="700" font-size="${fontSize}">$</text></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-/** When jobs share the technician's coordinates (0 mi), spread pins in a small ring so blue markers aren't hidden under the home marker. */
+/** When jobs share the technician's coordinates (0 mi), spread pins in a small ring so job markers aren't hidden under the home marker. */
 function displayPositionsForJobMarkers(jobs, homeLatLng) {
   if (!jobs?.length) return [];
   const clusterMi = 0.18;
@@ -1088,10 +1089,6 @@ const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSe
 
     const markerDisplayPositions = displayPositionsForJobMarkers(normalizedJobs, homeLatLng);
 
-    const homeRadius = 9;
-    const homeIconSize = homeRadius * 2 + 6;
-    const homeIconUrl = svgCircleMarkerIconUrl(TECH_HOME_MARKER.fill, TECH_HOME_MARKER.stroke, homeRadius);
-
     // Draw home first with lower z-index so overlapping job markers (above) stay visible.
     if (homeLatLng) {
       markersRef.current.push(
@@ -1100,9 +1097,13 @@ const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSe
           position: homeLatLng,
           title: 'Your location',
           icon: {
-            url: homeIconUrl,
-            scaledSize: new maps.Size(homeIconSize, homeIconSize),
-            anchor: new maps.Point(homeIconSize / 2, homeIconSize / 2),
+            path: maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            fillColor: TECH_HOME_MARKER.fill,
+            fillOpacity: 1,
+            strokeColor: TECH_HOME_MARKER.stroke,
+            strokeWeight: 2,
+            scale: 6,
+            rotation: 0,
           },
           zIndex: 100,
         })
@@ -1115,7 +1116,7 @@ const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSe
       const jobRadius = isSelected ? 11 : 9;
       const jobIconSize = jobRadius * 2 + 6;
       const fill = isSelected ? TECH_JOB_MARKER.selectedFill : TECH_JOB_MARKER.fill;
-      const jobIconUrl = svgCircleMarkerIconUrl(fill, TECH_JOB_MARKER.stroke, jobRadius);
+      const jobIconUrl = svgDollarJobMarkerUrl(fill, TECH_JOB_MARKER.stroke, jobRadius);
       const marker = new maps.Marker({
         map: mapRef.current,
         position: { lat: pos.lat, lng: pos.lng },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_02_115500) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_02_170000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -131,6 +131,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_115500) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["uploadable_type", "uploadable_id"], name: "index_documents_on_uploadable"
+  end
+
+  create_table "email_delivery_logs", force: :cascade do |t|
+    t.integer "user_id"
+    t.string "to_email", null: false
+    t.string "mailer_class", null: false
+    t.string "mailer_action", null: false
+    t.text "subject"
+    t.datetime "created_at", null: false
+    t.index ["to_email"], name: "index_email_delivery_logs_on_to_email"
+    t.index ["user_id", "created_at"], name: "index_email_delivery_logs_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_email_delivery_logs_on_user_id"
   end
 
   create_table "favorite_technicians", force: :cascade do |t|
@@ -425,6 +437,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_115500) do
     t.boolean "email_notifications_enabled", default: true, null: false
     t.boolean "job_alert_notifications_enabled", default: true, null: false
     t.text "email_notification_preferences", default: "{\"messages\":true,\"job_lifecycle\":true,\"reviews\":true,\"membership_updates\":true}", null: false
+    t.json "ui_preferences", default: {}, null: false
     t.index ["company_profile_id"], name: "index_users_on_company_profile_id"
     t.index ["password_reset_token"], name: "index_users_on_password_reset_token", unique: true
     t.index ["password_set_by"], name: "index_users_on_password_set_by"
@@ -441,6 +454,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_115500) do
   add_foreign_key "crm_leads", "users", column: "linked_user_id"
   add_foreign_key "crm_notes", "crm_leads"
   add_foreign_key "crm_notes", "crm_notes", column: "parent_note_id"
+  add_foreign_key "email_delivery_logs", "users"
   add_foreign_key "favorite_technicians", "company_profiles"
   add_foreign_key "favorite_technicians", "technician_profiles"
   add_foreign_key "feedback_submissions", "users"

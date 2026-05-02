@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { adminUsersAPI } from '../api/api';
@@ -43,7 +43,6 @@ export default function AdminUsersPage({ user, onLogout }) {
   const [emailFilter, setEmailFilter] = useState('');
   const [phoneFilter, setPhoneFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
-  const [sortBy, setSortBy] = useState('company');
   const [sortDir, setSortDir] = useState('asc');
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
@@ -112,14 +111,12 @@ export default function AdminUsersPage({ user, onLogout }) {
     }
   }, [columns]);
 
+  const visibleColumns = useMemo(() => columns.filter((c) => c.visible), [columns]);
+  const primarySortKey = visibleColumns[0]?.key;
+
   useEffect(() => {
-    const leftMostVisibleColumn = columns.find((c) => c.visible)?.key;
-    if (!leftMostVisibleColumn) return;
-    if (sortBy !== leftMostVisibleColumn || sortDir !== 'asc') {
-      setSortBy(leftMostVisibleColumn);
-      setSortDir('asc');
-    }
-  }, [columns, roleTab, sortBy, sortDir]);
+    setSortDir('asc');
+  }, [primarySortKey, roleTab]);
 
   const startMasquerade = async (e, targetUserId) => {
     e.stopPropagation();
@@ -154,16 +151,14 @@ export default function AdminUsersPage({ user, onLogout }) {
     return true;
   });
 
-  const toggleSort = (col) => {
-    if (sortBy === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(col);
-      setSortDir('asc');
-    }
+  const togglePrimarySort = () => {
+    setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
   };
 
   const sortedList = [...filteredList].sort((a, b) => {
+    const sortKeys = visibleColumns.map((c) => c.key);
+    if (!sortKeys.length) return 0;
+
     const getRawValue = (row, key) => {
       switch (key) {
         case 'first_name':
@@ -216,11 +211,15 @@ export default function AdminUsersPage({ user, onLogout }) {
       return leftStr.localeCompare(rightStr, undefined, { sensitivity: 'base' }) * direction;
     };
 
-    const primary = compareByColumn(a, b, sortBy, sortDir === 'asc' ? 1 : -1);
-    if (primary !== 0) return primary;
-    return compareByColumn(a, b, 'email', 1);
+    const primaryDir = sortDir === 'asc' ? 1 : -1;
+    for (let i = 0; i < sortKeys.length; i++) {
+      const key = sortKeys[i];
+      const direction = i === 0 ? primaryDir : 1;
+      const cmp = compareByColumn(a, b, key, direction);
+      if (cmp !== 0) return cmp;
+    }
+    return (a.id ?? 0) - (b.id ?? 0);
   });
-  const visibleColumns = columns.filter((c) => c.visible);
   const moveColumn = (fromKey, toKey) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
     setColumns((prev) => {
@@ -375,9 +374,15 @@ export default function AdminUsersPage({ user, onLogout }) {
                 <tr>
                   {visibleColumns.map((col) => (
                     <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
-                      <button type="button" onClick={() => toggleSort(col.key)} className="inline-flex items-center gap-1">
-                        {col.label} {sortBy === col.key ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
-                      </button>
+                      {col.key === primarySortKey ? (
+                        <button type="button" onClick={togglePrimarySort} className="inline-flex items-center gap-1">
+                          {col.label} {sortDir === 'asc' ? '▲' : '▼'}
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-gray-700">
+                          {col.label} <span className="text-gray-400 font-normal">↕</span>
+                        </span>
+                      )}
                     </th>
                   ))}
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Actions</th>

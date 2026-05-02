@@ -20,6 +20,7 @@ class CompanyProfile < ApplicationRecord
 
   validate :membership_level_must_be_configured
   validate :state_and_license_requirements
+  validates :phone, presence: true, on: :update
 
   def average_rating
     Rating.average_for(self)

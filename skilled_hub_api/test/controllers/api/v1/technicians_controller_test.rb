@@ -100,6 +100,7 @@ module Api
           trade_type: "General",
           experience_years: 2,
           availability: "Full-time",
+          phone: "713-555-0300",
           city: "Austin"
         )
 

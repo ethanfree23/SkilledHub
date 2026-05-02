@@ -151,7 +151,8 @@ module Api
             email: email,
             password: "password123",
             password_confirmation: "password123",
-            role: :admin
+            role: :admin,
+            phone: "713-555-0600"
           )
         end
 

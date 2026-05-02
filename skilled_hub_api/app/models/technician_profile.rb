@@ -17,6 +17,7 @@ class TechnicianProfile < ApplicationRecord
   has_many :companies_that_favorited, through: :favorite_technician_entries, source: :company_profile
 
   validate :membership_level_must_be_configured
+  validates :phone, presence: true, on: :update
 
   def average_rating
     Rating.average_for(self)
