@@ -4,6 +4,12 @@ export const TABLE_COLUMN_IDS = {
   crmPipeline: 'crm_pipeline',
 };
 
+/** Admin Users role tabs (All / Companies / Technicians) each get their own saved layout. */
+export function adminUsersTableId(roleTab) {
+  const safe = ['all', 'company', 'technician'].includes(roleTab) ? roleTab : 'all';
+  return `admin_users_${safe}`;
+}
+
 export function columnsFromSavedArray(parsed, defaultColumns) {
   const defaultMap = new Map(defaultColumns.map((c) => [c.key, c]));
   const fromSaved = parsed
@@ -32,8 +38,19 @@ export function normalizeSavedColumnsJson(saved) {
 
 /** Resolve saved column array from user prefs + legacy shapes. */
 export function getSavedColumnsArrayForTable(user, tableId, legacyFlatKey = null) {
-  const fromNested = user?.ui_preferences?.table_columns?.[tableId];
+  const tc = user?.ui_preferences?.table_columns || {};
+  const fromNested = tc[tableId];
   if (Array.isArray(fromNested) && fromNested.length > 0) return fromNested;
+
+  // Migrate former single layout (admin_users) onto the "All" tab only.
+  if (tableId === 'admin_users_all') {
+    const legacySingle = tc[TABLE_COLUMN_IDS.adminUsers];
+    if (Array.isArray(legacySingle) && legacySingle.length > 0) return legacySingle;
+    if (legacyFlatKey) {
+      const legacy = user?.ui_preferences?.[legacyFlatKey];
+      if (Array.isArray(legacy) && legacy.length > 0) return legacy;
+    }
+  }
 
   if (legacyFlatKey && tableId === TABLE_COLUMN_IDS.adminUsers) {
     const legacy = user?.ui_preferences?.[legacyFlatKey];

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { authAPI } from '../api/api';
 import { auth } from '../auth';
 import {
@@ -22,15 +22,22 @@ export function useTableColumnPreferences({
   localStorageKey,
 }) {
   const [columns, setColumns] = useState(defaultColumns);
-  const hydratedRef = useRef(false);
+  /** When this matches `scopeKey`, column state is loaded for this table scope (avoids cross-tab persist bugs). */
+  const [hydratedScopeKey, setHydratedScopeKey] = useState(null);
+  const scopeKey = useMemo(
+    () => `${tableId}:${localStorageKey}`,
+    [tableId, localStorageKey]
+  );
   const onUserUpdateRef = useRef(onUserUpdate);
   const onSaveErrorRef = useRef(onSaveError);
   onUserUpdateRef.current = onUserUpdate;
   onSaveErrorRef.current = onSaveError;
 
   useEffect(() => {
-    if (!user || hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (!user) {
+      setHydratedScopeKey(null);
+      return;
+    }
 
     let parsed = getSavedColumnsArrayForTable(user, tableId, LEGACY_ADMIN_USERS_KEY);
     if (!parsed) {
@@ -43,10 +50,14 @@ export function useTableColumnPreferences({
     }
     if (Array.isArray(parsed) && parsed.length > 0) {
       setColumns(columnsFromSavedArray(parsed, defaultColumns));
+    } else {
+      setColumns(defaultColumns);
     }
-  }, [user, tableId, defaultColumns, localStorageKey]);
+    setHydratedScopeKey(scopeKey);
+  }, [user, tableId, defaultColumns, localStorageKey, scopeKey]);
 
   useEffect(() => {
+    if (hydratedScopeKey !== scopeKey) return;
     try {
       window.localStorage.setItem(
         localStorageKey,
@@ -55,15 +66,18 @@ export function useTableColumnPreferences({
     } catch {
       /* ignore */
     }
-  }, [columns, localStorageKey]);
+  }, [columns, localStorageKey, hydratedScopeKey, scopeKey]);
 
   useEffect(() => {
-    if (!hydratedRef.current || !user) return;
+    if (hydratedScopeKey !== scopeKey || !user) return;
 
     const timer = setTimeout(() => {
       const payload = serializeTableColumns(columns);
       const savedNested = user.ui_preferences?.table_columns?.[tableId];
       let compareTo = savedNested;
+      if (!compareTo && tableId === 'admin_users_all') {
+        compareTo = user.ui_preferences?.table_columns?.admin_users;
+      }
       if (!compareTo && tableId === 'admin_users') {
         compareTo = user.ui_preferences?.admin_users_table_columns;
       }
@@ -89,7 +103,7 @@ export function useTableColumnPreferences({
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [columns, user, tableId]);
+  }, [columns, user, tableId, hydratedScopeKey, scopeKey]);
 
   return [columns, setColumns];
 }

@@ -4,6 +4,9 @@ module Api
       # ui_preferences["table_columns"][table_id] => [{ "key", "visible" }, ...]
       UI_TABLE_COLUMNS_PERMIT = {
         admin_users: %i[key visible],
+        admin_users_all: %i[key visible],
+        admin_users_company: %i[key visible],
+        admin_users_technician: %i[key visible],
         crm_pipeline: %i[key visible]
       }.freeze
 

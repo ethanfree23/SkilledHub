@@ -7,7 +7,7 @@ import AdminCreateUserModal from '../components/AdminCreateUserModal';
 import { auth } from '../auth';
 import { FaCog, FaEye, FaSearch, FaUserPlus } from 'react-icons/fa';
 import { useTableColumnPreferences } from '../hooks/useTableColumnPreferences';
-import { TABLE_COLUMN_IDS } from '../utils/tableColumnPrefs';
+import { adminUsersTableId } from '../utils/tableColumnPrefs';
 
 const ROLE_TABS = [
   { id: 'all', label: 'All' },
@@ -59,12 +59,12 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
   }, []);
 
   const [columns, setColumns] = useTableColumnPreferences({
-    tableId: TABLE_COLUMN_IDS.adminUsers,
+    tableId: adminUsersTableId(roleTab),
     defaultColumns: DEFAULT_COLUMNS,
     user,
     onUserUpdate,
     onSaveError: handleColumnSaveError,
-    localStorageKey: COLUMN_STORAGE_KEY,
+    localStorageKey: `${COLUMN_STORAGE_KEY}-${roleTab}`,
   });
 
   useEffect(() => {
