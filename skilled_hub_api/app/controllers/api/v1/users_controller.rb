@@ -28,6 +28,8 @@ module Api
 
       def create
         email = params[:email].to_s.strip.downcase
+        first_name = params[:first_name].to_s.strip
+        last_name = params[:last_name].to_s.strip
         phone = params[:phone].to_s.strip
         city = params[:city].to_s.strip
         state = params[:state].to_s.strip
@@ -42,6 +44,8 @@ module Api
 
         # Registration only allows technician or company; admin is created manually
         permitted_role = %w[technician company].include?(params[:role].to_s) ? params[:role] : 'technician'
+        return render json: { error: "first_name is required for signup" }, status: :unprocessable_entity if first_name.blank?
+        return render json: { error: "last_name is required for signup" }, status: :unprocessable_entity if last_name.blank?
         return render json: { error: "phone is required for signup" }, status: :unprocessable_entity if phone.blank?
         return render json: { error: "city is required for signup" }, status: :unprocessable_entity if city.blank?
         return render json: { error: "state is required for signup" }, status: :unprocessable_entity if state.blank?
@@ -55,7 +59,7 @@ module Api
           return render json: { error: "Valid payment is required for selected membership tier." }, status: :unprocessable_entity
         end
 
-        user = User.new(user_params.merge(email: email, role: permitted_role))
+        user = User.new(user_params.merge(email: email, role: permitted_role, first_name: first_name, last_name: last_name))
         user.password_set_actor = 'user'
         if user.save
           if user.company?

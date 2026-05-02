@@ -96,6 +96,14 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   }, [user?.email]);
 
   useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      first_name: user?.first_name || auth.getUser()?.first_name || '',
+      last_name: user?.last_name || auth.getUser()?.last_name || '',
+    }));
+  }, [user?.first_name, user?.last_name]);
+
+  useEffect(() => {
     setNotificationPrefs({
       email_notifications_enabled: user?.email_notifications_enabled !== false,
       job_alert_notifications_enabled: user?.job_alert_notifications_enabled !== false,
@@ -162,10 +170,24 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    if (!profile?.id) return;
+    const firstName = (form.first_name || '').trim();
+    const lastName = (form.last_name || '').trim();
+    if (!firstName || !lastName) {
+      setError('First name and last name are required.');
+      return;
+    }
+
+    if (!isAdmin && !profile?.id) return;
     setSaving(true);
     setError(null);
     try {
+      const accountRes = await authAPI.updateMe({
+        first_name: firstName,
+        last_name: lastName,
+      });
+      auth.setUser(accountRes.user);
+      onUserUpdate?.(accountRes.user);
+
       if (isCompany) {
         const companyState = (form.state || '').trim();
         const stateRequiresLicense = requiresElectricalLicenseForState(companyState);
@@ -462,7 +484,32 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
             </div>
           )}
           {isAdmin ? (
-            <p className="text-gray-500">Admin accounts do not have technician or company profiles.</p>
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <p className="text-gray-500">Admin accounts do not have technician or company profiles, but you can update your name here.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                <input
+                  name="first_name"
+                  value={form.first_name || ''}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                <input
+                  name="last_name"
+                  value={form.last_name || ''}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg px-3 py-2"
+                  required
+                />
+              </div>
+              <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </form>
           ) : (
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div className="flex items-center gap-6">
@@ -471,7 +518,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   <img src={profile.avatar_url} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-2 border-gray-200" />
                 ) : (
                   <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-3xl text-gray-500 font-bold">
-                    {user?.email?.[0]?.toUpperCase() || '?'}
+                    {(form.first_name || user?.first_name || user?.email || '?')[0]?.toUpperCase() || '?'}
                   </div>
                 )}
                 <label className="absolute bottom-0 right-0 bg-blue-600 text-white rounded-full p-2 cursor-pointer hover:bg-blue-700">
@@ -480,6 +527,27 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                 </label>
               </div>
               <div className="text-sm text-gray-500">Click to change photo</div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+              <input
+                name="first_name"
+                value={form.first_name || ''}
+                onChange={handleChange}
+                className="w-full border rounded-lg px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+              <input
+                name="last_name"
+                value={form.last_name || ''}
+                onChange={handleChange}
+                className="w-full border rounded-lg px-3 py-2"
+                required
+              />
             </div>
 
             {isCompany && (

@@ -81,6 +81,8 @@ const RegisterForm = ({
     email: initialEmail,
     password: '',
     password_confirmation: '',
+    first_name: '',
+    last_name: '',
     phone: '',
     address: '',
     city: '',
@@ -149,7 +151,13 @@ const RegisterForm = ({
   const selectedTier = tierConfig[registerData.role]?.find((tier) => tier.id === registerData.membership_tier);
 
   const validateStepOne = () => {
-    if (!registerData.email || !registerData.password || !registerData.password_confirmation) {
+    if (
+      !registerData.email ||
+      !registerData.password ||
+      !registerData.password_confirmation ||
+      !registerData.first_name.trim() ||
+      !registerData.last_name.trim()
+    ) {
       setError('Please complete all required fields.');
       return false;
     }
@@ -238,6 +246,8 @@ const RegisterForm = ({
       const response = await authAPI.register({
         ...registerData,
         email: registerData.email.trim(),
+        first_name: registerData.first_name.trim(),
+        last_name: registerData.last_name.trim(),
         signup_payment_intent_id: paymentToken,
       });
       auth.setToken(response.token);
@@ -276,6 +286,42 @@ const RegisterForm = ({
 
       {step === 1 && (
         <>
+          <div>
+            <label htmlFor={`${idPrefix}-first-name`} className={`block text-sm font-medium ${v.label}`}>
+              First Name
+            </label>
+            <input
+              type="text"
+              id={`${idPrefix}-first-name`}
+              name="first_name"
+              value={registerData.first_name}
+              onChange={(e) =>
+                setRegisterData((prev) => ({ ...prev, first_name: e.target.value }))
+              }
+              required
+              placeholder="First name"
+              className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+            />
+          </div>
+
+          <div>
+            <label htmlFor={`${idPrefix}-last-name`} className={`block text-sm font-medium ${v.label}`}>
+              Last Name
+            </label>
+            <input
+              type="text"
+              id={`${idPrefix}-last-name`}
+              name="last_name"
+              value={registerData.last_name}
+              onChange={(e) =>
+                setRegisterData((prev) => ({ ...prev, last_name: e.target.value }))
+              }
+              required
+              placeholder="Last name"
+              className={`mt-1 block w-full px-3 py-2.5 border rounded-xl shadow-sm ${v.input}`}
+            />
+          </div>
+
           <div>
             <label htmlFor={`${idPrefix}-email`} className={`block text-sm font-medium ${v.label}`}>
               Email
@@ -520,6 +566,7 @@ const RegisterForm = ({
       {step === 4 && (
         <div className="space-y-4">
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+            <p><span className="font-semibold">Name:</span> {registerData.first_name} {registerData.last_name}</p>
             <p><span className="font-semibold">Email:</span> {registerData.email}</p>
             <p><span className="font-semibold">Account Type:</span> {roleLabel(registerData.role)}</p>
             <p><span className="font-semibold">Phone:</span> {registerData.phone}</p>

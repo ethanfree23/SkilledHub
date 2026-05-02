@@ -10,6 +10,8 @@ module Api
           email: "user-#{SecureRandom.hex(4)}@example.com",
           password: "password123",
           password_confirmation: "password123",
+          first_name: "Test",
+          last_name: "User",
           role: "technician",
           membership_tier: "basic",
           phone: "713-555-1212",
@@ -29,6 +31,26 @@ module Api
         assert_response :unprocessable_entity
         body = JSON.parse(response.body)
         assert_match(/phone is required/i, body["error"].to_s)
+      end
+
+      test "signup requires first name" do
+        post "/api/v1/users",
+             params: base_signup_params(first_name: ""),
+             as: :json
+
+        assert_response :unprocessable_entity
+        body = JSON.parse(response.body)
+        assert_match(/first_name is required/i, body["error"].to_s)
+      end
+
+      test "signup requires last name" do
+        post "/api/v1/users",
+             params: base_signup_params(last_name: ""),
+             as: :json
+
+        assert_response :unprocessable_entity
+        body = JSON.parse(response.body)
+        assert_match(/last_name is required/i, body["error"].to_s)
       end
 
       test "signup requires city" do
