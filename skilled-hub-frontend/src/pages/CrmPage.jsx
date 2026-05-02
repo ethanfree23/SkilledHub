@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { crmAPI } from '../api/api';
 import AlertModal from '../components/AlertModal';
+import { useTableColumnPreferences } from '../hooks/useTableColumnPreferences';
+import { TABLE_COLUMN_IDS } from '../utils/tableColumnPrefs';
 import { formatPhoneInput } from '../utils/phone';
 import {
   buildImportDraftRows,
@@ -30,6 +32,7 @@ import {
   FaTrash,
   FaUserPlus,
   FaFileUpload,
+  FaCog,
 } from 'react-icons/fa';
 
 const CRM_STATUSES = [
@@ -42,6 +45,13 @@ const CRM_STATUSES = [
   'competitor',
   'churned',
   'lost',
+];
+
+const CRM_PIPELINE_STORAGE_KEY = 'table-columns-v2-crm_pipeline';
+const CRM_PIPELINE_DEFAULT_COLUMNS = [
+  { key: 'status', label: 'Status', visible: true },
+  { key: 'linked_account', label: 'Linked account', visible: true },
+  { key: 'contact_email', label: 'Email preview', visible: true },
 ];
 
 const CRM_COMPANY_TYPES = [
@@ -142,7 +152,7 @@ const mergeFieldDisplayValue = (lead, key) => {
   return String(value);
 };
 
-const CrmPage = ({ user, onLogout }) => {
+const CrmPage = ({ user, onLogout, onUserUpdate }) => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
@@ -157,6 +167,24 @@ const CrmPage = ({ user, onLogout }) => {
   const searchTimer = useRef(null);
   const companySearchTimer = useRef(null);
   const [alertModal, setAlertModal] = useState({ isOpen: false, title: '', message: '', variant: 'error' });
+  const handlePipelineColumnSaveError = useCallback(() => {
+    setAlertModal({
+      isOpen: true,
+      title: 'Could not save column settings',
+      message: 'Your pipeline layout was kept on this device only. Try again later.',
+      variant: 'error',
+    });
+  }, []);
+  const [pipelineColumns, setPipelineColumns] = useTableColumnPreferences({
+    tableId: TABLE_COLUMN_IDS.crmPipeline,
+    defaultColumns: CRM_PIPELINE_DEFAULT_COLUMNS,
+    user,
+    onUserUpdate,
+    onSaveError: handlePipelineColumnSaveError,
+    localStorageKey: CRM_PIPELINE_STORAGE_KEY,
+  });
+  const [showPipelineColumnConfig, setShowPipelineColumnConfig] = useState(false);
+  const [draggingPipelineColumnKey, setDraggingPipelineColumnKey] = useState(null);
   const [pipelineNameFilter, setPipelineNameFilter] = useState('');
   const [pipelineStatusFilter, setPipelineStatusFilter] = useState('');
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -1374,6 +1402,26 @@ const CrmPage = ({ user, onLogout }) => {
     const statusOk = pipelineStatusFilter.trim() === '' || (row.status || '').toLowerCase() === pipelineStatusFilter.trim().toLowerCase();
     return nameOk && statusOk;
   });
+
+  const visiblePipelineColumns = useMemo(() => pipelineColumns.filter((c) => c.visible), [pipelineColumns]);
+
+  const movePipelineColumn = (fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    setPipelineColumns((prev) => {
+      const fromIdx = prev.findIndex((c) => c.key === fromKey);
+      const toIdx = prev.findIndex((c) => c.key === toKey);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  };
+
+  const togglePipelineColumnVisible = (key) => {
+    setPipelineColumns((prev) => prev.map((c) => (c.key === key ? { ...c, visible: !c.visible } : c)));
+  };
+
   const crmContactOptions = useMemo(() => {
     const unique = new Map();
     leads.forEach((lead) => {
@@ -1467,7 +1515,51 @@ const CrmPage = ({ user, onLogout }) => {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-2 bg-white rounded-2xl shadow border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-700">Pipeline</h2>
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="text-sm font-semibold text-gray-700">Pipeline</h2>
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowPipelineColumnConfig((v) => !v)}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-gray-300 bg-white rounded-lg hover:bg-gray-50"
+                  >
+                    <FaCog className="w-3.5 h-3.5" aria-hidden />
+                    Columns
+                  </button>
+                  {showPipelineColumnConfig && (
+                    <div className="absolute right-0 top-8 z-30 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-3">
+                      <div className="text-xs text-gray-500 mb-2">
+                        Toggle visibility and drag to reorder pipeline fields.
+                      </div>
+                      <ul className="space-y-2 max-h-56 overflow-auto">
+                        {pipelineColumns.map((col) => (
+                          <li
+                            key={col.key}
+                            draggable
+                            onDragStart={() => setDraggingPipelineColumnKey(col.key)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => {
+                              movePipelineColumn(draggingPipelineColumnKey, col.key);
+                              setDraggingPipelineColumnKey(null);
+                            }}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-2 py-1.5 bg-gray-50"
+                          >
+                            <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={col.visible}
+                                onChange={() => togglePipelineColumnVisible(col.key)}
+                              />
+                              <span>{col.label}</span>
+                            </label>
+                            <span className="text-gray-400 text-xs">drag</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="mt-2 grid grid-cols-1 gap-2">
                 <input
                   type="search"
@@ -1507,15 +1599,35 @@ const CrmPage = ({ user, onLogout }) => {
                         }`}
                       >
                         <div className="font-medium text-gray-900">{row.name}</div>
-                        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-500">
-                          <span className="capitalize px-2 py-0.5 rounded bg-gray-100 text-gray-700">{row.status}</span>
-                          {row.linked_account && (
-                            <span className="inline-flex items-center gap-1 text-emerald-700">
-                              <FaLink className="text-emerald-600" /> Linked
-                            </span>
-                          )}
-                          {row.email && <span>{row.email}</span>}
-                        </div>
+                        {visiblePipelineColumns.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-500">
+                            {visiblePipelineColumns.map((col) => {
+                              if (col.key === 'status') {
+                                return (
+                                  <span
+                                    key={col.key}
+                                    className="capitalize px-2 py-0.5 rounded bg-gray-100 text-gray-700"
+                                  >
+                                    {row.status}
+                                  </span>
+                                );
+                              }
+                              if (col.key === 'linked_account') {
+                                if (!row.linked_account) return null;
+                                return (
+                                  <span key={col.key} className="inline-flex items-center gap-1 text-emerald-700">
+                                    <FaLink className="text-emerald-600" aria-hidden /> Linked
+                                  </span>
+                                );
+                              }
+                              if (col.key === 'contact_email') {
+                                if (!row.email) return null;
+                                return <span key={col.key}>{row.email}</span>;
+                              }
+                              return null;
+                            })}
+                          </div>
+                        )}
                       </button>
                     </li>
                   ))}

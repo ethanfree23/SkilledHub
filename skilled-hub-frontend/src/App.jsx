@@ -204,7 +204,7 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 {user?.role === 'admin' ? (
-                  <CrmPage user={user} onLogout={handleLogout} />
+                  <CrmPage user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
                 ) : (
                   <Navigate to="/dashboard" replace />
                 )}
@@ -229,7 +229,7 @@ function App() {
             element={
               <ProtectedRoute isAuthenticated={isAuthenticated}>
                 {user?.role === 'admin' ? (
-                  <AdminUsersPage user={user} onLogout={handleLogout} />
+                  <AdminUsersPage user={user} onLogout={handleLogout} onUserUpdate={handleUserUpdate} />
                 ) : (
                   <Navigate to="/dashboard" replace />
                 )}

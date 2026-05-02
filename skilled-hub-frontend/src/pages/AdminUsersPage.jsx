@@ -6,6 +6,8 @@ import AlertModal from '../components/AlertModal';
 import AdminCreateUserModal from '../components/AdminCreateUserModal';
 import { auth } from '../auth';
 import { FaCog, FaEye, FaSearch, FaUserPlus } from 'react-icons/fa';
+import { useTableColumnPreferences } from '../hooks/useTableColumnPreferences';
+import { TABLE_COLUMN_IDS } from '../utils/tableColumnPrefs';
 
 const ROLE_TABS = [
   { id: 'all', label: 'All' },
@@ -23,7 +25,7 @@ const DEFAULT_COLUMNS = [
   { key: 'joined', label: 'Joined', visible: true },
 ];
 
-export default function AdminUsersPage({ user, onLogout }) {
+export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
   const [roleTab, setRoleTab] = useState('all');
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,9 +46,26 @@ export default function AdminUsersPage({ user, onLogout }) {
   const [phoneFilter, setPhoneFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [sortDir, setSortDir] = useState('asc');
-  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [draggingColumnKey, setDraggingColumnKey] = useState(null);
+
+  const handleColumnSaveError = useCallback(() => {
+    setAlertModal({
+      isOpen: true,
+      title: 'Could not save column settings',
+      message: 'Your column layout was kept on this device only. Try again later.',
+      variant: 'error',
+    });
+  }, []);
+
+  const [columns, setColumns] = useTableColumnPreferences({
+    tableId: TABLE_COLUMN_IDS.adminUsers,
+    defaultColumns: DEFAULT_COLUMNS,
+    user,
+    onUserUpdate,
+    onSaveError: handleColumnSaveError,
+    localStorageKey: COLUMN_STORAGE_KEY,
+  });
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -78,38 +97,6 @@ export default function AdminUsersPage({ user, onLogout }) {
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(COLUMN_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return;
-      const defaultMap = new Map(DEFAULT_COLUMNS.map((c) => [c.key, c]));
-      const fromSaved = parsed
-        .map((c) => {
-          const base = defaultMap.get(c.key);
-          if (!base) return null;
-          return { ...base, visible: c.visible !== false };
-        })
-        .filter(Boolean);
-      const missing = DEFAULT_COLUMNS.filter((c) => !fromSaved.some((x) => x.key === c.key));
-      setColumns([...fromSaved, ...missing]);
-    } catch {
-      setColumns(DEFAULT_COLUMNS);
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        COLUMN_STORAGE_KEY,
-        JSON.stringify(columns.map((c) => ({ key: c.key, visible: c.visible })))
-      );
-    } catch {
-      // ignore storage failures
-    }
-  }, [columns]);
 
   const visibleColumns = useMemo(() => columns.filter((c) => c.visible), [columns]);
   const primarySortKey = visibleColumns[0]?.key;

@@ -1,0 +1,95 @@
+import { useState, useEffect, useRef } from 'react';
+import { authAPI } from '../api/api';
+import { auth } from '../auth';
+import {
+  serializeTableColumns,
+  normalizeSavedColumnsJson,
+  columnsFromSavedArray,
+  getSavedColumnsArrayForTable,
+} from '../utils/tableColumnPrefs';
+
+const LEGACY_ADMIN_USERS_KEY = 'admin_users_table_columns';
+
+/**
+ * Persist column visibility/order per logical table under user.ui_preferences.table_columns[tableId].
+ */
+export function useTableColumnPreferences({
+  tableId,
+  defaultColumns,
+  user,
+  onUserUpdate,
+  onSaveError,
+  localStorageKey,
+}) {
+  const [columns, setColumns] = useState(defaultColumns);
+  const hydratedRef = useRef(false);
+  const onUserUpdateRef = useRef(onUserUpdate);
+  const onSaveErrorRef = useRef(onSaveError);
+  onUserUpdateRef.current = onUserUpdate;
+  onSaveErrorRef.current = onSaveError;
+
+  useEffect(() => {
+    if (!user || hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    let parsed = getSavedColumnsArrayForTable(user, tableId, LEGACY_ADMIN_USERS_KEY);
+    if (!parsed) {
+      try {
+        const raw = window.localStorage.getItem(localStorageKey);
+        if (raw) parsed = JSON.parse(raw);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      setColumns(columnsFromSavedArray(parsed, defaultColumns));
+    }
+  }, [user, tableId, defaultColumns, localStorageKey]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        localStorageKey,
+        JSON.stringify(columns.map((c) => ({ key: c.key, visible: c.visible })))
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [columns, localStorageKey]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || !user) return;
+
+    const timer = setTimeout(() => {
+      const payload = serializeTableColumns(columns);
+      const savedNested = user.ui_preferences?.table_columns?.[tableId];
+      let compareTo = savedNested;
+      if (!compareTo && tableId === 'admin_users') {
+        compareTo = user.ui_preferences?.admin_users_table_columns;
+      }
+      if (normalizeSavedColumnsJson(compareTo) === JSON.stringify(payload)) return;
+
+      authAPI
+        .updateMe({
+          ui_preferences: {
+            table_columns: {
+              [tableId]: payload,
+            },
+          },
+        })
+        .then((res) => {
+          if (res?.user) {
+            auth.setUser(res.user);
+            onUserUpdateRef.current?.(res.user);
+          }
+        })
+        .catch(() => {
+          onSaveErrorRef.current?.();
+        });
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [columns, user, tableId]);
+
+  return [columns, setColumns];
+}

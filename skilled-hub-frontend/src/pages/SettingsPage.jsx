@@ -21,6 +21,7 @@ import SystemControlsPricing from '../components/admin/SystemControlsPricing';
 import AdminJobAccessSettings from '../components/admin/AdminJobAccessSettings';
 import { needsTechnicianMapSetup } from '../utils/technicianMap';
 import { requiresElectricalLicenseForState, setLocalOnlyLicenseStates } from '../utils/licensingRules';
+import { formatPhoneInput } from '../utils/phone';
 
 const formatMembershipTier = (tier) => {
   const raw = String(tier || '').trim();
@@ -117,12 +118,14 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
       first_name: user?.first_name ?? auth.getUser()?.first_name ?? '',
       last_name: user?.last_name ?? auth.getUser()?.last_name ?? '',
     });
+    const phoneFromUser = () => user?.phone ?? auth.getUser()?.phone ?? '';
     try {
       if (isCompany) {
         const p = await profilesAPI.getCompanyProfile();
         setProfile(p);
         setForm({
           ...nameFields(),
+          phone: p?.phone ?? phoneFromUser(),
           company_name: p?.company_name || '',
           industry: p?.industry || '',
           location: p?.location || '',
@@ -137,6 +140,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
         setProfile(p);
         setForm({
           ...nameFields(),
+          phone: p?.phone ?? phoneFromUser(),
           trade_type: p?.trade_type || '',
           experience_years: p?.experience_years ?? '',
           availability: p?.availability || '',
@@ -158,7 +162,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, [isCompany, isTechnician, user?.first_name, user?.last_name]);
+  }, [isCompany, isTechnician, user?.first_name, user?.last_name, user?.phone]);
 
   useEffect(() => {
     let active = true;
@@ -201,8 +205,9 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
       ...prev,
       first_name: user?.first_name || auth.getUser()?.first_name || '',
       last_name: user?.last_name || auth.getUser()?.last_name || '',
+      phone: user?.phone ?? auth.getUser()?.phone ?? prev.phone ?? '',
     }));
-  }, [user?.first_name, user?.last_name]);
+  }, [user?.first_name, user?.last_name, user?.phone]);
 
   useEffect(() => {
     setNotificationPrefs({
@@ -312,8 +317,13 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     e.preventDefault();
     const firstName = (form.first_name || '').trim();
     const lastName = (form.last_name || '').trim();
+    const phoneDigits = String(form.phone || '').replace(/\D/g, '');
     if (!firstName || !lastName) {
       setError('First name and last name are required.');
+      return;
+    }
+    if (!phoneDigits || phoneDigits.length < 10) {
+      setError('A valid phone number is required (10 digits).');
       return;
     }
 
@@ -321,9 +331,11 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     setSaving(true);
     setError(null);
     try {
+      const phoneTrim = String(form.phone || '').trim();
       const accountRes = await authAPI.updateMe({
         first_name: firstName,
         last_name: lastName,
+        phone: phoneTrim,
       });
       auth.setUser(accountRes.user);
       onUserUpdate?.(accountRes.user);
@@ -793,26 +805,25 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone number</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  autoComplete="tel"
+                  value={form.phone || ''}
+                  onChange={(e) => setForm((prev) => ({ ...prev, phone: formatPhoneInput(e.target.value) }))}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="+1 (555) 555-0100"
+                  required
+                />
+              </div>
               <button type="submit" disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
           ) : (
           <form onSubmit={handleProfileSubmit} className="space-y-4">
-            {isTechnician && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
-                <textarea
-                  name="bio"
-                  value={form.bio || ''}
-                  onChange={handleChange}
-                  rows={4}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Tell others about yourself..."
-                />
-              </div>
-            )}
-
             <div className="flex items-center gap-6">
               <div className="relative">
                 {profile?.avatar_url ? (
@@ -851,6 +862,21 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   required
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone number</label>
+              <input
+                type="tel"
+                name="phone"
+                autoComplete="tel"
+                value={form.phone || ''}
+                onChange={(e) => setForm((prev) => ({ ...prev, phone: formatPhoneInput(e.target.value) }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="+1 (555) 555-0100"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">Required. Used for job-related contact and your public profile.</p>
             </div>
 
             {isCompany && (
@@ -908,6 +934,18 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Availability</label>
                     <input name="availability" value={form.availability} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" placeholder="e.g. Full-time, Part-time" />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                  <textarea
+                    name="bio"
+                    value={form.bio || ''}
+                    onChange={handleChange}
+                    rows={4}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="Tell others about yourself..."
+                  />
                 </div>
 
                 <div className="border-t border-gray-200 pt-4 mt-4">

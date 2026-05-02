@@ -220,7 +220,9 @@ module Api
         patch "/api/v1/users/me",
               params: {
                 ui_preferences: {
-                  admin_users_table_columns: cols
+                  table_columns: {
+                    admin_users: cols
+                  }
                 }
               },
               headers: auth_header_for(user),
@@ -229,11 +231,70 @@ module Api
         assert_response :ok
         user.reload
         assert_equal true, user.ui_preferences_hash["legacy_flag"]
-        assert_equal cols_json, user.ui_preferences_hash["admin_users_table_columns"]
+        assert_equal cols_json, user.ui_preferences_hash.dig("table_columns", "admin_users")
 
         body = JSON.parse(response.body)
-        assert_equal cols_json, body.dig("user", "ui_preferences", "admin_users_table_columns")
+        assert_equal cols_json, body.dig("user", "ui_preferences", "table_columns", "admin_users")
         assert_equal true, body.dig("user", "ui_preferences", "legacy_flag")
+      end
+
+      test "update me ui_preferences only succeeds for admin without phone" do
+        user = User.create!(
+          email: "ui-prefs-no-phone-admin@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :admin
+        )
+        assert user.phone.blank?
+
+        cols = [{ key: "email", visible: false }]
+        patch "/api/v1/users/me",
+              params: {
+                ui_preferences: {
+                  table_columns: {
+                    admin_users: cols
+                  }
+                }
+              },
+              headers: auth_header_for(user),
+              as: :json
+
+        assert_response :ok
+        user.reload
+        assert_equal cols.map { |h| h.stringify_keys }, user.ui_preferences_hash.dig("table_columns", "admin_users")
+      end
+
+      test "update me ui_preferences deep merges table_columns without wiping other tables" do
+        user = User.create!(
+          email: "ui-prefs-multi-table@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :admin,
+          phone: "713-555-0900"
+        )
+        user.update_column(:ui_preferences, {
+                             "table_columns" => {
+                               "crm_pipeline" => [{ "key" => "status", "visible" => false }]
+                             }
+                           })
+
+        patch "/api/v1/users/me",
+              params: {
+                ui_preferences: {
+                  table_columns: {
+                    admin_users: [{ key: "email", visible: true }]
+                  }
+                }
+              },
+              headers: auth_header_for(user),
+              as: :json
+
+        assert_response :ok
+        user.reload
+        assert_equal [{ "key" => "email", "visible" => true }],
+                     user.ui_preferences_hash.dig("table_columns", "admin_users")
+        assert_equal [{ "key" => "status", "visible" => false }],
+                     user.ui_preferences_hash.dig("table_columns", "crm_pipeline")
       end
     end
   end

@@ -1237,6 +1237,44 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               )}
             </AdminCollapsibleCard>
 
+            <AdminCollapsibleCard title="Email history" description="Outbound emails recorded after successful delivery (no rows for failed sends).">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                <Stat label="In period" value={data.email_deliveries?.total_in_period ?? '—'} />
+              </div>
+              {(data.email_deliveries?.recent || []).length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="py-2 pr-4">Sent</th>
+                        <th className="py-2 pr-4">Mailer</th>
+                        <th className="py-2 pr-4">Subject</th>
+                        <th className="py-2 pr-4">To</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.email_deliveries?.recent || []).map((row, i) => (
+                        <tr key={`${row.at}-${i}`} className="border-b border-gray-50">
+                          <td className="py-2 pr-4 whitespace-nowrap">
+                            {row.at ? new Date(row.at).toLocaleString() : '—'}
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs">
+                            {row.mailer_class}#{row.mailer_action}
+                          </td>
+                          <td className="py-2 pr-4">{row.subject || '—'}</td>
+                          <td className="py-2 pr-4">{row.to_email}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No outbound emails recorded for this user in the selected period.
+                </p>
+              )}
+            </AdminCollapsibleCard>
+
             <AdminCollapsibleCard title="Messages">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <Stat label="Job threads (period)" value={data.messages?.job_threads_sent_in_period ?? 0} />

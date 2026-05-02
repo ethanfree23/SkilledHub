@@ -1,12 +1,30 @@
 module Api
   module V1
     class UsersController < ApplicationController
+      # ui_preferences["table_columns"][table_id] => [{ "key", "visible" }, ...]
+      UI_TABLE_COLUMNS_PERMIT = {
+        admin_users: %i[key visible],
+        crm_pipeline: %i[key visible]
+      }.freeze
+
       before_action :authenticate_user, only: [:show, :update_me]
 
       def update_me
         if params[:password].present?
           @current_user.password_set_actor = 'user'
         end
+
+        # Saving only UI prefs must not run full validations (e.g. admin phone on :update).
+        if ui_preferences_only_patch?
+          merged_prefs = update_me_params["ui_preferences"]
+          unless merged_prefs.is_a?(Hash)
+            return render json: { errors: ["ui_preferences is invalid"] }, status: :unprocessable_entity
+          end
+
+          @current_user.update_columns(ui_preferences: merged_prefs, updated_at: Time.current)
+          return render json: { user: UserSerializer.new(@current_user.reload).as_json }, status: :ok
+        end
+
         if @current_user.update(update_me_params)
           render json: { user: UserSerializer.new(@current_user).as_json }, status: :ok
         else
@@ -102,6 +120,13 @@ module Api
 
       private
 
+      def ui_preferences_only_patch?
+        return false if params[:password].present?
+
+        meaningful = params.keys.map(&:to_s) - %w[controller action format user]
+        meaningful == ["ui_preferences"]
+      end
+
       def user_params
         params.permit(
           :email, :password, :password_confirmation, :first_name, :last_name, :phone, :role
@@ -119,7 +144,10 @@ module Api
           :email_notifications_enabled,
           :job_alert_notifications_enabled,
           email_notification_preferences: {},
-          ui_preferences: { admin_users_table_columns: %i[key visible] }
+          ui_preferences: {
+            admin_users_table_columns: %i[key visible],
+            table_columns: UI_TABLE_COLUMNS_PERMIT
+          }
         ).to_h
         p.except!(:password, :password_confirmation) if p[:password].blank?
         if p.key?("email_notification_preferences")
@@ -129,7 +157,13 @@ module Api
         end
         if p.key?("ui_preferences")
           incoming = p["ui_preferences"].to_h.deep_stringify_keys
-          merged = @current_user.ui_preferences_hash.merge(incoming)
+          if incoming["admin_users_table_columns"].present?
+            incoming["table_columns"] ||= {}
+            incoming["table_columns"]["admin_users"] ||= incoming["admin_users_table_columns"]
+            incoming.delete("admin_users_table_columns")
+          end
+          merged = @current_user.ui_preferences_hash.deep_merge(incoming)
+          merged.delete("admin_users_table_columns")
           p["ui_preferences"] = merged
         end
         p
