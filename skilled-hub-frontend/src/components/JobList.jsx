@@ -6,11 +6,23 @@ import AlertModal from './AlertModal';
 import ReferralModal from './ReferralModal';
 import { formatExperienceShort } from '../constants/experienceSelect';
 
-const matchesSavedSearch = (job, saved) => {
+const toNormalizedList = (value) => {
+  if (Array.isArray(value)) return value.map((v) => String(v || '').trim().toLowerCase()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+};
+
+const matchesSavedSearch = (job, saved, technicianProfile) => {
   if (!saved || !job) return false;
   const kw = (saved.keyword || '').toLowerCase().trim();
   const loc = (saved.location || '').toLowerCase().trim();
   const sk = (saved.skill_class || '').toLowerCase().trim();
+  const maxDistance = Number(saved.max_distance_miles || 0);
+  const minHourly = Number(saved.min_hourly_rate_cents || 0);
+  const maxYears = Number(saved.max_required_years_experience || 0);
+  const requiredCerts = toNormalizedList(saved.required_certifications);
   const title = (job.title || '').toLowerCase();
   const desc = (job.description || '').toLowerCase();
   const jobLoc = (job.location || '').toLowerCase();
@@ -18,7 +30,33 @@ const matchesSavedSearch = (job, saved) => {
   if (kw && !title.includes(kw) && !desc.includes(kw)) return false;
   if (loc && !jobLoc.includes(loc)) return false;
   if (sk && !jobSk.includes(sk)) return false;
-  return !!(kw || loc || sk);
+  if (minHourly > 0 && Number(job.hourly_rate_cents || 0) < minHourly) return false;
+  if (maxYears > 0 && Number(job.minimum_years_experience || 0) > maxYears) return false;
+
+  if (requiredCerts.length > 0) {
+    const jobCerts = toNormalizedList(job.required_certifications);
+    if (!requiredCerts.every((cert) => jobCerts.includes(cert))) return false;
+  }
+
+  if (maxDistance > 0) {
+    if (
+      technicianProfile?.latitude == null ||
+      technicianProfile?.longitude == null ||
+      job?.latitude == null ||
+      job?.longitude == null
+    ) {
+      return false;
+    }
+    const distance = haversineMiles(
+      technicianProfile.latitude,
+      technicianProfile.longitude,
+      job.latitude,
+      job.longitude
+    );
+    if (distance > maxDistance) return false;
+  }
+
+  return !!(kw || loc || sk || maxDistance > 0 || minHourly > 0 || maxYears > 0 || requiredCerts.length > 0);
 };
 
 const haversineMiles = (lat1, lon1, lat2, lon2) => {
@@ -514,7 +552,7 @@ const JobList = () => {
                           Counter pending
                         </span>
                       )}
-                      {auth.isTechnician() && savedSearches.some((s) => matchesSavedSearch(job, s)) && (
+                      {auth.isTechnician() && savedSearches.some((s) => matchesSavedSearch(job, s, technicianProfile)) && (
                         <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                           Saved search
                         </span>

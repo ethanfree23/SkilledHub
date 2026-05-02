@@ -117,9 +117,15 @@ module Api
           :last_name,
           :phone,
           :email_notifications_enabled,
-          :job_alert_notifications_enabled
+          :job_alert_notifications_enabled,
+          email_notification_preferences: {}
         ).to_h
         p.except!(:password, :password_confirmation) if p[:password].blank?
+        if p.key?("email_notification_preferences")
+          incoming = p["email_notification_preferences"].to_h
+          merged = @current_user.email_notification_preferences_hash.merge(incoming.stringify_keys)
+          p["email_notification_preferences"] = merged.to_json
+        end
         p
       end
 

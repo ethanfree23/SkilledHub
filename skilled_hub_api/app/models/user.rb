@@ -1,5 +1,6 @@
 class User < ApplicationRecord
   PASSWORD_RESET_EXPIRY = 72.hours
+  EMAIL_NOTIFICATION_CATEGORIES = %w[messages job_lifecycle reviews membership_updates].freeze
 
   has_secure_password
   attr_accessor :password_set_actor
@@ -55,12 +56,43 @@ class User < ApplicationRecord
     self[:email_notifications_enabled] != false
   end
 
+  def email_notification_preferences_hash
+    raw = self[:email_notification_preferences]
+    parsed =
+      case raw
+      when Hash
+        raw
+      else
+        JSON.parse(raw.to_s)
+      end
+    normalized = default_email_notification_preferences.merge(parsed.stringify_keys)
+    normalized.transform_values { |v| ActiveModel::Type::Boolean.new.cast(v) }
+  rescue JSON::ParserError
+    default_email_notification_preferences
+  end
+
+  def email_notification_enabled_for?(category)
+    key = category.to_s
+    return true unless EMAIL_NOTIFICATION_CATEGORIES.include?(key)
+
+    email_notification_preferences_hash[key] != false
+  end
+
   # This preference is reserved for future saved-search/new-job digest sends.
   def job_alert_notifications_enabled?
     self[:job_alert_notifications_enabled] != false
   end
 
   private
+
+  def default_email_notification_preferences
+    {
+      "messages" => true,
+      "job_lifecycle" => true,
+      "reviews" => true,
+      "membership_updates" => true
+    }
+  end
 
   def stamp_password_metadata
     actor = password_set_actor.to_s.presence

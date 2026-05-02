@@ -104,6 +104,37 @@ const loadGoogleMapsScript = () => {
 const humanizeStatus = (s) => (s == null ? '—' : String(s).replace(/_/g, ' '));
 
 const AdminInsightTable = ({ category, items }) => {
+  const classifyTableValue = (value) => {
+    const normalized = String(value ?? '').trim();
+    if (!normalized || normalized === '-' || normalized === '—') return 2;
+    if (/^\d+(\.\d+)?$/.test(normalized)) return 1;
+    return 0;
+  };
+
+  const compareBaseColumnValues = (leftValue, rightValue) => {
+    const leftClass = classifyTableValue(leftValue);
+    const rightClass = classifyTableValue(rightValue);
+    if (leftClass !== rightClass) return leftClass - rightClass;
+
+    if (leftClass === 1) {
+      return Number(leftValue) - Number(rightValue);
+    }
+
+    return String(leftValue ?? '').localeCompare(String(rightValue ?? ''), undefined, {
+      sensitivity: 'base',
+    });
+  };
+
+  const firstColumnValueForCategory = (row) => {
+    if (category === 'total_users' || category === 'technicians') return row?.email ?? '';
+    if (category === 'companies') return row?.company_name ?? '';
+    return '';
+  };
+
+  const sortedItems = [...(items || [])].sort((a, b) =>
+    compareBaseColumnValues(firstColumnValueForCategory(a), firstColumnValueForCategory(b))
+  );
+
   if (!items?.length) {
     return <p className="text-gray-500 text-sm py-8 text-center">No rows for this time range.</p>;
   }
@@ -124,7 +155,7 @@ const AdminInsightTable = ({ category, items }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.map((row) => (
+            {sortedItems.map((row) => (
               <tr key={row.id} className="hover:bg-gray-50/80">
                 <td className="px-3 py-2 text-gray-800">{row.email}</td>
                 <td className="px-3 py-2 capitalize text-gray-600">{row.role}</td>
@@ -157,7 +188,7 @@ const AdminInsightTable = ({ category, items }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.map((row) => (
+            {sortedItems.map((row) => (
               <tr key={row.id} className="hover:bg-gray-50/80">
                 <td className="px-3 py-2 text-gray-800">{row.email}</td>
                 <td className="px-3 py-2 text-gray-600">{row.trade_type || '—'}</td>
@@ -190,7 +221,7 @@ const AdminInsightTable = ({ category, items }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.map((row) => (
+            {sortedItems.map((row) => (
               <tr key={row.id} className="hover:bg-gray-50/80">
                 <td className="px-3 py-2 font-medium text-gray-800">{row.company_name || '—'}</td>
                 <td className="px-3 py-2 text-gray-600">{row.email}</td>

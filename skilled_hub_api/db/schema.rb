@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_02_101800) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_02_115500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -350,7 +350,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_101800) do
     t.string "skill_class"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["technician_profile_id", "keyword", "location", "skill_class"], name: "index_saved_searches_on_tech_and_criteria", unique: true
+    t.integer "max_distance_miles"
+    t.integer "min_hourly_rate_cents"
+    t.integer "max_required_years_experience"
+    t.text "required_certifications"
+    t.index ["technician_profile_id", "keyword", "location", "skill_class", "max_distance_miles", "min_hourly_rate_cents", "max_required_years_experience", "required_certifications"], name: "index_saved_searches_on_tech_and_template_criteria", unique: true
     t.index ["technician_profile_id"], name: "index_saved_job_searches_on_technician_profile_id"
   end
 
@@ -420,6 +424,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_101800) do
     t.string "password_set_by"
     t.boolean "email_notifications_enabled", default: true, null: false
     t.boolean "job_alert_notifications_enabled", default: true, null: false
+    t.text "email_notification_preferences", default: "{\"messages\":true,\"job_lifecycle\":true,\"reviews\":true,\"membership_updates\":true}", null: false
     t.index ["company_profile_id"], name: "index_users_on_company_profile_id"
     t.index ["password_reset_token"], name: "index_users_on_password_reset_token", unique: true
     t.index ["password_set_by"], name: "index_users_on_password_set_by"

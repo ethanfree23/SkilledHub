@@ -36,6 +36,28 @@ class UserMailerTest < ActionMailer::TestCase
     assert_match(/account is ready/i, mail.subject)
   end
 
+  test "category preferences gate non-critical emails but keep payment receipts" do
+    company_user = @fixtures[:company_user]
+    company_user.update!(
+      email_notifications_enabled: true,
+      email_notification_preferences: {
+        messages: false,
+        job_lifecycle: false,
+        reviews: false,
+        membership_updates: false
+      }.to_json
+    )
+
+    assert_instance_of ActionMailer::Base::NullMail, UserMailer.job_posted_email(@fixtures[:job]).message
+    assert_instance_of ActionMailer::Base::NullMail,
+                       UserMailer.membership_checkout_thanks(company_user, membership_level: @fixtures[:company_profile].membership_level).message
+    assert_instance_of ActionMailer::Base::NullMail, UserMailer.new_message(@fixtures[:message]).message
+
+    payment_mail = UserMailer.payment_confirmation_email(@fixtures[:job], 12_345)
+    assert_not_nil payment_mail
+    assert payment_mail.subject.present?
+  end
+
   private
 
   def build_all_messages

@@ -112,6 +112,15 @@ export default function AdminUsersPage({ user, onLogout }) {
     }
   }, [columns]);
 
+  useEffect(() => {
+    const leftMostVisibleColumn = columns.find((c) => c.visible)?.key;
+    if (!leftMostVisibleColumn) return;
+    if (sortBy !== leftMostVisibleColumn || sortDir !== 'asc') {
+      setSortBy(leftMostVisibleColumn);
+      setSortDir('asc');
+    }
+  }, [columns, roleTab, sortBy, sortDir]);
+
   const startMasquerade = async (e, targetUserId) => {
     e.stopPropagation();
     setMasqueradeBusyId(targetUserId);
@@ -155,31 +164,61 @@ export default function AdminUsersPage({ user, onLogout }) {
   };
 
   const sortedList = [...filteredList].sort((a, b) => {
-    const dir = sortDir === 'asc' ? 1 : -1;
-    if (sortBy === 'joined') {
-      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return (aTime - bTime) * dir;
-    }
-    const getStr = (row, key) => {
+    const getRawValue = (row, key) => {
       switch (key) {
         case 'first_name':
-          return (row.first_name || '').toLowerCase();
+          return row.first_name ?? '';
         case 'last_name':
-          return (row.last_name || '').toLowerCase();
+          return row.last_name ?? '';
         case 'email':
-          return (row.email || '').toLowerCase();
+          return row.email ?? '';
         case 'phone':
-          return (row.phone || '').toLowerCase();
+          return row.phone ?? '';
         case 'company':
-          return (row.company_name || '').toLowerCase();
+          return row.company_name ?? '';
         case 'role':
-          return (row.role || '').toLowerCase();
+          return row.role ?? '';
+        case 'joined':
+          return row.created_at ?? '';
         default:
           return '';
       }
     };
-    return getStr(a, sortBy).localeCompare(getStr(b, sortBy), undefined, { sensitivity: 'base' }) * dir;
+
+    const classifyValue = (value) => {
+      const normalized = String(value ?? '').trim();
+      if (!normalized || normalized === '-' || normalized === '—') return 2;
+      if (/^\d+(\.\d+)?$/.test(normalized)) return 1;
+      return 0;
+    };
+
+    const compareByColumn = (left, right, key, direction = 1) => {
+      if (key === 'joined') {
+        const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+        const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+        return (leftTime - rightTime) * direction;
+      }
+
+      const leftRaw = getRawValue(left, key);
+      const rightRaw = getRawValue(right, key);
+      const leftClass = classifyValue(leftRaw);
+      const rightClass = classifyValue(rightRaw);
+      if (leftClass !== rightClass) return leftClass - rightClass;
+
+      if (leftClass === 1) {
+        const leftNum = Number(leftRaw);
+        const rightNum = Number(rightRaw);
+        return (leftNum - rightNum) * direction;
+      }
+
+      const leftStr = String(leftRaw).toLowerCase();
+      const rightStr = String(rightRaw).toLowerCase();
+      return leftStr.localeCompare(rightStr, undefined, { sensitivity: 'base' }) * direction;
+    };
+
+    const primary = compareByColumn(a, b, sortBy, sortDir === 'asc' ? 1 : -1);
+    if (primary !== 0) return primary;
+    return compareByColumn(a, b, 'email', 1);
   });
   const visibleColumns = columns.filter((c) => c.visible);
   const moveColumn = (fromKey, toKey) => {

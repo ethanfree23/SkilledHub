@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import { profilesAPI, settingsAPI, authAPI, documentsAPI, licensingSettingsAPI } from '../api/api';
+import { profilesAPI, settingsAPI, authAPI, documentsAPI, licensingSettingsAPI, savedJobSearchesAPI } from '../api/api';
 import { auth } from '../auth';
 import CardPaymentForm from '../components/CardPaymentForm';
 import { getStripePublishableKey, isValidStripePublishableKey } from '../stripeConfig';
@@ -22,6 +22,21 @@ const formatMembershipTier = (tier) => {
     .join(' ');
 };
 
+const DEFAULT_EMAIL_PREFS = {
+  messages: true,
+  job_lifecycle: true,
+  reviews: true,
+  membership_updates: true,
+};
+
+const toList = (value) => {
+  if (Array.isArray(value)) return value.map((v) => String(v || '').trim()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+};
+
 const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -38,8 +53,21 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [notificationPrefs, setNotificationPrefs] = useState({
     email_notifications_enabled: true,
     job_alert_notifications_enabled: true,
+    email_notification_preferences: DEFAULT_EMAIL_PREFS,
   });
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [savedAlertTemplates, setSavedAlertTemplates] = useState([]);
+  const [templateForm, setTemplateForm] = useState({
+    keyword: '',
+    location: '',
+    skill_class: '',
+    max_distance_miles: '',
+    min_hourly_rate_cents: '',
+    max_required_years_experience: '',
+    required_certifications: '',
+  });
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [removingTemplateId, setRemovingTemplateId] = useState(null);
   const [certificates, setCertificates] = useState([]);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [deletingCertId, setDeletingCertId] = useState(null);
@@ -107,8 +135,23 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     setNotificationPrefs({
       email_notifications_enabled: user?.email_notifications_enabled !== false,
       job_alert_notifications_enabled: user?.job_alert_notifications_enabled !== false,
+      email_notification_preferences: {
+        ...DEFAULT_EMAIL_PREFS,
+        ...(user?.email_notification_preferences || {}),
+      },
     });
-  }, [user?.email_notifications_enabled, user?.job_alert_notifications_enabled]);
+  }, [user?.email_notifications_enabled, user?.job_alert_notifications_enabled, user?.email_notification_preferences]);
+
+  useEffect(() => {
+    if (!isTechnician) {
+      setSavedAlertTemplates([]);
+      return;
+    }
+    savedJobSearchesAPI
+      .list()
+      .then((items) => setSavedAlertTemplates(Array.isArray(items) ? items : []))
+      .catch(() => setSavedAlertTemplates([]));
+  }, [isTechnician]);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -250,13 +293,15 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     }
   };
 
-  const handleNotificationToggle = async (key, value) => {
-    const prev = notificationPrefs;
-    const next = { ...prev, [key]: value };
-    setNotificationPrefs(next);
+  const persistNotificationPrefs = async (next) => {
     setSavingNotifications(true);
     try {
-      const res = await authAPI.updateMe(next);
+      const payload = {
+        email_notifications_enabled: next.email_notifications_enabled,
+        job_alert_notifications_enabled: next.job_alert_notifications_enabled,
+        email_notification_preferences: next.email_notification_preferences,
+      };
+      const res = await authAPI.updateMe(payload);
       auth.setUser(res.user);
       onUserUpdate?.(res.user);
       setAlertModal({
@@ -265,16 +310,105 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
         message: 'Notification settings updated.',
         variant: 'success',
       });
+      return true;
     } catch (err) {
-      setNotificationPrefs(prev);
       setAlertModal({
         isOpen: true,
         title: 'Update failed',
         message: err.message || 'Could not save notification settings.',
         variant: 'error',
       });
+      return false;
     } finally {
       setSavingNotifications(false);
+    }
+  };
+
+  const handleNotificationToggle = async (key, value) => {
+    const prev = notificationPrefs;
+    const next = { ...prev, [key]: value };
+    setNotificationPrefs(next);
+    const ok = await persistNotificationPrefs(next);
+    if (!ok) {
+      setNotificationPrefs(prev);
+    }
+  };
+
+  const handleEmailCategoryToggle = async (category, checked) => {
+    const prev = notificationPrefs;
+    const next = {
+      ...prev,
+      email_notification_preferences: {
+        ...prev.email_notification_preferences,
+        [category]: checked,
+      },
+    };
+    setNotificationPrefs(next);
+    const ok = await persistNotificationPrefs(next);
+    if (!ok) setNotificationPrefs(prev);
+  };
+
+  const handleTemplateFieldChange = (e) => {
+    const { name, value } = e.target;
+    setTemplateForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreateTemplate = async (e) => {
+    e.preventDefault();
+    setSavingTemplate(true);
+    try {
+      await savedJobSearchesAPI.create({
+        keyword: templateForm.keyword || null,
+        location: templateForm.location || null,
+        skill_class: templateForm.skill_class || null,
+        max_distance_miles: templateForm.max_distance_miles === '' ? null : Number(templateForm.max_distance_miles),
+        min_hourly_rate_cents: templateForm.min_hourly_rate_cents === '' ? null : Number(templateForm.min_hourly_rate_cents),
+        max_required_years_experience: templateForm.max_required_years_experience === '' ? null : Number(templateForm.max_required_years_experience),
+        required_certifications: toList(templateForm.required_certifications),
+      });
+      const items = await savedJobSearchesAPI.list();
+      setSavedAlertTemplates(Array.isArray(items) ? items : []);
+      setTemplateForm({
+        keyword: '',
+        location: '',
+        skill_class: '',
+        max_distance_miles: '',
+        min_hourly_rate_cents: '',
+        max_required_years_experience: '',
+        required_certifications: '',
+      });
+      setAlertModal({
+        isOpen: true,
+        title: 'Template saved',
+        message: 'Job alert template added.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not save',
+        message: err.message || 'Could not save job alert template.',
+        variant: 'error',
+      });
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleRemoveTemplate = async (id) => {
+    setRemovingTemplateId(id);
+    try {
+      await savedJobSearchesAPI.remove(id);
+      setSavedAlertTemplates((prev) => prev.filter((row) => row.id !== id));
+    } catch (err) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Remove failed',
+        message: err.message || 'Could not remove template.',
+        variant: 'error',
+      });
+    } finally {
+      setRemovingTemplateId(null);
     }
   };
 
@@ -742,10 +876,10 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                 <div className="rounded-xl border border-gray-200 p-4">
                   <h3 className="text-base font-semibold text-gray-900 mb-1">Emails</h3>
                   <p className="text-sm text-gray-600 mb-4">
-                    Receive account activity emails like messages, job updates, payments, and reviews.
+                    Control non-critical automated emails. Security and receipt emails stay enabled.
                   </p>
                   <label className="flex items-center justify-between gap-4">
-                    <span className="text-sm text-gray-800">Email notifications</span>
+                    <span className="text-sm text-gray-800">All automated non-critical emails</span>
                     <input
                       type="checkbox"
                       className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -754,6 +888,30 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                       onChange={(e) => handleNotificationToggle('email_notifications_enabled', e.target.checked)}
                     />
                   </label>
+                  <details className="mt-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-800">
+                      Email types
+                    </summary>
+                    <div className="space-y-3 px-3 pb-3 pt-1">
+                      {[
+                        ['messages', 'New messages'],
+                        ['job_lifecycle', 'Job lifecycle updates'],
+                        ['reviews', 'Reviews and reminders'],
+                        ['membership_updates', 'Membership updates and welcome emails'],
+                      ].map(([key, label]) => (
+                        <label key={key} className="flex items-center justify-between gap-4">
+                          <span className="text-sm text-gray-700">{label}</span>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={notificationPrefs.email_notification_preferences?.[key] !== false}
+                            disabled={savingNotifications || !notificationPrefs.email_notifications_enabled}
+                            onChange={(e) => handleEmailCategoryToggle(key, e.target.checked)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                 </div>
 
                 <div className="rounded-xl border border-gray-200 p-4">
@@ -775,6 +933,59 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                       onChange={(e) => handleNotificationToggle('job_alert_notifications_enabled', e.target.checked)}
                     />
                   </label>
+
+                  {isTechnician && (
+                    <div className="mt-5 border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">Job alert templates</h4>
+                      <p className="text-xs text-gray-600 mb-3">
+                        Templates match jobs by criteria like distance, pay, years required, and required certifications.
+                      </p>
+                      <form onSubmit={handleCreateTemplate} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <input name="keyword" value={templateForm.keyword} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Keyword (optional)" />
+                        <input name="location" value={templateForm.location} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Location (optional)" />
+                        <input name="skill_class" value={templateForm.skill_class} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Skill class (optional)" />
+                        <input type="number" min="1" name="max_distance_miles" value={templateForm.max_distance_miles} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Max distance (miles)" />
+                        <input type="number" min="0" name="min_hourly_rate_cents" value={templateForm.min_hourly_rate_cents} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Min hourly rate cents" />
+                        <input type="number" min="0" name="max_required_years_experience" value={templateForm.max_required_years_experience} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm" placeholder="Max years required" />
+                        <input name="required_certifications" value={templateForm.required_certifications} onChange={handleTemplateFieldChange} className="border rounded-lg px-3 py-2 text-sm md:col-span-2" placeholder="Required certs (comma separated)" />
+                        <div className="md:col-span-2">
+                          <button type="submit" disabled={savingTemplate} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            {savingTemplate ? 'Saving...' : 'Save template'}
+                          </button>
+                        </div>
+                      </form>
+                      <div className="mt-4 space-y-2">
+                        {savedAlertTemplates.length === 0 && (
+                          <p className="text-xs text-gray-500">No templates yet.</p>
+                        )}
+                        {savedAlertTemplates.map((tpl) => (
+                          <div key={tpl.id} className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                            <div className="text-xs text-gray-700">
+                              <p>
+                                {[tpl.keyword, tpl.location, tpl.skill_class].filter(Boolean).join(' | ') || 'Template'}
+                              </p>
+                              <p className="text-gray-500">
+                                {[
+                                  tpl.max_distance_miles ? `${tpl.max_distance_miles}mi` : null,
+                                  tpl.min_hourly_rate_cents ? `>= ${tpl.min_hourly_rate_cents}c/hr` : null,
+                                  tpl.max_required_years_experience ? `<= ${tpl.max_required_years_experience} yrs req` : null,
+                                  Array.isArray(tpl.required_certifications) && tpl.required_certifications.length > 0 ? `certs: ${tpl.required_certifications.join(', ')}` : null,
+                                ].filter(Boolean).join(' | ') || 'No extra filters'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTemplate(tpl.id)}
+                              disabled={removingTemplateId === tpl.id}
+                              className="text-xs text-red-600 hover:text-red-700 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

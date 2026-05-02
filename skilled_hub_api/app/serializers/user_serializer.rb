@@ -8,6 +8,7 @@ class UserSerializer < ActiveModel::Serializer
              :company_profile_id,
              :membership_level,
              :email_notifications_enabled,
+             :email_notification_preferences,
              :job_alert_notifications_enabled,
              :created_at,
              :updated_at
@@ -22,5 +23,9 @@ class UserSerializer < ActiveModel::Serializer
     elsif object.technician?
       MembershipPolicy.normalized_level(object.technician_profile&.membership_level, audience: :technician)
     end
+  end
+
+  def email_notification_preferences
+    object.email_notification_preferences_hash
   end
 end 

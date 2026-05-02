@@ -176,7 +176,13 @@ module Api
         patch "/api/v1/users/me",
               params: {
                 email_notifications_enabled: false,
-                job_alert_notifications_enabled: false
+                job_alert_notifications_enabled: false,
+                email_notification_preferences: {
+                  messages: false,
+                  job_lifecycle: true,
+                  reviews: false,
+                  membership_updates: true
+                }
               },
               headers: auth_header_for(user),
               as: :json
@@ -185,10 +191,14 @@ module Api
         user.reload
         assert_equal false, user.email_notifications_enabled
         assert_equal false, user.job_alert_notifications_enabled
+        assert_equal false, user.email_notification_preferences_hash["messages"]
+        assert_equal true, user.email_notification_preferences_hash["job_lifecycle"]
 
         body = JSON.parse(response.body)
         assert_equal false, body.dig("user", "email_notifications_enabled")
         assert_equal false, body.dig("user", "job_alert_notifications_enabled")
+        assert_equal false, body.dig("user", "email_notification_preferences", "messages")
+        assert_equal true, body.dig("user", "email_notification_preferences", "job_lifecycle")
       end
     end
   end
