@@ -1,0 +1,23 @@
+<h1 style="margin: 0 0 24px 0; font-size: 28px; font-weight: 800; color: #1a1a1a; line-height: 1.2;">Membership payment received</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">We received your membership payment of <strong style="color: #FE6711;">$<%= format('%.2f', @amount) %></strong>.</p>
+
+<% if @invoice_number.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Invoice: <strong><%= @invoice_number %></strong></p>
+<% end %>
+
+<% if @period_start.present? && @period_end.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Billing period: <strong><%= @period_start.to_date %></strong> to <strong><%= @period_end.to_date %></strong></p>
+<% end %>
+
+<% if @membership_context.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">
+    Current tier: <strong><%= @membership_context[:tier_name] %></strong> (commission <strong><%= @membership_context[:commission_display] %></strong>)
+  </p>
+<% end %>
+
+<% if @hosted_invoice_url.present? %>
+  <%= render partial: 'user_mailer/cta_button', locals: { text: 'View Invoice', url: @hosted_invoice_url } %>
+<% else %>
+  <%= render partial: 'user_mailer/cta_button', locals: { text: 'Open Settings', url: @settings_url } %>
+<% end %>

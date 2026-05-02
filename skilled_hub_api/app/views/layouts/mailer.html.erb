@@ -13,6 +13,16 @@
       </xml>
     </noscript>
     <![endif]-->
+    <% if @email_brand_font_url.present? %>
+      <style type="text/css">
+        @font-face {
+          font-family: 'TechFlashBrand';
+          src: url('<%= @email_brand_font_url %>') format('woff2');
+          font-weight: 400 800;
+          font-style: normal;
+        }
+      </style>
+    <% end %>
   </head>
   <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F7F7F7; -webkit-font-smoothing: antialiased;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background: linear-gradient(135deg, #F7F7F7 0%, #F7F7F7 60%, rgba(254, 103, 17, 0.08) 100%); background-color: #F7F7F7;">
@@ -25,7 +35,22 @@
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                   <tr>
                     <td>
-                      <span style="font-size: 24px; font-weight: 800; color: #1a1a1a; letter-spacing: -0.02em;">TechFlash</span>
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                        <tr>
+                          <td style="vertical-align: middle;">
+                            <img
+                              src="<%= @email_logo_url %>"
+                              alt="TechFlash"
+                              width="40"
+                              height="40"
+                              style="display: block; border: 0; outline: none; text-decoration: none; width: 40px; height: 40px;"
+                            />
+                          </td>
+                          <td style="vertical-align: middle; padding-left: 10px;">
+                            <span style="font-size: 24px; font-weight: 800; color: #1a1a1a; letter-spacing: -0.02em; font-family: <%= @email_brand_font_family %>, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">TechFlash</span>
+                          </td>
+                        </tr>
+                      </table>
                     </td>
                   </tr>
                 </table>

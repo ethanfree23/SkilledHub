@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   adminEmailQaAPI,
   adminLicensingSettingsAPI,
@@ -90,6 +90,7 @@ export default function SystemControlsPricing() {
   const [emailQaLastSendSummary, setEmailQaLastSendSummary] = useState(null);
   const [emailQaSendAllProgress, setEmailQaSendAllProgress] = useState(null);
   const [emailQaSuccessAlert, setEmailQaSuccessAlert] = useState(null);
+  const [emailQaSearch, setEmailQaSearch] = useState('');
   const previewPanelRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -184,6 +185,18 @@ export default function SystemControlsPricing() {
     if (o) return o;
     return auth.getUser()?.email || 'your admin email';
   };
+
+  const filteredEmailQaTemplates = useMemo(() => {
+    const q = emailQaSearch.trim().toLowerCase();
+    if (!q) return emailQaTemplates;
+    return emailQaTemplates.filter((template) => (
+      String(template.name || '').toLowerCase().includes(q) ||
+      String(template.key || '').toLowerCase().includes(q) ||
+      String(template.description || '').toLowerCase().includes(q) ||
+      String(template.audience || '').toLowerCase().includes(q) ||
+      String(template.trigger || '').toLowerCase().includes(q)
+    ));
+  }, [emailQaSearch, emailQaTemplates]);
 
   useEffect(() => {
     if (!emailQaPreview || !previewPanelRef.current) return;
@@ -961,8 +974,15 @@ export default function SystemControlsPricing() {
                     Refresh
                   </button>
                 </div>
+                <input
+                  type="text"
+                  value={emailQaSearch}
+                  onChange={(e) => setEmailQaSearch(e.target.value)}
+                  placeholder="Search templates by name, key, audience, or trigger"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
                 <div className="space-y-2 max-h-[520px] overflow-auto pr-1">
-                  {emailQaTemplates.map((template) => (
+                  {filteredEmailQaTemplates.map((template) => (
                     <div key={template.key} className="rounded-lg border border-gray-200 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-gray-900">{template.name}</span>
@@ -977,6 +997,12 @@ export default function SystemControlsPricing() {
                       </div>
                       <p className="text-xs text-gray-600 mt-1">{template.description}</p>
                       <p className="text-xs font-mono text-gray-500 mt-1">{template.key}</p>
+                      {template.audience ? (
+                        <p className="text-xs text-gray-500 mt-1">User type: {template.audience}</p>
+                      ) : null}
+                      {template.trigger ? (
+                        <p className="text-xs text-gray-500 mt-1">When sent: {template.trigger}</p>
+                      ) : null}
                       <div className="mt-2 flex items-center gap-2">
                         <button
                           type="button"
@@ -999,6 +1025,9 @@ export default function SystemControlsPricing() {
                       </div>
                     </div>
                   ))}
+                  {!filteredEmailQaTemplates.length ? (
+                    <p className="text-sm text-gray-500 py-4 text-center">No templates match your search.</p>
+                  ) : null}
                 </div>
                 {emailQaLastSendSummary?.type === 'single' && (
                   <div className="text-sm text-gray-700 space-y-1">
@@ -1028,6 +1057,24 @@ export default function SystemControlsPricing() {
                       <p className="text-xs text-gray-500">Subject</p>
                       <p className="text-sm text-gray-800">{emailQaPreview.subject}</p>
                     </div>
+                    {emailQaPreview.audience ? (
+                      <div>
+                        <p className="text-xs text-gray-500">User type</p>
+                        <p className="text-sm text-gray-800">{emailQaPreview.audience}</p>
+                      </div>
+                    ) : null}
+                    {emailQaPreview.trigger ? (
+                      <div>
+                        <p className="text-xs text-gray-500">When sent</p>
+                        <p className="text-sm text-gray-800">{emailQaPreview.trigger}</p>
+                      </div>
+                    ) : null}
+                    {emailQaPreview.source ? (
+                      <div>
+                        <p className="text-xs text-gray-500">Source</p>
+                        <p className="text-xs text-gray-700">{emailQaPreview.source}</p>
+                      </div>
+                    ) : null}
                     <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 inline-block">
                       Preview loaded for {emailQaPreview.template_key}
                     </p>

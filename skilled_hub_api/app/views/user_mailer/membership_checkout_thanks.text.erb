@@ -1,0 +1,12 @@
+Thanks for signing up!
+
+Your membership is now active.
+
+<% if @membership_context.present? %>
+Tier: <%= @membership_context[:tier_name] %>
+Commission: <%= @membership_context[:commission_display] %>
+Monthly fee: <%= @membership_context[:monthly_fee_display] %>
+
+<% end %>
+Review your membership details in Settings:
+<%= @dashboard_url %>

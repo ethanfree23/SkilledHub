@@ -2,6 +2,10 @@ Welcome to TechFlash!
 
 Thanks for signing up. You're all set to <%= @user.technician? ? 'find jobs' : 'post jobs and hire technicians' %>.
 
+<% if @membership_context.present? %>
+Your current membership is <%= @membership_context[:tier_name] %> with a platform commission of <%= @membership_context[:commission_display] %> and monthly fee of <%= @membership_context[:monthly_fee_display] %>.
+
+<% end %>
 Log in at your dashboard to get started.
 
 — The TechFlash Team

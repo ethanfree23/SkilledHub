@@ -4,6 +4,10 @@ Hi,
 
 You received $<%= format('%.2f', @amount) %> for "<%= @job.title %>".
 
+<% if @membership_context.present? %>
+Your technician account is on the <%= @membership_context[:tier_name] %> tier with an effective commission of <%= @membership_context[:commission_display] %>.
+
+<% end %>
 The funds have been transferred to your connected account.
 
 — TechFlash

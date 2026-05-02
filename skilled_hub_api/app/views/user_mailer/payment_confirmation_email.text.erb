@@ -4,6 +4,10 @@ Hi,
 
 Your payment of $<%= format('%.2f', @amount) %> for "<%= @job.title %>" has been received.
 
+<% if @membership_context.present? %>
+Your company is on the <%= @membership_context[:tier_name] %> tier with an effective commission of <%= @membership_context[:commission_display] %>.
+
+<% end %>
 The funds will be released to the technician when the job is complete and reviews are done.
 
 — TechFlash

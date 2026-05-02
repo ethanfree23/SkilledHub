@@ -17,6 +17,7 @@ class EmailQaFixtureFactory
       role: :technician
     )
     technician_profile = find_or_create_technician_profile!(technician_user)
+    ensure_membership_levels!(company_profile, technician_profile)
 
     job = find_or_create_job!(company_profile)
     application = find_or_create_accepted_application!(job, technician_profile)
@@ -182,5 +183,12 @@ class EmailQaFixtureFactory
     return if user.password_reset_token_active?
 
     user.generate_password_reset_token!
+  end
+
+  def ensure_membership_levels!(company_profile, technician_profile)
+    company_target = MembershipPolicy.level_valid?("pro", audience: :company) ? "pro" : MembershipPolicy.default_slug_for(:company)
+    technician_target = MembershipPolicy.level_valid?("premium", audience: :technician) ? "premium" : MembershipPolicy.default_slug_for(:technician)
+    company_profile.update!(membership_level: company_target) if company_profile.membership_level != company_target
+    technician_profile.update!(membership_level: technician_target) if technician_profile.membership_level != technician_target
   end
 end

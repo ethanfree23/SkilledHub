@@ -35,6 +35,11 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   const [accountPasswordConfirm, setAccountPasswordConfirm] = useState('');
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountError, setAccountError] = useState(null);
+  const [notificationPrefs, setNotificationPrefs] = useState({
+    email_notifications_enabled: true,
+    job_alert_notifications_enabled: true,
+  });
+  const [savingNotifications, setSavingNotifications] = useState(false);
   const [certificates, setCertificates] = useState([]);
   const [uploadingCert, setUploadingCert] = useState(false);
   const [deletingCertId, setDeletingCertId] = useState(null);
@@ -89,6 +94,13 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
   useEffect(() => {
     setAccountEmail(user?.email || auth.getUser()?.email || '');
   }, [user?.email]);
+
+  useEffect(() => {
+    setNotificationPrefs({
+      email_notifications_enabled: user?.email_notifications_enabled !== false,
+      job_alert_notifications_enabled: user?.job_alert_notifications_enabled !== false,
+    });
+  }, [user?.email_notifications_enabled, user?.job_alert_notifications_enabled]);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -216,6 +228,34 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
     }
   };
 
+  const handleNotificationToggle = async (key, value) => {
+    const prev = notificationPrefs;
+    const next = { ...prev, [key]: value };
+    setNotificationPrefs(next);
+    setSavingNotifications(true);
+    try {
+      const res = await authAPI.updateMe(next);
+      auth.setUser(res.user);
+      onUserUpdate?.(res.user);
+      setAlertModal({
+        isOpen: true,
+        title: 'Preferences saved',
+        message: 'Notification settings updated.',
+        variant: 'success',
+      });
+    } catch (err) {
+      setNotificationPrefs(prev);
+      setAlertModal({
+        isOpen: true,
+        title: 'Update failed',
+        message: err.message || 'Could not save notification settings.',
+        variant: 'error',
+      });
+    } finally {
+      setSavingNotifications(false);
+    }
+  };
+
   const handleCertificateUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !profile?.id) return;
@@ -334,7 +374,7 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           aria-label="Settings sections"
         >
           <div className="flex border-b border-gray-200" role="tablist" aria-label="Settings categories">
-            {['account', 'profile', 'payment', ...(isAdmin ? ['system_controls', 'job_access'] : [])].map((id) => (
+            {['account', 'profile', 'notifications', 'payment', ...(isAdmin ? ['system_controls', 'job_access'] : [])].map((id) => (
               <button
                 key={id}
                 type="button"
@@ -354,6 +394,8 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
                   ? 'Account'
                   : id === 'profile'
                     ? 'Profile'
+                    : id === 'notifications'
+                      ? 'Notifications'
                     : id === 'payment'
                       ? 'Payment'
                       : id === 'system_controls'
@@ -619,6 +661,53 @@ const SettingsPage = ({ user, onLogout, onUserUpdate }) => {
           {(isAdmin || (!isCompany && !isTechnician)) && (
             <p className="text-gray-500">Payment settings are available for companies and technicians.</p>
           )}
+              </div>
+            )}
+
+            {settingsTab === 'notifications' && (
+              <div
+                id="settings-panel-notifications"
+                role="tabpanel"
+                aria-labelledby="settings-tab-notifications"
+                className="space-y-6"
+              >
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">Emails</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Receive account activity emails like messages, job updates, payments, and reviews.
+                  </p>
+                  <label className="flex items-center justify-between gap-4">
+                    <span className="text-sm text-gray-800">Email notifications</span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={notificationPrefs.email_notifications_enabled}
+                      disabled={savingNotifications}
+                      onChange={(e) => handleNotificationToggle('email_notifications_enabled', e.target.checked)}
+                    />
+                  </label>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <h3 className="text-base font-semibold text-gray-900 mb-1">Job alerts</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {isTechnician
+                      ? <>Get alerts for new jobs matching your saved searches. Save filters from the <Link to="/jobs" className="text-blue-600 hover:underline">Jobs page</Link> to tune matches.</>
+                      : isCompany
+                        ? 'Get job-related alerts for marketplace activity, including applications and workflow updates as these alerts expand.'
+                        : 'Get marketplace job alert emails for activity tied to your account context.'}
+                  </p>
+                  <label className="flex items-center justify-between gap-4">
+                    <span className="text-sm text-gray-800">Job alert emails</span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      checked={notificationPrefs.job_alert_notifications_enabled}
+                      disabled={savingNotifications}
+                      onChange={(e) => handleNotificationToggle('job_alert_notifications_enabled', e.target.checked)}
+                    />
+                  </label>
+                </div>
               </div>
             )}
 

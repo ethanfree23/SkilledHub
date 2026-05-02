@@ -4,6 +4,12 @@
 
 <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">You received <strong style="color: #FE6711;">$<%= format('%.2f', @amount) %></strong> for "<%= @job.title %>".</p>
 
+<% if @membership_context.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">
+    Your technician account is on the <strong><%= @membership_context[:tier_name] %></strong> tier with an effective commission of <strong><%= @membership_context[:commission_display] %></strong>.
+  </p>
+<% end %>
+
 <p style="margin: 0 0 24px 0; font-size: 16px; color: #374151; line-height: 1.6;">The funds have been transferred to your connected account.</p>
 
 <%= render partial: 'user_mailer/cta_button', locals: { text: 'View Dashboard', url: frontend_url('/dashboard') } %>

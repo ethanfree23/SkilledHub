@@ -45,6 +45,15 @@ class UserMailerTest < ActionMailer::TestCase
       admin_account_setup_email: UserMailer.admin_account_setup_email(@fixtures[:technician_user].tap do |u|
         u.generate_password_reset_token! unless u.password_reset_token_active?
       end),
+      membership_checkout_thanks: UserMailer.membership_checkout_thanks(@fixtures[:company_user], membership_level: @fixtures[:company_profile].membership_level),
+      membership_invoice_paid_notice: UserMailer.membership_invoice_paid_notice(
+        user: @fixtures[:company_user],
+        amount_cents: 25_000,
+        period_start: 1.month.ago.beginning_of_day,
+        period_end: Time.current.end_of_day,
+        hosted_invoice_url: "https://dashboard.stripe.com/invoices/in_test",
+        invoice_number: "TF-TEST-001"
+      ),
       job_posted_email: UserMailer.job_posted_email(@fixtures[:job]),
       job_claimed_email: UserMailer.job_claimed_email(@fixtures[:job]),
       job_accepted_email: UserMailer.job_accepted_email(@fixtures[:job]),

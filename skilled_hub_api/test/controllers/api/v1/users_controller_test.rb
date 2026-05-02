@@ -3,6 +3,8 @@ require "test_helper"
 module Api
   module V1
     class UsersControllerTest < ActionDispatch::IntegrationTest
+      include AuthTestHelper
+
       def base_signup_params(overrides = {})
         {
           email: "user-#{SecureRandom.hex(4)}@example.com",
@@ -139,6 +141,32 @@ module Api
              as: :json
 
         assert_response :created
+      end
+
+      test "update me persists notification preferences" do
+        user = User.create!(
+          email: "notify-settings-user@example.com",
+          password: "password123",
+          password_confirmation: "password123",
+          role: :technician
+        )
+
+        patch "/api/v1/users/me",
+              params: {
+                email_notifications_enabled: false,
+                job_alert_notifications_enabled: false
+              },
+              headers: auth_header_for(user),
+              as: :json
+
+        assert_response :ok
+        user.reload
+        assert_equal false, user.email_notifications_enabled
+        assert_equal false, user.job_alert_notifications_enabled
+
+        body = JSON.parse(response.body)
+        assert_equal false, body.dig("user", "email_notifications_enabled")
+        assert_equal false, body.dig("user", "job_alert_notifications_enabled")
       end
     end
   end

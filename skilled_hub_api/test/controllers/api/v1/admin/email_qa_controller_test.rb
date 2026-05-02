@@ -35,6 +35,8 @@ module Api
           body = JSON.parse(response.body)
           assert_equal "welcome_email", body["template_key"]
           assert_match(/welcome/i, body["subject"])
+          assert body["audience"].present?
+          assert body["trigger"].present?
         end
 
         test "send one requires confirmation guard" do

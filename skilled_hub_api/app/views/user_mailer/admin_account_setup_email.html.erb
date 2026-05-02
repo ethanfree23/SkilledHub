@@ -1,6 +1,12 @@
 <h1 style="margin: 0 0 24px 0; font-size: 28px; font-weight: 800; color: #1a1a1a; line-height: 1.2;">Welcome aboard!</h1>
 <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Our team just finished creating your TechFlash account for <strong><%= @user.email %></strong>.</p>
 <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Click the button below to get started. You&rsquo;ll set a secure password (at least 6 characters, with uppercase, lowercase, a number, and a special character). This link expires in 72 hours.</p>
+<% if @membership_context.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">
+    Your account is on the <strong><%= @membership_context[:tier_name] %></strong> tier with a platform commission of <strong><%= @membership_context[:commission_display] %></strong>
+    and monthly membership fee of <strong><%= @membership_context[:monthly_fee_display] %></strong>.
+  </p>
+<% end %>
 <% if @user.company? %>
   <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">After you sign in, you&rsquo;ll land on your dashboard where you can post a job and hire technicians.</p>
 <% elsif @user.technician? %>

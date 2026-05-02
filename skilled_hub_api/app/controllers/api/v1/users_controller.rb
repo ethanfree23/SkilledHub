@@ -105,7 +105,16 @@ module Api
       end
 
       def update_me_params
-        p = params.permit(:email, :password, :password_confirmation, :first_name, :last_name, :phone).to_h
+        p = params.permit(
+          :email,
+          :password,
+          :password_confirmation,
+          :first_name,
+          :last_name,
+          :phone,
+          :email_notifications_enabled,
+          :job_alert_notifications_enabled
+        ).to_h
         p.except!(:password, :password_confirmation) if p[:password].blank?
         p
       end

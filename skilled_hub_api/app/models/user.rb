@@ -51,6 +51,15 @@ class User < ApplicationRecord
     shared_company_profile || super
   end
 
+  def email_notifications_enabled?
+    self[:email_notifications_enabled] != false
+  end
+
+  # This preference is reserved for future saved-search/new-job digest sends.
+  def job_alert_notifications_enabled?
+    self[:job_alert_notifications_enabled] != false
+  end
+
   private
 
   def stamp_password_metadata

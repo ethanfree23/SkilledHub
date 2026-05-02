@@ -6,6 +6,7 @@ class UserMailer < ApplicationMailer
   def welcome_email(user)
     @user = user
     @email = user.email
+    @membership_context = membership_context_for(user)
     mail(to: @email, subject: 'Welcome to TechFlash!')
   end
 
@@ -13,6 +14,7 @@ class UserMailer < ApplicationMailer
   def admin_account_setup_email(user)
     @user = user
     @reset_url = frontend_reset_password_url(user.password_reset_token)
+    @membership_context = membership_context_for(user)
     mail(to: user.email, subject: 'Welcome aboard — your TechFlash account is ready')
   end
 
@@ -27,6 +29,7 @@ class UserMailer < ApplicationMailer
     @job = job
     @user = job.company_profile.user
     @company_name = job.company_profile.company_name || 'Your company'
+    return unless notifications_enabled_for?(@user)
     mail(to: @user.email, subject: "Job posted: #{job.title}")
   end
 
@@ -35,6 +38,7 @@ class UserMailer < ApplicationMailer
     accepted_app = job.job_applications.find_by(status: :accepted)
     @technician = accepted_app&.technician_profile
     @company_user = job.company_profile.user
+    return unless notifications_enabled_for?(@company_user)
     mail(to: @company_user.email, subject: "Your job \"#{job.title}\" was claimed")
   end
 
@@ -42,7 +46,7 @@ class UserMailer < ApplicationMailer
     @job = job
     accepted_app = job.job_applications.find_by(status: :accepted)
     @technician_user = accepted_app&.technician_profile&.user
-    return if @technician_user.blank?
+    return if @technician_user.blank? || !notifications_enabled_for?(@technician_user)
     mail(to: @technician_user.email, subject: "Company accepted you for: #{job.title}")
   end
 
@@ -56,7 +60,7 @@ class UserMailer < ApplicationMailer
               else nil
               end
     @recipient = recipient_for_message(message)
-    return if @recipient.blank?
+    return if @recipient.blank? || !notifications_enabled_for?(@recipient)
     mail(to: @recipient.email, subject: "New message about #{@job.title}")
   end
 
@@ -64,6 +68,8 @@ class UserMailer < ApplicationMailer
     @job = job
     @amount = amount_cents / 100.0
     @user = job.company_profile.user
+    @membership_context = membership_context_for(@user)
+    return unless notifications_enabled_for?(@user)
     mail(to: @user.email, subject: "Payment confirmation: #{job.title} - $#{format('%.2f', @amount)}")
   end
 
@@ -72,8 +78,28 @@ class UserMailer < ApplicationMailer
     @amount = amount_cents / 100.0
     accepted_app = job.job_applications.find_by(status: :accepted)
     @technician_user = accepted_app&.technician_profile&.user
-    return if @technician_user.blank?
+    return if @technician_user.blank? || !notifications_enabled_for?(@technician_user)
+    @membership_context = membership_context_for(@technician_user)
     mail(to: @technician_user.email, subject: "You were paid $#{format('%.2f', @amount)} for #{job.title}")
+  end
+
+  def membership_checkout_thanks(user, membership_level: nil)
+    @user = user
+    @membership_context = membership_context_for(user, membership_level_override: membership_level)
+    @dashboard_url = frontend_url('/settings')
+    mail(to: user.email, subject: "Thanks for signing up for #{@membership_context[:tier_name]} membership")
+  end
+
+  def membership_invoice_paid_notice(user:, amount_cents:, period_start: nil, period_end: nil, hosted_invoice_url: nil, invoice_number: nil)
+    @user = user
+    @membership_context = membership_context_for(user)
+    @amount = amount_cents.to_i / 100.0
+    @period_start = period_start
+    @period_end = period_end
+    @hosted_invoice_url = hosted_invoice_url.to_s.presence
+    @invoice_number = invoice_number.to_s.presence
+    @settings_url = frontend_url('/settings')
+    mail(to: user.email, subject: "Membership payment received#{@invoice_number.present? ? " (#{@invoice_number})" : ''}")
   end
 
   def review_received_email(rating)
@@ -84,7 +110,7 @@ class UserMailer < ApplicationMailer
                      when CompanyProfile then rating.reviewee.user
                      else nil
                      end
-    return if @reviewee_user.blank?
+    return if @reviewee_user.blank? || !notifications_enabled_for?(@reviewee_user)
     mail(to: @reviewee_user.email, subject: "You received a new review for #{@job.title}")
   end
 
@@ -93,12 +119,14 @@ class UserMailer < ApplicationMailer
     @user = user
     @role = role # :technician or :company
     @other_party = role == :technician ? (job.company_profile.company_name || 'the company') : 'the technician'
+    return unless notifications_enabled_for?(user)
     mail(to: user.email, subject: "Reminder: Leave a review for #{job.title}")
   end
 
   def job_completed_for_company(job)
     @job = job
     @company_user = job.company_profile.user
+    return unless notifications_enabled_for?(@company_user)
     mail(to: @company_user.email, subject: "Job marked complete: #{job.title}")
   end
 
@@ -106,7 +134,7 @@ class UserMailer < ApplicationMailer
     @job = job
     accepted_app = job.job_applications.find_by(status: :accepted)
     @technician_user = accepted_app&.technician_profile&.user
-    return if @technician_user.blank?
+    return if @technician_user.blank? || !notifications_enabled_for?(@technician_user)
 
     mail(to: @technician_user.email, subject: "Job marked complete: #{job.title}")
   end
@@ -115,7 +143,7 @@ class UserMailer < ApplicationMailer
     @job = job
     accepted_app = job.job_applications.find_by(status: :accepted)
     @technician_user = accepted_app&.technician_profile&.user
-    return if @technician_user.blank?
+    return if @technician_user.blank? || !notifications_enabled_for?(@technician_user)
 
     mail(to: @technician_user.email, subject: "You claimed: #{job.title}")
   end
@@ -124,7 +152,7 @@ class UserMailer < ApplicationMailer
     @report = report
     @job = report.job
     @reporter = report.user
-    admin_emails = User.where(role: :admin).pluck(:email).compact.uniq
+    admin_emails = User.where(role: :admin, email_notifications_enabled: true).pluck(:email).compact.uniq
     return if admin_emails.empty?
 
     mail(
@@ -137,13 +165,15 @@ class UserMailer < ApplicationMailer
     @offer = offer
     @job = offer.job
     recipient = offer.pending_company? ? offer.company_profile.user : offer.technician_profile.user
+    return unless notifications_enabled_for?(recipient)
     mail(to: recipient.email, subject: "New counter offer for #{@job.title}")
   end
 
   def job_counter_offer_accepted_email(offer)
     @offer = offer
     @job = offer.job
-    recipients = [offer.company_profile.user.email, offer.technician_profile.user.email].compact.uniq
+    recipients = notification_recipients(offer.company_profile.user, offer.technician_profile.user)
+    return if recipients.empty?
     mail(to: recipients, subject: "Counter offer accepted: #{@job.title}")
   end
 
@@ -151,6 +181,7 @@ class UserMailer < ApplicationMailer
     @offer = offer
     @job = offer.job
     recipient = offer.created_by_role == "technician" ? offer.technician_profile.user : offer.company_profile.user
+    return unless notifications_enabled_for?(recipient)
     mail(to: recipient.email, subject: "Counter offer declined: #{@job.title}")
   end
 
@@ -158,13 +189,14 @@ class UserMailer < ApplicationMailer
     @offer = offer
     @job = offer.job
     recipient = offer.pending_company? ? offer.company_profile.user : offer.technician_profile.user
+    return unless notifications_enabled_for?(recipient)
     mail(to: recipient.email, subject: "Counter offer update for #{@job.title}")
   end
 
   def admin_feedback(submission)
     @submission = submission
     @sender = submission.user
-    admin_emails = User.where(role: :admin).pluck(:email).compact.uniq
+    admin_emails = User.where(role: :admin, email_notifications_enabled: true).pluck(:email).compact.uniq
     return if admin_emails.empty?
 
     kind_label = submission.kind == 'problem' ? 'Problem report' : 'Suggestion'
@@ -189,5 +221,42 @@ class UserMailer < ApplicationMailer
     else
       conv.technician_profile.user
     end
+  end
+
+  def notifications_enabled_for?(user)
+    user.present? && user.email_notifications_enabled != false
+  end
+
+  def notification_recipients(*users)
+    users.flatten.compact.select { |user| notifications_enabled_for?(user) }.map(&:email).uniq
+  end
+
+  def membership_context_for(user, membership_level_override: nil)
+    return nil unless user&.company? || user&.technician?
+
+    audience = user.company? ? :company : :technician
+    profile = user.company? ? user.company_profile : user.technician_profile
+    level_slug = membership_level_override.to_s.presence || profile&.membership_level || MembershipPolicy.default_slug_for(audience)
+    level_slug = MembershipPolicy.normalized_level(level_slug, audience: audience)
+    tier = MembershipTierConfig.find_by(audience: audience.to_s, slug: level_slug)
+    fee_cents = if audience == :company
+      MembershipPolicy.company_monthly_fee_cents(profile)
+    else
+      MembershipPolicy.technician_monthly_fee_cents(profile)
+    end
+    commission_percent = if audience == :company
+      MembershipPolicy.company_commission_percent(profile)
+    else
+      MembershipPolicy.technician_commission_percent(profile)
+    end
+    {
+      audience: audience,
+      tier_slug: level_slug,
+      tier_name: tier&.display_name.presence || level_slug.to_s.titleize,
+      monthly_fee_cents: fee_cents.to_i,
+      monthly_fee_display: format("$%.2f", fee_cents.to_i / 100.0),
+      commission_percent: commission_percent.to_f,
+      commission_display: format("%.2f%%", commission_percent.to_f)
+    }
   end
 end

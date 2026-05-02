@@ -4,6 +4,10 @@ Our team just finished creating your TechFlash account for <%= @user.email %>.
 
 Click the link below to get started. You'll set a secure password (at least 6 characters, with uppercase, lowercase, a number, and a special character). Link expires in 72 hours.
 
+<% if @membership_context.present? %>
+Your account is on the <%= @membership_context[:tier_name] %> tier with a platform commission of <%= @membership_context[:commission_display] %> and monthly fee of <%= @membership_context[:monthly_fee_display] %>.
+
+<% end %>
 <%= @reset_url %>
 
 <% if @user.company? %>

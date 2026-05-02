@@ -4,6 +4,13 @@
 
 <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Thanks for signing up. You're all set to <%= @user.technician? ? 'find jobs' : 'post jobs and hire technicians' %>.</p>
 
+<% if @membership_context.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">
+    You're currently on the <strong><%= @membership_context[:tier_name] %></strong> tier with a platform commission of <strong><%= @membership_context[:commission_display] %></strong>
+    and monthly membership fee of <strong><%= @membership_context[:monthly_fee_display] %></strong>.
+  </p>
+<% end %>
+
 <p style="margin: 0 0 24px 0; font-size: 16px; color: #374151; line-height: 1.6;">Log in at your dashboard to get started.</p>
 
 <%= render partial: 'user_mailer/cta_button', locals: { text: 'Go to Dashboard', url: frontend_url('/login') } %>

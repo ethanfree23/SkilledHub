@@ -1,0 +1,15 @@
+<h1 style="margin: 0 0 24px 0; font-size: 28px; font-weight: 800; color: #1a1a1a; line-height: 1.2;">Thanks for signing up!</h1>
+
+<p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">Your membership is now active.</p>
+
+<% if @membership_context.present? %>
+  <p style="margin: 0 0 16px 0; font-size: 16px; color: #374151; line-height: 1.6;">
+    Tier: <strong><%= @membership_context[:tier_name] %></strong><br/>
+    Commission: <strong><%= @membership_context[:commission_display] %></strong><br/>
+    Monthly fee: <strong><%= @membership_context[:monthly_fee_display] %></strong>
+  </p>
+<% end %>
+
+<p style="margin: 0 0 24px 0; font-size: 16px; color: #374151; line-height: 1.6;">You can review your membership details in Settings any time.</p>
+
+<%= render partial: 'user_mailer/cta_button', locals: { text: 'Open Settings', url: @dashboard_url } %>

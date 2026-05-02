@@ -1,5 +1,16 @@
 class UserSerializer < ActiveModel::Serializer
-  attributes :id, :email, :first_name, :last_name, :phone, :role, :company_profile_id, :membership_level, :created_at, :updated_at
+  attributes :id,
+             :email,
+             :first_name,
+             :last_name,
+             :phone,
+             :role,
+             :company_profile_id,
+             :membership_level,
+             :email_notifications_enabled,
+             :job_alert_notifications_enabled,
+             :created_at,
+             :updated_at
 
   def company_profile_id
     object.company_profile&.id

@@ -24,6 +24,20 @@ class MailAuditCatalog
       source: "AdminAccountProvisioner, Api::V1::Admin::UsersController#password_setup"
     },
     {
+      key: "membership_checkout_thanks",
+      name: "Membership signup thanks",
+      trigger: "Paid membership checkout completes",
+      status: "conditional",
+      source: "Api::V1::StripeWebhooksController#create (checkout.session.completed)"
+    },
+    {
+      key: "membership_invoice_paid_notice",
+      name: "Membership invoice paid",
+      trigger: "Recurring membership invoice is paid",
+      status: "conditional",
+      source: "Api::V1::StripeWebhooksController#create (invoice.paid)"
+    },
+    {
       key: "job_posted_email",
       name: "Job posted",
       trigger: "Company/admin creates a job",

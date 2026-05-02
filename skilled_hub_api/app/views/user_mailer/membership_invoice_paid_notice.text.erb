@@ -1,0 +1,21 @@
+Membership payment received
+
+We received your membership payment of $<%= format('%.2f', @amount) %>.
+
+<% if @invoice_number.present? %>
+Invoice: <%= @invoice_number %>
+
+<% end %>
+<% if @period_start.present? && @period_end.present? %>
+Billing period: <%= @period_start.to_date %> to <%= @period_end.to_date %>
+
+<% end %>
+<% if @membership_context.present? %>
+Current tier: <%= @membership_context[:tier_name] %> (commission <%= @membership_context[:commission_display] %>)
+
+<% end %>
+<% if @hosted_invoice_url.present? %>
+View invoice: <%= @hosted_invoice_url %>
+<% else %>
+Open settings: <%= @settings_url %>
+<% end %>
