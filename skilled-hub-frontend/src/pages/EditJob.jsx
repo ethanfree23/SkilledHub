@@ -66,7 +66,7 @@ const EditJob = () => {
         setLoading(true);
         const data = await jobsAPI.getById(id);
         setJob(data);
-        const hasNewPricing = data.hourly_rate_cents != null && data.days != null;
+        const hasHourlyRate = data.hourly_rate_cents != null;
         setForm({
           title: data.title || '',
           description: data.description || '',
@@ -85,7 +85,7 @@ const EditJob = () => {
           country: data.country || 'United States',
           status: data.status || 'open',
           start_mode: data.start_mode || 'hard_start',
-          hourly_rate_cents: hasNewPricing ? (data.hourly_rate_cents / 100).toFixed(2) : '',
+          hourly_rate_cents: hasHourlyRate ? (data.hourly_rate_cents / 100).toFixed(2) : '',
           hours_per_day: data.hours_per_day ?? 8,
           days: data.days ?? '',
         });

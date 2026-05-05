@@ -2,16 +2,15 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TECHFLASH_LOGO_NAV } from '../constants/branding';
 import { FaBolt, FaHandshake, FaShieldAlt } from 'react-icons/fa';
-import RegisterForm from '../components/RegisterForm';
 import { marketingLeadsAPI } from '../api/api';
 
-const MarketingPage = ({ onLoginSuccess }) => {
+const MarketingPage = () => {
   const navigate = useNavigate();
   const [roleView, setRoleView] = useState('technician');
   const [leadEmail, setLeadEmail] = useState('');
+  const [bottomLeadEmail, setBottomLeadEmail] = useState('');
   const [submittingLead, setSubmittingLead] = useState(false);
   const [leadError, setLeadError] = useState('');
-  const heroVideoSrc = '/hero-collage-loop.mp4';
 
   const stepsByRole = useMemo(
     () => ({
@@ -31,19 +30,19 @@ const MarketingPage = ({ onLoginSuccess }) => {
     []
   );
 
-  const handleLeadSubmit = async (e) => {
-    e.preventDefault();
+  const submitLead = async (email) => {
     setLeadError('');
     setSubmittingLead(true);
     try {
+      const trimmedEmail = email.trim();
       await marketingLeadsAPI.create({
-        email: leadEmail.trim(),
+        email: trimmedEmail,
         role_view: roleView,
         source: 'landing_get_started',
       });
       const query = new URLSearchParams({
         tab: 'signup',
-        email: leadEmail.trim(),
+        email: trimmedEmail,
         role: roleView,
       });
       navigate(`/login?${query.toString()}`);
@@ -54,12 +53,22 @@ const MarketingPage = ({ onLoginSuccess }) => {
     }
   };
 
+  const handleLeadSubmit = async (e) => {
+    e.preventDefault();
+    await submitLead(leadEmail);
+  };
+
+  const handleBottomLeadSubmit = async (e) => {
+    e.preventDefault();
+    await submitLead(bottomLeadEmail);
+  };
+
   return (
     <div
       className="min-h-screen text-gray-800"
       style={{
         background:
-          'linear-gradient(135deg, rgba(254, 103, 17, 0.08) 0%, rgba(254, 103, 17, 0.18) 50%, rgba(254, 103, 17, 0.3) 100%)',
+          'linear-gradient(135deg, #F7F7F7 0%, #F7F7F7 25%, rgba(254, 103, 17, 0.08) 50%, rgba(254, 103, 17, 0.2) 75%, rgba(254, 103, 17, 0.35) 100%)',
       }}
     >
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-orange-100/50 shadow-sm">
@@ -77,62 +86,38 @@ const MarketingPage = ({ onLoginSuccess }) => {
         </div>
       </header>
 
-      <section className="relative min-h-screen pt-24 px-4 sm:px-6 lg:px-8 overflow-hidden flex items-center isolate">
-        <div className="absolute inset-0 z-0">
-          <video
-            className="h-full w-full object-cover"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-          >
-            <source src={heroVideoSrc} type="video/mp4" />
-          </video>
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="max-w-5xl mx-auto text-center relative">
+          <div className="inline-block px-4 py-2 mb-6 rounded-full bg-[#FE6711]/15 text-[#FE6711] font-semibold text-sm">
+            Find short-term technicians in under 6 hours
+          </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-gray-800 leading-tight">
+            Like Uber, for technicians.
+          </h1>
+          <p className="mt-6 text-xl text-gray-600 max-w-2xl mx-auto">
+            Short-term technicians, on demand.The job board built for contractors and techs.
+            Post jobs fast. Fill them faster.
+          </p>
         </div>
-        <div className="max-w-5xl mx-auto text-center relative z-10 w-full">
-          <div className="mx-auto w-full max-w-4xl rounded-3xl border border-orange-300 bg-[#FE6711]/80 px-6 py-8 shadow-xl sm:px-10 sm:py-10">
-            <div className="inline-block px-4 py-2 mb-6 rounded-full border border-black bg-white/20 text-white font-semibold text-sm">
-              Instant short-term jobs for skilled technicians
-            </div>
-            <h1
-              className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-white leading-tight"
-              style={{ textShadow: '-1px -1px 0 #000000, 1px -1px 0 #000000, -1px 1px 0 #000000, 1px 1px 0 #000000' }}
-            >
-              Uber-like,
-              <br />
-              for the trades.
-            </h1>
-            <p
-              className="mt-6 text-xl text-white max-w-2xl mx-auto"
-              style={{ textShadow: '-1px -1px 0 #d1540a, 1px -1px 0 #d1540a, -1px 1px 0 #d1540a, 1px 1px 0 #d1540a' }}
-            >
-              The instant job board for the trades. Claim nearby same-day and next-day work in minutes, with clear pay and a fast, reliable workflow.
-            </p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm font-semibold text-gray-700">
-              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Claim in minutes</span>
-              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Short-term gigs</span>
-              <span className="rounded-full bg-white/90 px-3 py-1.5 border border-orange-100">Clear pay upfront</span>
-            </div>
-          </div>
+      </section>
 
-          <div className="mt-10 rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">
-            <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3 md:flex-row md:items-center">
-              <p className="text-sm font-semibold text-gray-700 md:w-56">Find jobs now</p>
-              <input
-                type="email"
-                required
-                value={leadEmail}
-                onChange={(e) => setLeadEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#FE6711] focus:outline-none"
-              />
-              <button type="submit" disabled={submittingLead} className="rounded-xl bg-[#FE6711] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e55a0a] disabled:opacity-50">
-                {submittingLead ? 'Submitting...' : 'Submit'}
-              </button>
-            </form>
-            {leadError && <p className="mt-2 text-sm text-red-600">{leadError}</p>}
-          </div>
+      <section className="px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">
+          <form onSubmit={handleLeadSubmit} className="flex flex-col gap-3 md:flex-row md:items-center">
+            <p className="text-sm font-semibold text-gray-700 md:w-56">Get started in seconds</p>
+            <input
+              type="email"
+              required
+              value={leadEmail}
+              onChange={(e) => setLeadEmail(e.target.value)}
+              placeholder="Enter your email"
+              className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#FE6711] focus:outline-none"
+            />
+            <button type="submit" disabled={submittingLead} className="rounded-xl bg-[#FE6711] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e55a0a] disabled:opacity-50">
+              {submittingLead ? 'Submitting...' : 'Submit'}
+            </button>
+          </form>
+          {leadError && <p className="mt-2 text-sm text-red-600">{leadError}</p>}
         </div>
       </section>
 
@@ -186,7 +171,21 @@ const MarketingPage = ({ onLoginSuccess }) => {
             <h2 className="text-2xl sm:text-4xl font-black text-gray-800 mb-4">Ready to get started?</h2>
           </div>
           <div className="rounded-3xl bg-white/95 border-2 border-orange-100 shadow-xl shadow-orange-100/40 p-8 sm:p-10 backdrop-blur-sm">
-            <RegisterForm onLoginSuccess={onLoginSuccess} variant="marketing" idPrefix="marketing-signup" initialRole={roleView} initialRoleView={roleView} />
+            <form onSubmit={handleBottomLeadSubmit} className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700">Start with your email</p>
+              <input
+                type="email"
+                required
+                value={bottomLeadEmail}
+                onChange={(e) => setBottomLeadEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-[#FE6711] focus:outline-none"
+              />
+              <button type="submit" disabled={submittingLead} className="w-full rounded-xl bg-[#FE6711] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e55a0a] disabled:opacity-50">
+                {submittingLead ? 'Submitting...' : 'Continue to signup'}
+              </button>
+            </form>
+            {leadError && <p className="mt-2 text-sm text-red-600">{leadError}</p>}
           </div>
         </div>
       </section>

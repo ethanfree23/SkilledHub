@@ -14,6 +14,7 @@ import JobAddressFields from './JobAddressFields';
 const toDatetimeLocal = (d) => {
   if (!d) return '';
   const date = new Date(d);
+  if (!Number.isFinite(date.getTime())) return '';
   const pad = (n) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
@@ -290,7 +291,20 @@ const JobDetail = () => {
     }
     try {
       setClaiming(true);
-      const payload = preferredStartAt ? { preferred_start_at: new Date(preferredStartAt).toISOString() } : {};
+      let payload = {};
+      if (preferredStartAt) {
+        const parsedPreferredStart = new Date(preferredStartAt);
+        if (!Number.isFinite(parsedPreferredStart.getTime())) {
+          setAlertModal({
+            isOpen: true,
+            title: 'Unable to claim job',
+            message: 'Please choose a valid preferred start date and time before claiming.',
+            variant: 'error',
+          });
+          return;
+        }
+        payload = { preferred_start_at: parsedPreferredStart.toISOString() };
+      }
       await jobsAPI.claim(id, payload);
       await fetchJobDetails();
       setShowClaimModal(false);

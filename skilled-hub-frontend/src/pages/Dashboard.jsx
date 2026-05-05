@@ -1390,8 +1390,6 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
   /** Incremented when the user explicitly focuses a job so the map pans/zooms (fitBounds alone is often invisible). */
   const [mapPanNonce, setMapPanNonce] = useState(0);
   const searchRadiusMiles = 150;
-  /** When nothing falls within `searchRadiusMiles`, still show every open job the API returned (sorted by distance). */
-  const fallbackRadiusMiles = 25_000;
   const technicianLat = Number(technicianProfile?.latitude);
   const technicianLng = Number(technicianProfile?.longitude);
 
@@ -1400,10 +1398,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
     [openJobs, technicianLat, technicianLng]
   );
 
-  const mapDisplayJobs = useMemo(() => {
-    if (nearbyOpenJobs.length > 0) return nearbyOpenJobs;
-    return filterJobsWithinRadius(openJobs, technicianLat, technicianLng, fallbackRadiusMiles);
-  }, [openJobs, nearbyOpenJobs, technicianLat, technicianLng]);
+  const mapDisplayJobs = useMemo(() => nearbyOpenJobs, [nearbyOpenJobs]);
 
   useEffect(() => {
     if (!mapDisplayJobs.length) {
@@ -1509,10 +1504,10 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
                 </div>
               </div>
             )}
-            {openJobs.length > 0 && nearbyOpenJobs.length === 0 && mapDisplayJobs.length > 0 && (
+            {openJobs.length > 0 && mapDisplayJobs.length === 0 && (
               <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center px-4">
                 <div className="rounded-full bg-amber-900/55 text-white text-xs sm:text-sm px-4 py-2 backdrop-blur-[1px] max-w-lg text-center">
-                  No listings within {searchRadiusMiles} mi — showing all open jobs you can access (by distance).
+                  No open listings within {searchRadiusMiles} miles of your profile.
                 </div>
               </div>
             )}
@@ -1526,7 +1521,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
             </div>
             <p className="text-sm text-gray-600 mb-4">
               Open listings here refresh every 30 seconds without reloading the rest of the dashboard. We prioritize jobs within{' '}
-              {searchRadiusMiles} miles of your profile; if none match, we still list every open job you can access.
+              {searchRadiusMiles} miles of your profile.
             </p>
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {mapDisplayJobs.slice(0, 25).map((job) => (
@@ -1551,7 +1546,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
                 </button>
               ))}
               {!mapDisplayJobs.length && (
-                <p className="text-sm text-gray-500">No open jobs available.</p>
+                <p className="text-sm text-gray-500">No open jobs available within {searchRadiusMiles} miles.</p>
               )}
             </div>
           </div>
