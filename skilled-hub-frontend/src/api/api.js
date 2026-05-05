@@ -52,6 +52,51 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 };
 
+/** Same as apiRequest but never sends Authorization — for public endpoints (e.g. share preview). */
+export const publicApiRequest = async (endpoint, options = {}) => {
+  const isFormData = options.body instanceof FormData;
+  const config = {
+    headers: {
+      ...(!isFormData && { 'Content-Type': 'application/json' }),
+      ...options.headers,
+    },
+    ...options,
+  };
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+    if (!response.ok) {
+      const text = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(text);
+      } catch {
+        if (response.status === 500) {
+          throw new Error('Server error. Check Rails server logs for details.');
+        }
+      }
+      const msg =
+        errorData.message ||
+        errorData.error ||
+        (Array.isArray(errorData.errors) ? errorData.errors.join(', ') : null) ||
+        `HTTP error! status: ${response.status}`;
+      throw new Error(msg);
+    }
+
+    const raw = await response.text();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  } catch (error) {
+    console.error('Public API request failed:', error);
+    throw error;
+  }
+};
+
 // Authentication endpoints
 export const authAPI = {
   login: (email, password) =>
@@ -269,6 +314,10 @@ export const adminUsersAPI = {
       body: JSON.stringify(data),
     });
   },
+  destroy: (id) =>
+    apiRequest(`/admin/users/${id}`, {
+      method: 'DELETE',
+    }),
 };
 
 /** Admin: global membership tier pricing (technician vs company audiences) */
@@ -461,6 +510,9 @@ export const jobsAPI = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+
+  getPublicPreviewByShareToken: (shareToken) =>
+    publicApiRequest(`/public/jobs/${encodeURIComponent(shareToken)}`),
 };
 
 export const jobIssueReportsAPI = {

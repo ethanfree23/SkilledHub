@@ -10,6 +10,7 @@ Rails.application.routes.draw do
       post "auth/register", to: "users#create"
       post "password_resets", to: "password_resets#create"
       patch "password_resets", to: "password_resets#update"
+      get "public/jobs/:share_token", to: "public_jobs#show", constraints: { share_token: %r{[^/]+} }
       post "marketing_leads", to: "marketing_leads#create"
       post "signup_payment_intents", to: "signup_payment_intents#create"
       get "membership_tier_configs", to: "membership_tier_configs#index"
@@ -98,7 +99,7 @@ Rails.application.routes.draw do
         get "company_accounts/search", to: "company_accounts#search"
         get "company_accounts/search_companies", to: "company_accounts#search_companies"
         get "platform_insights", to: "platform_insights#show"
-        resources :users, only: %i[index show create] do
+        resources :users, only: %i[index show create destroy] do
           member do
             post :password_setup
             post :ensure_profile

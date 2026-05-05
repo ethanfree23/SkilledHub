@@ -287,6 +287,41 @@ module Api
           render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
         end
 
+        # DELETE /api/v1/admin/users/:id
+        def destroy
+          target = User.find_by(id: params[:id].to_i)
+          if target.present? && target.id == @current_user.id
+            return render json: { errors: ["Cannot delete your own account"] }, status: :unprocessable_entity
+          end
+
+          user = provisioned_user!
+          return if user.nil?
+
+          owned_profile = CompanyProfile.find_by(user_id: user.id)
+          if owned_profile.present?
+            others_linked =
+              User.where(company_profile_id: owned_profile.id).where.not(id: user.id).exists?
+            if others_linked
+              return render json: {
+                errors: [
+                  "Cannot delete this account while other company logins are linked to the same company profile. Remove or reassign those users first."
+                ]
+              }, status: :unprocessable_entity
+            end
+          end
+
+          ActiveRecord::Base.transaction do
+            user.destroy!
+          end
+          head :no_content
+        rescue ActiveRecord::InvalidForeignKey, ActiveRecord::DeleteRestrictionError => e
+          Rails.logger.warn("Admin user destroy failed: #{e.class}: #{e.message}")
+          render json: { errors: ["Unable to delete this user due to related records."] }, status: :unprocessable_entity
+        rescue ActiveRecord::RecordNotDestroyed => e
+          Rails.logger.warn("Admin user destroy failed: #{e.class}: #{e.message}")
+          render json: { errors: ["Unable to delete this user."] }, status: :unprocessable_entity
+        end
+
         private
 
         def company_profile_admin_params

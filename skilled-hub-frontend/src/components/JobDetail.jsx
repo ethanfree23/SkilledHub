@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jobsAPI, profilesAPI, ratingsAPI, conversationsAPI, jobIssueReportsAPI } from '../api/api';
 import MessageModal from './MessageModal';
@@ -144,6 +144,12 @@ const JobDetail = () => {
   const [counterFieldDraftValue, setCounterFieldDraftValue] = useState('');
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimPreferredStartAt, setClaimPreferredStartAt] = useState('');
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const copyShareFeedbackTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (copyShareFeedbackTimerRef.current) clearTimeout(copyShareFeedbackTimerRef.current);
+  }, []);
 
   useEffect(() => {
     // Read user from localStorage on mount
@@ -732,6 +738,43 @@ const JobDetail = () => {
       (currentUser.role === 'company' && companyProfileId && job.company_profile_id === companyProfileId) ||
       (currentUser.role === 'technician' && isJobClaimedByMe()));
 
+  const getPublicJobShareUrl = () => {
+    if (!job?.share_token) return '';
+    return `${window.location.origin}/jobs/shared/${job.share_token}`;
+  };
+
+  const handleCopyPublicJobLink = async () => {
+    const url = getPublicJobShareUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      if (copyShareFeedbackTimerRef.current) clearTimeout(copyShareFeedbackTimerRef.current);
+      setShareLinkCopied(true);
+      copyShareFeedbackTimerRef.current = setTimeout(() => setShareLinkCopied(false), 2500);
+    } catch {
+      setAlertModal({
+        isOpen: true,
+        title: 'Could not copy',
+        message: 'Copy the link manually or try again.',
+        variant: 'error',
+      });
+    }
+  };
+
+  const handleNativeShareJob = async () => {
+    const url = getPublicJobShareUrl();
+    if (!url || typeof navigator === 'undefined' || typeof navigator.share !== 'function') return;
+    try {
+      await navigator.share({
+        title: job.title || 'TechFlash job',
+        text: job.title ? `Job on TechFlash: ${job.title}` : 'Job on TechFlash',
+        url,
+      });
+    } catch (e) {
+      if (e?.name !== 'AbortError') await handleCopyPublicJobLink();
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -749,10 +792,30 @@ const JobDetail = () => {
           </button>
         </div>
         
-        <div className="flex justify-between items-start mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
-          <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex justify-between items-start mb-6 gap-4">
+          <h1 className="text-3xl font-bold text-gray-900 flex-1 min-w-0">{job.title}</h1>
+          <div className="flex items-center gap-3 flex-wrap justify-end shrink-0">
             {getStatusBadge(job)}
+            {job.share_token && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCopyPublicJobLink}
+                  className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+                >
+                  {shareLinkCopied ? 'Copied!' : 'Copy public link'}
+                </button>
+                {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+                  <button
+                    type="button"
+                    onClick={handleNativeShareJob}
+                    className="px-3 py-1.5 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Share
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 

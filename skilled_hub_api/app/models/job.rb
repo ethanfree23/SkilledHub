@@ -1,4 +1,5 @@
 class Job < ApplicationRecord
+  has_secure_token :share_token
 
   enum status: { open: 0, reserved: 1, accepted: 2, completed: 3, filled: 4, finished: 5 }
   enum start_mode: { hard_start: 0, rolling_start: 1 }

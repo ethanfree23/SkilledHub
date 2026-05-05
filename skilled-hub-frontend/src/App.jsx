@@ -21,6 +21,7 @@ import CookiePolicyPage from './pages/CookiePolicyPage';
 import PaymentTermsPage from './pages/PaymentTermsPage';
 import DmcaIpClaimsPage from './pages/DmcaIpClaimsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import PublicJobSharePage from './pages/PublicJobSharePage';
 import FeedbackWidget from './components/FeedbackWidget';
 import MasqueradeBanner from './components/MasqueradeBanner';
 import { auth } from './auth';
@@ -115,6 +116,9 @@ function App() {
           <Route path="/dmca-ip-policy" element={<DmcaIpClaimsPage />} />
 
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+          {/* Public job share preview (no login) */}
+          <Route path="/jobs/shared/:shareToken" element={<PublicJobSharePage />} />
           
           {/* Dashboard - both company and technician */}
           <Route
