@@ -14,7 +14,18 @@ module Api
           scope = filter_by_role(scope)
           scope = filter_by_search(scope)
 
-          users = scope.map { |u| list_item(u) }
+          ids = scope.pluck(:id)
+          since = 30.days.ago
+          counts =
+            UserLoginEvent
+              .where(user_id: ids)
+              .where("user_login_events.created_at >= ?", since)
+              .where(via_masquerade: false)
+              .group(:user_id)
+              .count
+          users = scope.map do |user|
+            list_item(user).merge(logins_last_30_days: counts[user.id].to_i)
+          end
           render json: { users: users }, status: :ok
         end
 

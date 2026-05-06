@@ -23,6 +23,7 @@ const DEFAULT_COLUMNS = [
   { key: 'phone', label: 'Phone', visible: true },
   { key: 'role', label: 'Role', visible: true },
   { key: 'joined', label: 'Joined', visible: true },
+  { key: 'logins_30d', label: 'Logins (30d)', visible: true },
 ];
 
 export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
@@ -162,6 +163,8 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
           return row.role ?? '';
         case 'joined':
           return row.created_at ?? '';
+        case 'logins_30d':
+          return String(row.logins_last_30_days ?? 0);
         default:
           return '';
       }
@@ -179,6 +182,12 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
         const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
         const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
         return (leftTime - rightTime) * direction;
+      }
+
+      if (key === 'logins_30d') {
+        const leftNum = Number(left.logins_last_30_days ?? 0);
+        const rightNum = Number(right.logins_last_30_days ?? 0);
+        return (leftNum - rightNum) * direction;
       }
 
       const leftRaw = getRawValue(left, key);
@@ -477,6 +486,8 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
                                   day: 'numeric',
                                 })
                               : '—'
+                          ) : col.key === 'logins_30d' ? (
+                            Number(row.logins_last_30_days ?? 0)
                           ) : (
                             '—'
                           )}

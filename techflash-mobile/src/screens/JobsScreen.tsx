@@ -16,6 +16,8 @@ import { getJobs } from '../api/jobsApi';
 import { useAuth } from '../auth/AuthContext';
 import type { AppStackParamList } from '../navigation/RootNavigator';
 import { EmptyState, ErrorState, LoadingState } from '../components/ScreenStates';
+import { Card } from '../components/ui/Card';
+import { formatJobAddress } from '../utils/address';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
 
@@ -26,12 +28,15 @@ export default function JobsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [statusFilter, setStatusFilter] = useState('open');
+  const [statusFilter, setStatusFilter] = useState(user?.role === 'admin' ? '' : 'open');
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const data = await getJobs({ status: statusFilter });
+      const data = await getJobs({
+        status: statusFilter,
+        include_past: user?.role === 'admin' ? 'true' : undefined,
+      });
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load jobs');
@@ -39,7 +44,7 @@ export default function JobsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, user?.role]);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,7 +62,7 @@ export default function JobsScreen() {
           value={statusFilter}
           onChangeText={setStatusFilter}
           style={styles.filter}
-          placeholder="status (open, filled, reserved, finished)"
+          placeholder="status (open, filled, reserved, finished, or blank for all)"
           placeholderTextColor={colors.muted}
           autoCapitalize="none"
           onSubmitEditing={() => {
@@ -96,13 +101,12 @@ export default function JobsScreen() {
           contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
           ListEmptyComponent={<EmptyState label="No jobs found." />}
           renderItem={({ item }) => (
-            <Pressable
-              style={styles.card}
-              onPress={() => navigation.navigate('JobDetail', { jobId: Number(item.id) })}
-            >
-              <Text style={styles.title}>{String(item.title || `Job #${item.id}`)}</Text>
-              <Text style={styles.sub}>{String(item.location || '')}</Text>
-              <Text style={styles.sub}>Status: {String(item.status || 'unknown')}</Text>
+            <Pressable onPress={() => navigation.navigate('JobDetail', { jobId: Number(item.id) })}>
+              <Card style={styles.cardWrap}>
+                <Text style={styles.title}>{String(item.title || `Job #${item.id}`)}</Text>
+                <Text style={styles.sub}>{formatJobAddress(item)}</Text>
+                <Text style={styles.sub}>Status: {String(item.status || 'unknown')}</Text>
+              </Card>
             </Pressable>
           )}
         />
@@ -141,14 +145,7 @@ const styles = StyleSheet.create({
   },
   createBtnText: { color: colors.white, fontWeight: '700' },
   error: { marginTop: 8, marginHorizontal: 14, color: colors.danger },
-  card: {
-    backgroundColor: colors.white,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
+  cardWrap: { marginBottom: 10, paddingVertical: 14 },
   title: { color: colors.text, fontWeight: '700', fontSize: 16 },
   sub: { color: colors.muted, marginTop: 4 },
 });

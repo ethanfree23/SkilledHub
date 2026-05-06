@@ -58,7 +58,7 @@ class AdminPlatformInsights
   end
 
   def login_events_in_period
-    rel = UserLoginEvent.all
+    rel = UserLoginEvent.where(via_masquerade: false)
     time_scope(rel, "user_login_events.created_at")
   end
 

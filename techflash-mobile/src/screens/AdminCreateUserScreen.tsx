@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { createAdminUser } from '../api/adminApi';
 import type { AppStackParamList } from '../navigation/RootNavigator';
+import { formatUsPhone, phoneDigits } from '../utils/phone';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'AdminCreateUser'>;
 
@@ -38,7 +39,7 @@ export default function AdminCreateUserScreen() {
         password_confirmation: passwordConfirmation,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        phone: phone.trim(),
+        phone: phoneDigits(phone),
       };
       const payload =
         role === 'company'
@@ -84,7 +85,7 @@ export default function AdminCreateUserScreen() {
       <Field label="Confirm password" value={passwordConfirmation} onChangeText={setPasswordConfirmation} secure />
       <Field label="First name" value={firstName} onChangeText={setFirstName} />
       <Field label="Last name" value={lastName} onChangeText={setLastName} />
-      <Field label="Phone" value={phone} onChangeText={setPhone} />
+      <Field label="Phone" value={phone} onChangeText={(v) => setPhone(formatUsPhone(v))} />
 
       {role === 'company' ? (
         <>

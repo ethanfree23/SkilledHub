@@ -81,6 +81,20 @@ const rollingRuleSummary = (job) => {
   return 'Rolling start: technician picks preferred start time when claiming.';
 };
 
+const buildMapEmbedUrl = (job) => {
+  const lat = Number(job?.latitude);
+  const lng = Number(job?.longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return `https://www.google.com/maps?q=${lat},${lng}&z=13&output=embed`;
+  }
+  const query = [job?.address, job?.city, job?.state, job?.zip_code, job?.country, job?.location]
+    .filter(Boolean)
+    .join(', ')
+    .trim();
+  if (!query) return '';
+  return `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=13&output=embed`;
+};
+
 const JobDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -718,7 +732,8 @@ const JobDetail = () => {
   const pendingCounter = counterOffers.find((o) => o.status === 'pending_company' || o.status === 'pending_technician');
   const canRespondToPendingCounter = !!pendingCounter && (
     (currentUser?.role === 'company' && pendingCounter.status === 'pending_company') ||
-    (currentUser?.role === 'technician' && pendingCounter.status === 'pending_technician')
+    (currentUser?.role === 'technician' && pendingCounter.status === 'pending_technician') ||
+    currentUser?.role === 'admin'
   );
   const acceptedApp = job?.job_applications?.find(app => app.status === 'accepted' || app.status === 1);
   const claimedTechnician = claimedTechnicianData || acceptedApp?.technician_profile;
@@ -731,6 +746,7 @@ const JobDetail = () => {
   const canManageJob = isAdmin || isCompanyOwner;
   const showTopTechOpenActions = currentUser?.role === 'technician' && job?.status === 'open';
   const rollingSummaryText = rollingRuleSummary(job);
+  const jobMapUrl = buildMapEmbedUrl(job);
 
   const canReportIssue =
     currentUser &&
@@ -866,9 +882,9 @@ const JobDetail = () => {
                 </p>
               </div>
             )}
-            {Array.isArray(job.timeline_events) && job.timeline_events.map((ev) => (
+            {Array.isArray(job.timeline_events) && job.timeline_events.map((ev, evIdx) => (
               <div
-                key={`${ev.key}-${ev.at || ''}`}
+                key={`${ev.key ?? 'event'}-${ev.at ?? ''}-${evIdx}`}
                 className="min-w-[148px] snap-start rounded-lg bg-gray-50 border border-gray-100 px-3 py-2"
               >
                 <p className="text-xs font-medium text-blue-900">{ev.label}</p>
@@ -1077,7 +1093,23 @@ const JobDetail = () => {
               </div>
             </div>
 
-            {job.status === 'open' && (
+            {jobMapUrl && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Job Map</h3>
+                <div className="overflow-hidden rounded-lg border border-gray-200">
+                  <iframe
+                    title="Job map"
+                    src={jobMapUrl}
+                    width="100%"
+                    height="260"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              </div>
+            )}
+
+            {counterOffers.length > 0 || loadingCounterOffers ? (
               <div className="mb-6 rounded-lg border border-gray-200 p-4">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Counter offers</h3>
                 {loadingCounterOffers ? (
@@ -1087,13 +1119,29 @@ const JobDetail = () => {
                     {counterOffers.slice(0, 4).map((offer) => (
                       <div key={offer.id} className="text-sm bg-gray-50 border border-gray-200 rounded p-2">
                         <span className="font-medium">{offer.created_by_role === 'technician' ? 'Tech' : 'Company'}</span>
+                        {offer.created_by_role === 'technician' && offer.technician_profile_id ? (
+                          <Link
+                            to={`/technicians/${offer.technician_profile_id}`}
+                            className="ml-2 text-blue-700 hover:underline"
+                          >
+                            View profile
+                          </Link>
+                        ) : null}
+                        {offer.created_by_role === 'company' && offer.company_profile_id ? (
+                          <Link
+                            to={`/companies/${offer.company_profile_id}`}
+                            className="ml-2 text-blue-700 hover:underline"
+                          >
+                            View profile
+                          </Link>
+                        ) : null}
                         {' '}offered ${offer.proposed_hourly_rate_cents ? (offer.proposed_hourly_rate_cents / 100).toFixed(2) : '—'}/hr, {offer.proposed_hours_per_day || '—'}h/day, {offer.proposed_days || '—'} days ({offer.status})
                       </div>
                     ))}
                     {counterOffers.length === 0 && <p className="text-sm text-gray-500">No counter offers yet.</p>}
                   </div>
                 )}
-                {(currentUser?.role === 'technician' || canRespondToPendingCounter) && (
+                {(currentUser?.role === 'technician' || canRespondToPendingCounter) && job.status === 'open' && (
                   <form onSubmit={submitCounterOffer} className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
@@ -1136,7 +1184,7 @@ const JobDetail = () => {
                   </form>
                 )}
               </div>
-            )}
+            ) : null}
 
             <div className="mb-6">
               <h3 className="text-xl font-semibold text-gray-900 mb-3">Job Description</h3>
@@ -1193,8 +1241,8 @@ const JobDetail = () => {
                   </p>
                 )}
                 <div className="space-y-4">
-                  {ratings?.map((r) => (
-                    <div key={r.id} className="bg-gray-50 rounded-lg p-4">
+                  {ratings?.map((r, rIdx) => (
+                    <div key={r.id ?? `rating-${rIdx}`} className="bg-gray-50 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium text-gray-700">
                           {r.reviewer_type === 'CompanyProfile' ? 'Company' : 'Technician'} review

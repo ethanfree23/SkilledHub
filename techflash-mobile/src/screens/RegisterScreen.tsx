@@ -13,6 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../auth/AuthContext';
 import { colors } from '../theme';
+import { formatUsPhone, phoneDigits } from '../utils/phone';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -42,7 +43,7 @@ export default function RegisterScreen({ navigation }: Props) {
         password_confirmation: passwordConfirmation,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        phone: phone.trim(),
+        phone: phoneDigits(phone),
         city: city.trim(),
         state: stateVal.trim(),
         zip_code: zipCode.trim(),
@@ -100,7 +101,7 @@ export default function RegisterScreen({ navigation }: Props) {
         <Field label="Confirm password" value={passwordConfirmation} onChangeText={setPasswordConfirmation} secure />
         <Field label="First name" value={firstName} onChangeText={setFirstName} />
         <Field label="Last name" value={lastName} onChangeText={setLastName} />
-        <Field label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+        <Field label="Phone" value={phone} onChangeText={(v) => setPhone(formatUsPhone(v))} keyboardType="phone-pad" />
         <Field label="City" value={city} onChangeText={setCity} />
         <Field label="State" value={stateVal} onChangeText={setStateVal} placeholder="e.g. TX" />
         <Field label="ZIP" value={zipCode} onChangeText={setZipCode} keyboardType="numbers-and-punctuation" />

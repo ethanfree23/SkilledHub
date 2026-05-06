@@ -21,6 +21,8 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (payload: authApi.RegisterPayload) => Promise<void>;
   setSessionFromAuthPayload: (token: string, user: User) => Promise<void>;
+  /** Apply user object returned from PATCH /users/me (notifications, profile fields, etc.) */
+  applyUserFromMeResponse: (res: { user?: User } | null | undefined) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -90,6 +92,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const applyUserFromMeResponse = useCallback(
+    async (res: { user?: User } | null | undefined) => {
+      if (!res?.user) return;
+      const token = await getStoredToken();
+      if (!token) return;
+      await persistSession(token, res.user);
+    },
+    [persistSession]
+  );
+
   const value = useMemo(
     () => ({
       user,
@@ -97,9 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       setSessionFromAuthPayload: persistSession,
+      applyUserFromMeResponse,
       logout,
     }),
-    [user, ready, login, register, persistSession, logout]
+    [user, ready, login, register, persistSession, applyUserFromMeResponse, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

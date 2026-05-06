@@ -126,9 +126,9 @@ const MessageModal = ({
             </div>
           ) : (
             <div className="space-y-3">
-              {messages.map((msg) => (
+              {messages.map((msg, msgIdx) => (
                 <div
-                  key={msg.id}
+                  key={msg.id ?? `msg-${msgIdx}`}
                   className={`flex ${isFeedbackThread ? 'justify-start' : isFromMe(msg) ? 'justify-end' : 'justify-start'}`}
                 >
                   <div

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
-import AdminCollapsibleCard from '../components/AdminCollapsibleCard';
+import AdminCollapsibleCard, {
+  CollapsibleSectionsProvider,
+  useCollapsibleSections,
+} from '../components/AdminCollapsibleCard';
 import AdminCreateUserModal from '../components/AdminCreateUserModal';
 import JobAddressFields from '../components/JobAddressFields';
 import { ServiceCityPicker } from '../components/admin/AdminUserFormPickers';
@@ -17,6 +20,70 @@ const PERIODS = [
   { id: '30d', label: '30 days' },
   { id: 'all', label: 'All time' },
 ];
+
+function AdminUserDetailToolbar({
+  isCompany,
+  isTech,
+  u,
+  masqueradeBusy,
+  startMasquerade,
+  period,
+  setPeriod,
+}) {
+  const { expandAll, collapseAll } = useCollapsibleSections();
+  return (
+    <div className="flex flex-wrap gap-2 items-center justify-end">
+      {(isCompany || isTech) && u?.id && (
+        <button
+          type="button"
+          disabled={masqueradeBusy}
+          onClick={startMasquerade}
+          title="Open the app as this user"
+          aria-label="View as this user"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-400 text-amber-900 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+        >
+          {masqueradeBusy ? (
+            'Starting…'
+          ) : (
+            <>
+              <FaEye className="text-base shrink-0" aria-hidden />
+              View as this user
+            </>
+          )}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={expandAll}
+        className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+      >
+        Expand all sections
+      </button>
+      <button
+        type="button"
+        onClick={collapseAll}
+        className="px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+      >
+        Collapse all sections
+      </button>
+      <span className="text-xs font-medium text-gray-500 uppercase mr-1">Metrics window</span>
+      {PERIODS.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => setPeriod(p.id)}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
+            period === p.id
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function fmtMoney(cents) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((cents || 0) / 100);
@@ -486,63 +553,37 @@ export default function AdminUserDetailPage({ user, onLogout }) {
       <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <Link to="/admin/users" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-            ← Back to Users
-          </Link>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">{u?.email || 'User'}</h1>
-            <p className="text-sm text-gray-500 mt-1 capitalize">
-              {u?.role}
-              {profile?.company_name && ` · ${profile.company_name}`}
-              {profile?.trade_type && ` · ${profile.trade_type}`}
-            </p>
+        <CollapsibleSectionsProvider>
+          <div className="mb-6">
+            <Link to="/admin/users" className="text-sm text-blue-600 hover:text-blue-800 font-medium">
+              ← Back to Users
+            </Link>
           </div>
-          <div className="flex flex-wrap gap-2 items-center justify-end">
-            {(isCompany || isTech) && u?.id && (
-              <button
-                type="button"
-                disabled={masqueradeBusy}
-                onClick={startMasquerade}
-                title="Open the app as this user"
-                aria-label="View as this user"
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold border border-amber-400 text-amber-900 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
-              >
-                {masqueradeBusy ? (
-                  'Starting…'
-                ) : (
-                  <>
-                    <FaEye className="text-base shrink-0" aria-hidden />
-                    View as this user
-                  </>
-                )}
-              </button>
-            )}
-            <span className="text-xs font-medium text-gray-500 uppercase mr-1">Metrics window</span>
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPeriod(p.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
-                  period === p.id
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900">{u?.email || 'User'}</h1>
+              <p className="text-sm text-gray-500 mt-1 capitalize">
+                {u?.role}
+                {profile?.company_name && ` · ${profile.company_name}`}
+                {profile?.trade_type && ` · ${profile.trade_type}`}
+              </p>
+            </div>
+            <AdminUserDetailToolbar
+              isCompany={isCompany}
+              isTech={isTech}
+              u={u}
+              masqueradeBusy={masqueradeBusy}
+              startMasquerade={startMasquerade}
+              period={period}
+              setPeriod={setPeriod}
+            />
           </div>
-        </div>
 
-        {loading && <p className="text-gray-500">Loading analytics…</p>}
+          {loading && <p className="text-gray-500">Loading analytics…</p>}
 
-        {!loading && data && (
-          <div className="space-y-8">
+          {!loading && data && (
+            <div className="space-y-8">
             <AdminCollapsibleCard
               title="Profile"
               actions={
@@ -909,176 +950,6 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               )}
             </AdminCollapsibleCard>
 
-            {isCompany && profile && (
-              <AdminCollapsibleCard
-                title="Membership billing"
-                description="Configure company tier, billing exemption, and pricing overrides."
-              >
-                <form onSubmit={saveCompanyMembershipSettings} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Stat label="Tier" value={membershipLevel} />
-                    <Stat label="Effective monthly fee" value={fmtMoney(effectiveMembershipFeeCents)} />
-                    <Stat label="Effective commission" value={`${Number(effectiveCommissionPercent || 0).toFixed(2)}%`} />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Tier</span>
-                      <select
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={membershipDraft.membership_level}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_level: e.target.value }))}
-                        disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
-                      >
-                        {membershipLevelOptions.map((level) => (
-                          <option key={level} value={level}>{level}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Fee override (cents)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                        value={membershipDraft.membership_fee_override_cents}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_override_cents: e.target.value }))}
-                        placeholder="Blank = no override"
-                        disabled={membershipSaveBusy}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Commission override (%)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                        value={membershipDraft.commission_override_percent}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, commission_override_percent: e.target.value }))}
-                        placeholder="Blank = no override"
-                        disabled={membershipSaveBusy}
-                      />
-                    </label>
-                  </div>
-                  {membershipLevelOptions.length === 0 && (
-                    <p className="text-sm text-amber-700">
-                      No membership tiers are configured for this audience yet. Configure tiers in admin settings first.
-                    </p>
-                  )}
-
-                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4"
-                      checked={!!membershipDraft.membership_fee_waived}
-                      disabled={membershipSaveBusy}
-                      onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_waived: e.target.checked }))}
-                    />
-                    <span className="text-sm text-gray-700">
-                      <span className="font-semibold text-gray-900">Billing exempt</span>
-                      <br />
-                      Keeps tier access while making effective membership fee and commission 0. Also allows posting without a saved card.
-                    </span>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
-                  >
-                    {membershipSaveBusy ? 'Saving…' : 'Save company membership'}
-                  </button>
-                </form>
-              </AdminCollapsibleCard>
-            )}
-
-            {isTech && profile && (
-              <AdminCollapsibleCard
-                title="Technician membership"
-                description="Configure technician tier, billing exemption, and pricing overrides."
-              >
-                <form onSubmit={saveTechnicianMembershipSettings} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Stat label="Tier" value={membershipLevel} />
-                    <Stat label="Effective monthly fee" value={fmtMoney(effectiveMembershipFeeCents)} />
-                    <Stat label="Effective commission" value={`${Number(effectiveCommissionPercent || 0).toFixed(2)}%`} />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Tier</span>
-                      <select
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
-                        value={membershipDraft.membership_level}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_level: e.target.value }))}
-                        disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
-                      >
-                        {membershipLevelOptions.map((level) => (
-                          <option key={level} value={level}>{level}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Fee override (cents)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                        value={membershipDraft.membership_fee_override_cents}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_override_cents: e.target.value }))}
-                        placeholder="Blank = no override"
-                        disabled={membershipSaveBusy}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-medium text-gray-500 uppercase">Commission override (%)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                        value={membershipDraft.commission_override_percent}
-                        onChange={(e) => setMembershipDraft((d) => ({ ...d, commission_override_percent: e.target.value }))}
-                        placeholder="Blank = no override"
-                        disabled={membershipSaveBusy}
-                      />
-                    </label>
-                  </div>
-                  {membershipLevelOptions.length === 0 && (
-                    <p className="text-sm text-amber-700">
-                      No membership tiers are configured for this audience yet. Configure tiers in admin settings first.
-                    </p>
-                  )}
-
-                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4"
-                      checked={!!membershipDraft.membership_fee_waived}
-                      disabled={membershipSaveBusy}
-                      onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_waived: e.target.checked }))}
-                    />
-                    <span className="text-sm text-gray-700">
-                      <span className="font-semibold text-gray-900">Billing exempt</span>
-                      <br />
-                      Keeps tier access while making effective membership fee and commission 0 for this technician.
-                    </span>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
-                  >
-                    {membershipSaveBusy ? 'Saving…' : 'Save technician membership'}
-                  </button>
-                </form>
-              </AdminCollapsibleCard>
-            )}
-
             {isCompany && u?.company_context && (
               <AdminCollapsibleCard
                 title="Company login users"
@@ -1139,97 +1010,6 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                     </tbody>
                   </table>
                 </div>
-              </AdminCollapsibleCard>
-            )}
-
-            {canManagePassword && (
-              <AdminCollapsibleCard title="Access management" description="Send a new setup email, generate a manual setup link, or set a password directly for this account.">
-                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  <div>
-                    <span className="font-semibold text-gray-900">Password status:</span>{' '}
-                    {passwordStatus?.has_password ? 'Set' : 'Not set'}
-                  </div>
-                  {passwordStatus?.has_password && (
-                    <div className="mt-1 text-xs text-gray-600">
-                      Set by: {passwordSetByLabel}
-                      {passwordStatus?.set_at ? ` on ${new Date(passwordStatus.set_at).toLocaleString()}` : ''}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <button
-                    type="button"
-                    disabled={accessBusy}
-                    onClick={sendSetupEmail}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
-                  >
-                    Send setup email
-                  </button>
-                  <button
-                    type="button"
-                    disabled={accessBusy}
-                    onClick={generateManualLink}
-                    className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 font-medium disabled:opacity-50"
-                  >
-                    Generate manual setup link
-                  </button>
-                </div>
-                {manualResetUrl && (
-                  <div className="mb-4">
-                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Manual setup link</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={manualResetUrl}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={copyManualLink}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <form onSubmit={applyManualPassword} className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
-                    <input
-                      type="password"
-                      value={manualPassword}
-                      onChange={(e) => setManualPassword(e.target.value)}
-                      minLength={6}
-                      required
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
-                    <input
-                      type="password"
-                      value={manualPasswordConfirmation}
-                      onChange={(e) => setManualPasswordConfirmation(e.target.value)}
-                      minLength={6}
-                      required
-                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-gray-500 mb-2">
-                      Password must be at least 6 characters and include uppercase, lowercase, number, and special character.
-                    </p>
-                    <button
-                      type="submit"
-                      disabled={accessBusy}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
-                    >
-                      Save password
-                    </button>
-                  </div>
-                </form>
               </AdminCollapsibleCard>
             )}
 
@@ -1521,6 +1301,267 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               </AdminCollapsibleCard>
             )}
 
+            {isCompany && profile && (
+              <AdminCollapsibleCard
+                title="Membership billing"
+                description="Configure company tier, billing exemption, and pricing overrides."
+              >
+                <form onSubmit={saveCompanyMembershipSettings} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Stat label="Tier" value={membershipLevel} />
+                    <Stat label="Effective monthly fee" value={fmtMoney(effectiveMembershipFeeCents)} />
+                    <Stat label="Effective commission" value={`${Number(effectiveCommissionPercent || 0).toFixed(2)}%`} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Tier</span>
+                      <select
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        value={membershipDraft.membership_level}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_level: e.target.value }))}
+                        disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
+                      >
+                        {membershipLevelOptions.map((level) => (
+                          <option key={level} value={level}>{level}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Fee override (cents)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        value={membershipDraft.membership_fee_override_cents}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_override_cents: e.target.value }))}
+                        placeholder="Blank = no override"
+                        disabled={membershipSaveBusy}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Commission override (%)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        value={membershipDraft.commission_override_percent}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, commission_override_percent: e.target.value }))}
+                        placeholder="Blank = no override"
+                        disabled={membershipSaveBusy}
+                      />
+                    </label>
+                  </div>
+                  {membershipLevelOptions.length === 0 && (
+                    <p className="text-sm text-amber-700">
+                      No membership tiers are configured for this audience yet. Configure tiers in admin settings first.
+                    </p>
+                  )}
+
+                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4"
+                      checked={!!membershipDraft.membership_fee_waived}
+                      disabled={membershipSaveBusy}
+                      onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_waived: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-semibold text-gray-900">Billing exempt</span>
+                      <br />
+                      Keeps tier access while making effective membership fee and commission 0. Also allows posting without a saved card.
+                    </span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    {membershipSaveBusy ? 'Saving…' : 'Save company membership'}
+                  </button>
+                </form>
+              </AdminCollapsibleCard>
+            )}
+
+            {isTech && profile && (
+              <AdminCollapsibleCard
+                title="Technician membership"
+                description="Configure technician tier, billing exemption, and pricing overrides."
+              >
+                <form onSubmit={saveTechnicianMembershipSettings} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Stat label="Tier" value={membershipLevel} />
+                    <Stat label="Effective monthly fee" value={fmtMoney(effectiveMembershipFeeCents)} />
+                    <Stat label="Effective commission" value={`${Number(effectiveCommissionPercent || 0).toFixed(2)}%`} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Tier</span>
+                      <select
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        value={membershipDraft.membership_level}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_level: e.target.value }))}
+                        disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
+                      >
+                        {membershipLevelOptions.map((level) => (
+                          <option key={level} value={level}>{level}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Fee override (cents)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        value={membershipDraft.membership_fee_override_cents}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_override_cents: e.target.value }))}
+                        placeholder="Blank = no override"
+                        disabled={membershipSaveBusy}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-medium text-gray-500 uppercase">Commission override (%)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        value={membershipDraft.commission_override_percent}
+                        onChange={(e) => setMembershipDraft((d) => ({ ...d, commission_override_percent: e.target.value }))}
+                        placeholder="Blank = no override"
+                        disabled={membershipSaveBusy}
+                      />
+                    </label>
+                  </div>
+                  {membershipLevelOptions.length === 0 && (
+                    <p className="text-sm text-amber-700">
+                      No membership tiers are configured for this audience yet. Configure tiers in admin settings first.
+                    </p>
+                  )}
+
+                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4"
+                      checked={!!membershipDraft.membership_fee_waived}
+                      disabled={membershipSaveBusy}
+                      onChange={(e) => setMembershipDraft((d) => ({ ...d, membership_fee_waived: e.target.checked }))}
+                    />
+                    <span className="text-sm text-gray-700">
+                      <span className="font-semibold text-gray-900">Billing exempt</span>
+                      <br />
+                      Keeps tier access while making effective membership fee and commission 0 for this technician.
+                    </span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={membershipSaveBusy || membershipLevelOptions.length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    {membershipSaveBusy ? 'Saving…' : 'Save technician membership'}
+                  </button>
+                </form>
+              </AdminCollapsibleCard>
+            )}
+
+            {canManagePassword && (
+              <AdminCollapsibleCard title="Access management" description="Send a new setup email, generate a manual setup link, or set a password directly for this account.">
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  <div>
+                    <span className="font-semibold text-gray-900">Password status:</span>{' '}
+                    {passwordStatus?.has_password ? 'Set' : 'Not set'}
+                  </div>
+                  {passwordStatus?.has_password && (
+                    <div className="mt-1 text-xs text-gray-600">
+                      Set by: {passwordSetByLabel}
+                      {passwordStatus?.set_at ? ` on ${new Date(passwordStatus.set_at).toLocaleString()}` : ''}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    type="button"
+                    disabled={accessBusy}
+                    onClick={sendSetupEmail}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    Send setup email
+                  </button>
+                  <button
+                    type="button"
+                    disabled={accessBusy}
+                    onClick={generateManualLink}
+                    className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 font-medium disabled:opacity-50"
+                  >
+                    Generate manual setup link
+                  </button>
+                </div>
+                {manualResetUrl && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Manual setup link</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={manualResetUrl}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={copyManualLink}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <form onSubmit={applyManualPassword} className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-gray-100 pt-4">
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Set password</span>
+                    <input
+                      type="password"
+                      value={manualPassword}
+                      onChange={(e) => setManualPassword(e.target.value)}
+                      minLength={6}
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-500 uppercase">Confirm password</span>
+                    <input
+                      type="password"
+                      value={manualPasswordConfirmation}
+                      onChange={(e) => setManualPasswordConfirmation(e.target.value)}
+                      minLength={6}
+                      required
+                      className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-gray-500 mb-2">
+                      Password must be at least 6 characters and include uppercase, lowercase, number, and special character.
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={accessBusy}
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-50"
+                    >
+                      Save password
+                    </button>
+                  </div>
+                </form>
+              </AdminCollapsibleCard>
+            )}
+
             {(isCompany || isTech) && u?.id && (
               <AdminCollapsibleCard
                 title="Danger zone"
@@ -1546,7 +1587,8 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               </AdminCollapsibleCard>
             )}
           </div>
-        )}
+          )}
+        </CollapsibleSectionsProvider>
       </main>
 
       {isCompany && u?.company_context && (

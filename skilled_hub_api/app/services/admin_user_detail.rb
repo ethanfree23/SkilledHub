@@ -158,7 +158,7 @@ class AdminUserDetail
   end
 
   def login_stats(user)
-    events = user.user_login_events.order(created_at: :desc)
+    events = user.user_login_events.where(via_masquerade: false).order(created_at: :desc)
     in_period = @since ? events.where("user_login_events.created_at >= ?", @since) : events
     {
       total_all_time: events.count,

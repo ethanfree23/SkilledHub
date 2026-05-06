@@ -2,11 +2,15 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TextInput } from 'react-native';
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { colors } from '../theme';
+import { colors, radii, typography } from '../theme';
 import { claimJob, denyJob, extendJob, finishJob, getJobById } from '../api/jobsApi';
 import { createConversationForJob } from '../api/conversationsApi';
+import { MapJobsPreview } from '../components/MapJobsPreview';
 import { useAuth } from '../auth/AuthContext';
 import type { AppStackParamList } from '../navigation/RootNavigator';
+import { Card } from '../components/ui/Card';
+import { geocodeAddress } from '../utils/geocode';
+import { formatJobAddress } from '../utils/address';
 
 type DetailRoute = RouteProp<AppStackParamList, 'JobDetail'>;
 type Nav = NativeStackNavigationProp<AppStackParamList, 'JobDetail'>;
@@ -21,6 +25,7 @@ export default function JobDetailScreen() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [job, setJob] = useState<Record<string, unknown>>({});
+  const [mapMarker, setMapMarker] = useState<{ latitude: number; longitude: number } | null>(null);
   const [preferredStartAt, setPreferredStartAt] = useState('');
   const [extendEndAt, setExtendEndAt] = useState('');
   const [technicianProfileId, setTechnicianProfileId] = useState('');
@@ -29,7 +34,17 @@ export default function JobDetailScreen() {
     setError('');
     try {
       const data = await getJobById(jobId);
-      setJob((data || {}) as Record<string, unknown>);
+      const nextJob = (data || {}) as Record<string, unknown>;
+      setJob(nextJob);
+      let lat = Number(nextJob.latitude);
+      let lng = Number(nextJob.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        const geo = await geocodeAddress(formatJobAddress(nextJob));
+        lat = Number(geo?.latitude);
+        lng = Number(geo?.longitude);
+      }
+      if (Number.isFinite(lat) && Number.isFinite(lng)) setMapMarker({ latitude: lat, longitude: lng });
+      else setMapMarker(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load job');
     } finally {
@@ -124,15 +139,89 @@ export default function JobDetailScreen() {
   const isTech = user?.role === 'technician';
   const isCompanyOrAdmin = user?.role === 'company' || user?.role === 'admin';
 
+  const jobMapMarkers =
+    mapMarker
+      ? [
+          {
+            id: 'job',
+            latitude: mapMarker.latitude,
+            longitude: mapMarker.longitude,
+            title: String(job.title || `Job #${job.id}`),
+            description: formatJobAddress(job),
+          },
+        ]
+      : [];
+
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
+    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       {!!error && <Text style={styles.error}>{error}</Text>}
       {!!notice && <Text style={styles.notice}>{notice}</Text>}
-      <View style={styles.card}>
+      {jobMapMarkers.length > 0 ? (
+        <MapJobsPreview markers={jobMapMarkers} height={200} />
+      ) : null}
+      <Card style={styles.mainCard}>
         <Text style={styles.title}>{String(job.title || `Job #${job.id}`)}</Text>
+        <View style={styles.timelineBox}>
+          <Text style={styles.section}>Job and payment timeline</Text>
+          <Text style={styles.sub}>Posted: {job.created_at ? new Date(String(job.created_at)).toLocaleString() : '—'}</Text>
+          {job.go_live_at ? (
+            <Text style={styles.sub}>Go live: {new Date(String(job.go_live_at)).toLocaleString()}</Text>
+          ) : null}
+        </View>
+        <View style={styles.paymentBox}>
+          <Text style={styles.sub}>
+            Payment status:{' '}
+            {String((job.payment_summary as Record<string, unknown> | undefined)?.state || 'No card charge on file for this job.')}
+          </Text>
+        </View>
+        <View style={[styles.metaRow, styles.metaRowTop]}>
+          <Text style={styles.metaLabel}>Status</Text>
+          <Text style={styles.metaValue}>{String(job.status || 'unknown')}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Location</Text>
+          <Text style={styles.metaValue}>{formatJobAddress(job)}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Company</Text>
+          <Text style={styles.metaValue}>{String((job.company_profile as Record<string, unknown> | undefined)?.company_name || '—')}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Industry</Text>
+          <Text style={styles.metaValue}>{String((job.company_profile as Record<string, unknown> | undefined)?.industry || 'N/A')}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Start</Text>
+          <Text style={styles.metaValue}>
+            {job.scheduled_start_at ? new Date(String(job.scheduled_start_at)).toLocaleString() : 'Not scheduled'}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Finish</Text>
+          <Text style={styles.metaValue}>
+            {job.scheduled_end_at ? new Date(String(job.scheduled_end_at)).toLocaleString() : 'Not scheduled'}
+          </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Start mode</Text>
+          <Text style={styles.metaValue}>{String(job.start_mode || 'hard_start')}</Text>
+        </View>
+        <Text style={[styles.section, { marginTop: 12 }]}>Job Description</Text>
         <Text style={styles.sub}>{String(job.description || '')}</Text>
-        <Text style={styles.sub}>Status: {String(job.status || 'unknown')}</Text>
-        <Text style={styles.sub}>Location: {String(job.location || '')}</Text>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Class</Text>
+          <Text style={styles.metaValue}>{String(job.skill_class || 'N/A')}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={styles.metaLabel}>Experience</Text>
+          <Text style={styles.metaValue}>{String(job.minimum_years_experience ?? 'Any')}</Text>
+        </View>
+        {job.notes ? (
+          <View style={styles.notesBox}>
+            <Text style={styles.section}>Notes and conditions</Text>
+            <Text style={styles.sub}>{String(job.notes)}</Text>
+          </View>
+        ) : null}
         <TextInput
           value={technicianProfileId}
           onChangeText={setTechnicianProfileId}
@@ -144,10 +233,10 @@ export default function JobDetailScreen() {
         <Pressable style={styles.btnGhost} onPress={onStartConversation} disabled={saving}>
           <Text style={styles.btnGhostText}>Open conversation</Text>
         </Pressable>
-      </View>
+      </Card>
 
       {isTech ? (
-        <View style={styles.card}>
+        <Card style={styles.actionCard}>
           <Text style={styles.section}>Technician actions</Text>
           <TextInput
             value={preferredStartAt}
@@ -163,11 +252,11 @@ export default function JobDetailScreen() {
           <Pressable style={styles.btnGhost} onPress={onFinish} disabled={saving}>
             <Text style={styles.btnGhostText}>Finish job</Text>
           </Pressable>
-        </View>
+        </Card>
       ) : null}
 
       {isCompanyOrAdmin ? (
-        <View style={styles.card}>
+        <Card style={styles.actionCard}>
           <Text style={styles.section}>Company/admin actions</Text>
           <Pressable style={styles.btnGhost} onPress={() => navigation.navigate('EditJob', { jobId })}>
             <Text style={styles.btnGhostText}>Edit job</Text>
@@ -189,7 +278,7 @@ export default function JobDetailScreen() {
           <Pressable style={styles.btn} onPress={onExtend} disabled={saving}>
             <Text style={styles.btnText}>{saving ? 'Working...' : 'Extend job'}</Text>
           </Pressable>
-        </View>
+        </Card>
       ) : null}
     </ScrollView>
   );
@@ -197,22 +286,24 @@ export default function JobDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: 14, paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  card: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-  },
-  title: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  section: { color: colors.text, fontWeight: '700', marginBottom: 8 },
-  sub: { color: colors.muted, marginTop: 5 },
+  title: { ...typography.title },
+  section: { ...typography.heading, color: colors.text, marginBottom: 8 },
+  sub: { ...typography.body, color: colors.muted, marginTop: 5 },
+  mainCard: { marginTop: 10 },
+  actionCard: { marginTop: 10 },
+  metaRow: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  metaRowTop: { marginTop: 4 },
+  metaLabel: { ...typography.caption, color: colors.muted, textTransform: 'uppercase' },
+  metaValue: { color: colors.text, fontWeight: '600', flex: 1, textAlign: 'right', lineHeight: 20 },
+  timelineBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: 12, marginTop: 10, marginBottom: 10, backgroundColor: colors.white },
+  paymentBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: 12, marginBottom: 10, backgroundColor: colors.bg },
+  notesBox: { borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: 12, marginTop: 12, backgroundColor: colors.white },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radii.md,
     backgroundColor: colors.white,
     color: colors.text,
     paddingHorizontal: 10,
@@ -226,16 +317,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 2,
   },
-  btnText: { color: colors.white, fontWeight: '700' },
+  btnText: { ...typography.body, color: colors.white, fontWeight: '700' },
   btnGhost: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    borderRadius: radii.md,
     paddingVertical: 10,
     alignItems: 'center',
     marginBottom: 8,
   },
-  btnGhostText: { color: colors.text, fontWeight: '600' },
-  error: { color: colors.danger, marginBottom: 8 },
-  notice: { color: colors.primaryBlue, marginBottom: 8 },
+  btnGhostText: { ...typography.body, color: colors.text, fontWeight: '600' },
+  error: { ...typography.body, color: colors.danger, marginBottom: 8 },
+  notice: { ...typography.body, color: colors.primaryBlue, marginBottom: 8 },
 });

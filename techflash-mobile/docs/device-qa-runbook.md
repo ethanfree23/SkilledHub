@@ -5,12 +5,14 @@ Use this to validate parity quickly on a real phone (Expo build/dev client).
 ## 0) Pre-flight (2 minutes)
 
 - [ ] API is reachable from device (`EXPO_PUBLIC_API_BASE_URL` points to live/staging/local LAN endpoint).
+- [ ] Optional: `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` set for map tiles + geocoding.
 - [ ] Start app with tunnel if needed: `npm run start:tunnel`
 - [ ] Test accounts exist:
   - [ ] Admin account
   - [ ] Company account
   - [ ] Technician account
 - [ ] Seed at least one open job and one conversation-capable scenario.
+- [ ] Verify parity scope in `docs/web-mobile-parity-matrix.md`.
 
 ## 1) Admin pass (5 minutes)
 
@@ -47,6 +49,7 @@ Use this to validate parity quickly on a real phone (Expo build/dev client).
 - [ ] Login as company.
 - [ ] Open `Jobs` tab.
 - [ ] Create a job.
+- [ ] Force close app and reopen Create Job; verify draft restore.
 - [ ] Open created job detail.
 - [ ] Edit job fields and save.
 - [ ] Use `Extend job` with valid ISO end datetime.
@@ -58,6 +61,7 @@ Use this to validate parity quickly on a real phone (Expo build/dev client).
 
 - [ ] Login as technician.
 - [ ] Open `Jobs` tab and load open jobs.
+- [ ] Dashboard map (top) and open-jobs list (below) show the same jobs.
 - [ ] Open job detail, claim job (optional preferred start).
 - [ ] Finish an in-progress job.
 - [ ] Open `Messages` tab.
@@ -74,6 +78,8 @@ Use this to validate parity quickly on a real phone (Expo build/dev client).
 
 ### A. Company
 - [ ] Login as company, go to `More` -> `Open settings`.
+- [ ] Switch tabs: Account, Profile, Notifications, Payment.
+- [ ] Notifications: toggle push opt-in (permission prompt), toggle email categories.
 - [ ] Update account fields and save.
 - [ ] Change membership level:
   - [ ] Basic/non-paid transition updates natively.
@@ -81,9 +87,20 @@ Use this to validate parity quickly on a real phone (Expo build/dev client).
 
 ### B. Technician
 - [ ] Login as technician, go to `More` -> `Open settings`.
+- [ ] Notifications: push opt-in + job alert email toggles + optional job-alert template row.
+- [ ] Profile: optional **Save coordinates from address** (needs Maps API key).
 - [ ] Update account fields and save.
 - [ ] Tap `Open payout onboarding`.
 - [ ] Confirm Stripe Connect URL opens in browser.
+
+### C. Technician map (dashboard)
+- [ ] On Dashboard, switch **Map** and confirm pins when profile + jobs have coordinates.
+- [ ] Confirm map default viewport is local/regional (not global earth zoom).
+- [ ] Confirm jobs without lat/lng can still appear when geocode fallback succeeds.
+
+### D. Admin (settings)
+- [ ] Login as admin → Settings → **System** → open system controls (tiers, licensing, email QA).
+- [ ] Settings → **Job access** → save tier gates.
 
 ## 6) Session persistence pass (2 minutes)
 
@@ -108,3 +125,4 @@ Copy/paste for each failure:
 
 - [ ] All checklist items pass, or
 - [ ] Any failures documented with repro steps + role + screenshot.
+- [ ] Release readiness checklist in `docs/release-readiness-checklist.md` passes.

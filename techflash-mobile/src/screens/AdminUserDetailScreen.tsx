@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
 } from '../api/adminApi';
 import type { AppStackParamList } from '../navigation/RootNavigator';
 import type { User } from '../types/user';
+import { AdminCollapseCard } from '../components/AdminCollapseCard';
 
 type DetailRoute = RouteProp<AppStackParamList, 'AdminUserDetail'>;
 
@@ -37,6 +38,22 @@ function renderKV(title: string, value: unknown) {
     </View>
   );
 }
+
+const SECTION_IDS = [
+  'user',
+  'profile',
+  'membership',
+  'access',
+  'analytics',
+  'company_login_users',
+  'logins',
+  'email',
+  'messages',
+  'referrals',
+  'jobs',
+  'ratings',
+] as const;
+type SectionId = (typeof SECTION_IDS)[number];
 
 export default function AdminUserDetailScreen() {
   const { setSessionFromAuthPayload } = useAuth();
@@ -57,6 +74,20 @@ export default function AdminUserDetailScreen() {
     commission_override_percent: '',
   });
   const [companyProfileRelinkId, setCompanyProfileRelinkId] = useState('');
+  const [expanded, setExpanded] = useState<Record<SectionId, boolean>>({
+    user: true,
+    profile: true,
+    membership: true,
+    access: true,
+    analytics: true,
+    company_login_users: true,
+    logins: true,
+    email: true,
+    messages: true,
+    referrals: true,
+    jobs: true,
+    ratings: true,
+  });
 
   const load = useCallback(async () => {
     setError('');
@@ -222,23 +253,52 @@ export default function AdminUserDetailScreen() {
     }
   };
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator color={colors.primaryOrange} size="large" /></View>;
-  }
-
   const user = (payload.user || {}) as Record<string, unknown>;
   const profile = (user.profile || {}) as Record<string, unknown>;
   const isCompany = profile.type === 'company';
   const isTech = profile.type === 'technician';
   const roleAnalytics = ((isCompany ? payload.payments : payload.applications) || {}) as Record<string, unknown>;
+  const messages = useMemo(() => asRows(payload.messages), [payload.messages]);
+  const referrals = useMemo(() => asRows(payload.referrals), [payload.referrals]);
+  const jobsOrApps = useMemo(() => asRows(payload.jobs).concat(asRows(payload.applications)), [payload.jobs, payload.applications]);
+  const logins = useMemo(() => asRows(payload.logins), [payload.logins]);
+  const companyLoginUsers = useMemo(() => asRows(payload.company_login_users), [payload.company_login_users]);
+  const emailRows = useMemo(() => asRows(payload.email_deliveries || payload.email_history), [payload.email_deliveries, payload.email_history]);
+  const ratingsRows = useMemo(() => asRows(payload.ratings || payload.reviews), [payload.ratings, payload.reviews]);
+  const expandAll = () => {
+    const next = {} as Record<SectionId, boolean>;
+    SECTION_IDS.forEach((id) => {
+      next[id] = true;
+    });
+    setExpanded(next);
+  };
+  const collapseAll = () => {
+    const next = {} as Record<SectionId, boolean>;
+    SECTION_IDS.forEach((id) => {
+      next[id] = false;
+    });
+    setExpanded(next);
+  };
+  const toggle = (id: SectionId) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
+
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator color={colors.primaryOrange} size="large" /></View>;
+  }
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
       {!!error && <Text style={styles.error}>{error}</Text>}
       {!!notice && <Text style={styles.notice}>{notice}</Text>}
+      <View style={styles.toolbar}>
+        <Pressable style={styles.toolbarBtn} onPress={expandAll}>
+          <Text style={styles.toolbarBtnText}>Expand all</Text>
+        </Pressable>
+        <Pressable style={styles.toolbarBtn} onPress={collapseAll}>
+          <Text style={styles.toolbarBtnText}>Collapse all</Text>
+        </Pressable>
+      </View>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>User</Text>
+      <AdminCollapseCard title="User" expanded={expanded.user} onToggle={() => toggle('user')}>
         {renderKV('Email', user.email)}
         {renderKV('Role', user.role)}
         {renderKV('Name', [user.first_name, user.last_name].filter(Boolean).join(' '))}
@@ -251,12 +311,13 @@ export default function AdminUserDetailScreen() {
             <Text style={styles.actionBtnGhostText}>Ensure profile</Text>
           </Pressable>
         </View>
-      </View>
+      </AdminCollapseCard>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>
-          Profile ({isCompany ? 'company group' : isTech ? 'technician group' : 'user'})
-        </Text>
+      <AdminCollapseCard
+        title={`Profile (${isCompany ? 'company group' : isTech ? 'technician group' : 'user'})`}
+        expanded={expanded.profile}
+        onToggle={() => toggle('profile')}
+      >
         {renderKV('ID', profile.id)}
         {renderKV('Company', profile.company_name)}
         {renderKV('Trade', profile.trade_type)}
@@ -306,10 +367,9 @@ export default function AdminUserDetailScreen() {
         <Pressable style={styles.actionBtn} onPress={onSaveProfile} disabled={saving}>
           <Text style={styles.actionBtnText}>{saving ? 'Saving...' : 'Save profile'}</Text>
         </Pressable>
-      </View>
+      </AdminCollapseCard>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>Membership pricing</Text>
+      <AdminCollapseCard title="Membership pricing" expanded={expanded.membership} onToggle={() => toggle('membership')}>
         <Field
           label="Membership level"
           value={membershipDraft.membership_level}
@@ -343,10 +403,9 @@ export default function AdminUserDetailScreen() {
             {saving ? 'Saving...' : 'Save membership pricing'}
           </Text>
         </Pressable>
-      </View>
+      </AdminCollapseCard>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>Access + safety</Text>
+      <AdminCollapseCard title="Access + safety" expanded={expanded.access} onToggle={() => toggle('access')}>
         <Field
           label="Set new password"
           value={password}
@@ -370,16 +429,74 @@ export default function AdminUserDetailScreen() {
             <Text style={styles.deleteBtnText}>Delete user</Text>
           </Pressable>
         </View>
-      </View>
+      </AdminCollapseCard>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>
-          Role analytics ({isCompany ? 'company group' : isTech ? 'technician group' : 'user'})
-        </Text>
-        {Object.entries(roleAnalytics).map(([k, v]) => renderKV(k, v))}
-      </View>
+      <AdminCollapseCard
+        title={`Role analytics (${isCompany ? 'company group' : isTech ? 'technician group' : 'user'})`}
+        expanded={expanded.analytics}
+        onToggle={() => toggle('analytics')}
+      >
+        {Object.entries(roleAnalytics).map(([k, v]) => (
+          <View key={k}>{renderKV(k, v)}</View>
+        ))}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Company login users" expanded={expanded.company_login_users} onToggle={() => toggle('company_login_users')}>
+        {renderListRows(companyLoginUsers, ['email', 'role', 'created_at'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Logins" expanded={expanded.logins} onToggle={() => toggle('logins')}>
+        {renderListRows(logins, ['created_at', 'ip_address', 'user_agent'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Email history" expanded={expanded.email} onToggle={() => toggle('email')}>
+        {renderListRows(emailRows, ['subject', 'state', 'to', 'created_at'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Messages" expanded={expanded.messages} onToggle={() => toggle('messages')}>
+        {renderListRows(messages, ['subject', 'body', 'submitter_email', 'created_at'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Referrals" expanded={expanded.referrals} onToggle={() => toggle('referrals')}>
+        {renderListRows(referrals, ['name', 'email', 'status', 'created_at'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Jobs / applications" expanded={expanded.jobs} onToggle={() => toggle('jobs')}>
+        {renderListRows(jobsOrApps, ['title', 'status', 'location', 'created_at'])}
+      </AdminCollapseCard>
+
+      <AdminCollapseCard title="Ratings and reviews" expanded={expanded.ratings} onToggle={() => toggle('ratings')}>
+        {renderListRows(ratingsRows, ['score', 'comment', 'created_at'])}
+      </AdminCollapseCard>
     </ScrollView>
   );
+}
+
+function asRows(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v) => !!v && typeof v === 'object') as Record<string, unknown>[];
+}
+
+function renderListRows(rows: Record<string, unknown>[], fields: string[]) {
+  if (!rows.length) return <Text style={styles.empty}>No records.</Text>;
+  return rows.slice(0, 25).map((row, idx) => (
+    <View key={`${String(row.id || idx)}`} style={styles.listRow}>
+      {fields.map((field) => {
+        const val = row[field];
+        if (val == null || val === '') return null;
+        return (
+          <View key={`${idx}-${field}`} style={styles.listCell}>
+            <Text style={styles.k}>{toLabel(field)}</Text>
+            <Text style={styles.v}>{String(val)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  ));
+}
+
+function toLabel(v: string) {
+  return v.replace(/_/g, ' ');
 }
 
 function Field({
@@ -468,6 +585,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   row: { flexDirection: 'row', gap: 8 },
+  toolbar: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  toolbarBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.white,
+  },
+  toolbarBtnText: { color: colors.text, fontWeight: '600' },
+  listRow: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, marginBottom: 8, backgroundColor: colors.bg },
+  listCell: { marginBottom: 6 },
+  empty: { color: colors.muted, fontStyle: 'italic' },
   error: { color: colors.danger, marginBottom: 10 },
   notice: { color: colors.primaryBlue, marginBottom: 10 },
 });

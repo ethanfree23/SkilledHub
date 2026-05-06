@@ -34,10 +34,25 @@ export async function getTechnicianDashboardJobs(): Promise<TechnicianDashboardJ
 export interface JobPayload {
   title: string;
   description?: string;
+  status?: string;
+  go_live_at?: string;
+  skill_class?: string;
+  skill_tags?: string[];
+  minimum_years_experience?: number;
+  notes?: string;
+  address?: string;
   location?: string;
   city?: string;
   state?: string;
   zip_code?: string;
+  country?: string;
+  hourly_rate_cents?: number;
+  hours_per_day?: number;
+  days?: number;
+  min_hourly_rate_cents?: number;
+  max_hourly_rate_cents?: number;
+  duration_hours_min?: number;
+  duration_hours_max?: number;
   scheduled_start_at?: string;
   scheduled_end_at?: string;
   budget_cents?: number;

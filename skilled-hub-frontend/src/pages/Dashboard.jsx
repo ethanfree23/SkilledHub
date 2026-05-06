@@ -379,7 +379,7 @@ const Dashboard = ({ user, onLogout }) => {
     if (user?.role !== 'technician') return undefined;
     const refreshOpenJobsOnly = async () => {
       try {
-        const openJobsRes = await jobsAPI.getAll({ status: 'open' }).catch(() => []);
+        const openJobsRes = await jobsAPI.getAll({ status: 'open', include_past: 'true' }).catch(() => []);
         const now = Date.now();
         const liveOpenJobs = (Array.isArray(openJobsRes) ? openJobsRes : []).filter((job) => {
           const endAt = job?.scheduled_end_at ? new Date(job.scheduled_end_at).getTime() : null;
@@ -411,7 +411,7 @@ const Dashboard = ({ user, onLogout }) => {
         const [jobsRes, analyticsRes, openJobsRes, technicianProfileRes] = await Promise.all([
           jobsAPI.getTechnicianDashboard(),
           jobsAPI.getAnalytics().catch(() => null),
-          jobsAPI.getAll({ status: 'open' }).catch(() => []),
+          jobsAPI.getAll({ status: 'open', include_past: 'true' }).catch(() => []),
           profilesAPI.getTechnicianProfile().catch(() => null),
         ]);
         const now = Date.now();
@@ -952,6 +952,8 @@ const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSe
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
+  const geocodeCacheRef = useRef(new Map());
+  const geocodeInFlightRef = useRef(new Set());
   const [mapsReady, setMapsReady] = useState(googleMapsLoaded || Boolean(window.google?.maps));
   const [loadError, setLoadError] = useState(null);
   const [fallbackCoordsByJobId, setFallbackCoordsByJobId] = useState({});
@@ -1051,16 +1053,32 @@ const TechnicianOpenJobsMap = ({ technicianProfile, jobs, selectedMapJobId, onSe
         .filter(Boolean)
         .join(', ');
       if (!query) return;
+      if (geocodeCacheRef.current.has(query)) {
+        const cached = geocodeCacheRef.current.get(query);
+        if (cached) {
+          setFallbackCoordsByJobId((prev) => ({ ...prev, [job.id]: cached }));
+        }
+        return;
+      }
+      if (geocodeInFlightRef.current.has(query)) return;
+      geocodeInFlightRef.current.add(query);
       geocoder.geocode({ address: query }, (results, status) => {
         if (cancelled) return;
         // #region agent log
         fetch('http://127.0.0.1:7260/ingest/d67e1fb9-af7e-4677-9ae6-ba8bb7fc57ed',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f0f940'},body:JSON.stringify({sessionId:'f0f940',runId:'initial',hypothesisId:'H3',location:'Dashboard.jsx:TechnicianOpenJobsMap-geocodeCallback',message:'geocode callback result',data:{jobId:job?.id,status,hasResult:Boolean(results?.[0]?.geometry?.location),queryPreview:query.slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
-        if (status !== 'OK' || !results?.[0]?.geometry?.location) return;
+        if (status !== 'OK' || !results?.[0]?.geometry?.location) {
+          geocodeCacheRef.current.set(query, null);
+          geocodeInFlightRef.current.delete(query);
+          return;
+        }
         const loc = results[0].geometry.location;
+        const coords = { lat: loc.lat(), lng: loc.lng() };
+        geocodeCacheRef.current.set(query, coords);
+        geocodeInFlightRef.current.delete(query);
         setFallbackCoordsByJobId((prev) => ({
           ...prev,
-          [job.id]: { lat: loc.lat(), lng: loc.lng() },
+          [job.id]: coords,
         }));
       });
     });
@@ -1389,7 +1407,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
   const [reviewedJobIds, setReviewedJobIds] = useState(new Set());
   /** Incremented when the user explicitly focuses a job so the map pans/zooms (fitBounds alone is often invisible). */
   const [mapPanNonce, setMapPanNonce] = useState(0);
-  const searchRadiusMiles = 150;
+  const searchRadiusMiles = 100;
   const technicianLat = Number(technicianProfile?.latitude);
   const technicianLng = Number(technicianProfile?.longitude);
 
@@ -1398,7 +1416,10 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
     [openJobs, technicianLat, technicianLng]
   );
 
-  const mapDisplayJobs = useMemo(() => nearbyOpenJobs, [nearbyOpenJobs]);
+  const mapDisplayJobs = useMemo(() => {
+    if (nearbyOpenJobs.length > 0) return nearbyOpenJobs;
+    return filterJobsWithinRadius(openJobs, technicianLat, technicianLng, Number.POSITIVE_INFINITY);
+  }, [nearbyOpenJobs, openJobs, technicianLat, technicianLng]);
 
   useEffect(() => {
     if (!mapDisplayJobs.length) {
@@ -1524,7 +1545,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
               {searchRadiusMiles} miles of your profile.
             </p>
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {mapDisplayJobs.slice(0, 25).map((job) => (
+              {mapDisplayJobs.map((job) => (
                 <button
                   key={job.id}
                   type="button"
@@ -1545,9 +1566,7 @@ const TechnicianDashboardContent = ({ jobs, openJobs, technicianProfile, analyti
                   </div>
                 </button>
               ))}
-              {!mapDisplayJobs.length && (
-                <p className="text-sm text-gray-500">No open jobs available within {searchRadiusMiles} miles.</p>
-              )}
+              {!mapDisplayJobs.length && <p className="text-sm text-gray-500">No open jobs available right now.</p>}
             </div>
           </div>
         </div>

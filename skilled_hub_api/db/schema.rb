@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_05_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_05_130500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -417,6 +417,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_120000) do
     t.integer "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "via_masquerade", default: false, null: false
     t.index ["user_id", "created_at"], name: "index_user_login_events_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_user_login_events_on_user_id"
   end

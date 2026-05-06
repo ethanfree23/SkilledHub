@@ -1,16 +1,12 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
 /**
  * Custom date-time input that shows AM above PM in the time picker.
  * The native datetime-local picker cannot be customized, so we use
  * separate date + time inputs with AM listed first.
  */
-const DateTimeInput = ({ value, onChange, id, className = '' }) => {
+const DateTimeInput = ({ value, onChange, id, className = '', disabled = false }) => {
   const pad = (n) => String(n).padStart(2, '0');
-  const normalizeListWithSelectedFirst = (items, selected) => {
-    const withoutSelected = items.filter((item) => item !== selected);
-    return [selected, ...withoutSelected];
-  };
   
   const parseValue = (val) => {
     if (!val) return { date: '', hour: 12, minute: 0, ampm: 'AM' };
@@ -34,6 +30,11 @@ const DateTimeInput = ({ value, onChange, id, className = '' }) => {
   };
 
   const { date, hour, minute, ampm } = parseValue(value);
+  const [open, setOpen] = useState(false);
+  const [draftDate, setDraftDate] = useState(date);
+  const [draftHour, setDraftHour] = useState(hour);
+  const [draftMinute, setDraftMinute] = useState(minute);
+  const [draftAmpm, setDraftAmpm] = useState(ampm);
 
   const handleChange = (newDate, newHour, newMinute, newAmpm) => {
     const val = buildValue(newDate || date, newHour ?? hour, newMinute ?? minute, newAmpm || ampm);
@@ -41,84 +42,128 @@ const DateTimeInput = ({ value, onChange, id, className = '' }) => {
   };
 
   const hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-  const minutes = Array.from({ length: 12 }, (_, i) => i * 5); // 0, 5, 10, ..., 55
-  const displayHours = normalizeListWithSelectedFirst(hours, hour);
-  const displayMinutes = normalizeListWithSelectedFirst(
-    minute % 5 === 0 ? minutes : [...minutes, minute].sort((a, b) => a - b),
-    minute,
-  );
-  const parseHourInput = (rawValue) => {
-    const digits = String(rawValue || '').replace(/\D/g, '');
-    if (!digits) return null;
-    const nextHour = parseInt(digits, 10);
-    if (Number.isNaN(nextHour)) return null;
-    return Math.min(12, Math.max(1, nextHour));
-  };
-  const parseMinuteInput = (rawValue) => {
-    const digits = String(rawValue || '').replace(/\D/g, '');
-    if (!digits) return null;
-    const nextMinute = parseInt(digits, 10);
-    if (Number.isNaN(nextMinute)) return null;
-    return Math.min(59, Math.max(0, nextMinute));
+  const minutes = useMemo(() => Array.from({ length: 12 }, (_, i) => i * 5), []);
+
+  const dateOptions = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    for (let i = -30; i <= 180; i += 1) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      list.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    }
+    if (date && !list.includes(date)) list.unshift(date);
+    return list;
+  }, [date]);
+
+  const openEditor = () => {
+    setDraftDate(date || dateOptions[0] || '');
+    setDraftHour(hour);
+    setDraftMinute(minute);
+    setDraftAmpm(ampm);
+    setOpen(true);
   };
 
   return (
-    <div className={`flex flex-wrap gap-2 items-center ${className}`}>
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => handleChange(e.target.value, null, null, null)}
-        className="border rounded px-3 py-2"
-      />
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]{1,2}"
-        list={id ? `${id}-hour-options` : undefined}
-        value={pad(hour)}
-        onChange={(e) => {
-          const parsed = parseHourInput(e.target.value);
-          if (parsed != null) handleChange(null, parsed, null, null);
-        }}
-        className="border rounded px-2 py-2 w-14"
-        aria-label="Hour"
-      />
-      {id ? (
-        <datalist id={`${id}-hour-options`}>
-          {displayHours.map((h) => (
-            <option key={h} value={pad(h)} />
-          ))}
-        </datalist>
-      ) : null}
-      <span className="text-gray-500">:</span>
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]{1,2}"
-        list={id ? `${id}-minute-options` : undefined}
-        value={pad(minute)}
-        onChange={(e) => {
-          const parsed = parseMinuteInput(e.target.value);
-          if (parsed != null) handleChange(null, null, parsed, null);
-        }}
-        className="border rounded px-2 py-2 w-14"
-        aria-label="Minute"
-      />
-      {id ? (
-        <datalist id={`${id}-minute-options`}>
-          {displayMinutes.map((m) => (
-            <option key={m} value={pad(m)} />
-          ))}
-        </datalist>
-      ) : null}
-      <select
-        value={ampm}
-        onChange={(e) => handleChange(null, null, null, e.target.value)}
-        className="border rounded px-2 py-2"
+    <div className={`space-y-2 ${className}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={openEditor}
+        className={`w-full border rounded px-3 py-2 text-left ${disabled ? 'bg-gray-100 text-gray-400' : 'bg-white'}`}
       >
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
+        {date ? `${date} ${pad(hour)}:${pad(minute)} ${ampm}` : 'Select date/time'}
+      </button>
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/45 p-3">
+          <div className="w-full max-w-lg rounded-xl bg-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Choose date & time</h3>
+              <button type="button" className="text-gray-500 hover:text-gray-800" onClick={() => setOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <div className="sm:col-span-2">
+                <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Date</p>
+                <div className="max-h-52 overflow-y-auto rounded border">
+                  {dateOptions.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDraftDate(d)}
+                      className={`block w-full px-3 py-2 text-left text-sm ${draftDate === d ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Hour</p>
+                <div className="max-h-52 overflow-y-auto rounded border">
+                  {hours.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setDraftHour(h)}
+                      className={`block w-full px-3 py-2 text-left text-sm ${draftHour === h ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}
+                    >
+                      {pad(h)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase text-gray-500">Minute</p>
+                <div className="max-h-52 overflow-y-auto rounded border">
+                  {minutes.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setDraftMinute(m)}
+                      className={`block w-full px-3 py-2 text-left text-sm ${draftMinute === m ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'}`}
+                    >
+                      {pad(m)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                className={`rounded border px-3 py-2 text-sm ${draftAmpm === 'AM' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`}
+                onClick={() => setDraftAmpm('AM')}
+              >
+                AM
+              </button>
+              <button
+                type="button"
+                className={`rounded border px-3 py-2 text-sm ${draftAmpm === 'PM' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300'}`}
+                onClick={() => setDraftAmpm('PM')}
+              >
+                PM
+              </button>
+              <div className="ml-auto flex gap-2">
+                <button type="button" className="rounded border px-3 py-2 text-sm" onClick={() => setOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
+                  onClick={() => {
+                    handleChange(draftDate, draftHour, draftMinute, draftAmpm);
+                    setOpen(false);
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

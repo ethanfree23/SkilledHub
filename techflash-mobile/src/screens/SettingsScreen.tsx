@@ -1,47 +1,112 @@
-import React, { useCallback, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { colors } from '../theme';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { colors, typography } from '../theme';
 import { useAuth } from '../auth/AuthContext';
+import * as settingsApi from '../api/settingsApi';
+import { listPublicTierConfigs } from '../api/membershipTierConfigsApi';
 import {
-  createConnectAccountLink,
-  getCompanyProfile,
-  getMembership,
-  getTechnicianProfile,
-  openMembershipCheckout,
-  updateCompanyProfile,
-  updateMe,
-  updateTechnicianProfile,
-} from '../api/settingsApi';
+  SettingsAccountPanel,
+  SettingsNotificationsPanel,
+  SettingsPaymentPanel,
+  SettingsProfilePanel,
+} from '../settings/panels';
+import type { AppStackParamList } from '../navigation/RootNavigator';
+import type { User } from '../types/user';
 
 export default function SettingsScreen() {
-  const { user } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
+  const { user, applyUserFromMeResponse } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
   const [profile, setProfile] = useState<Record<string, unknown>>({});
   const [membership, setMembership] = useState<Record<string, unknown>>({});
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
   const [membershipLevel, setMembershipLevel] = useState('basic');
+  const [tierOptions, setTierOptions] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const isAdmin = user?.role === 'admin';
+  const sectionIds = useMemo(
+    () => ['account', 'profile', 'notifications', 'payment', ...(isAdmin ? ['system_controls', 'job_access'] : [])],
+    [isAdmin]
+  );
 
   const load = useCallback(async () => {
     if (!user) return;
     setError('');
     try {
+      if (user.role === 'admin') {
+        setProfile({});
+        setMembership({});
+        setForm({
+          first_name: String(user.first_name || ''),
+          last_name: String(user.last_name || ''),
+          phone: String(user.phone || ''),
+        });
+        setMembershipLevel('basic');
+        setTierOptions([]);
+        return;
+      }
+
       const [m, p] = await Promise.all([
-        getMembership(),
-        user.role === 'company' ? getCompanyProfile() : getTechnicianProfile(),
+        settingsApi.getMembership(),
+        user.role === 'company' ? settingsApi.getCompanyProfile() : settingsApi.getTechnicianProfile(),
       ]);
       const profileObj = (p || {}) as Record<string, unknown>;
       setMembership((m || {}) as Record<string, unknown>);
       setProfile(profileObj);
-      setFirstName(String(user.first_name || ''));
-      setLastName(String(user.last_name || ''));
-      setPhone(String((profileObj.phone || user.phone || '') as string));
-      setMembershipLevel(String((m?.membership_level || 'basic') as string));
+      const ml = String((m as Record<string, unknown>)?.membership_level || 'basic');
+      setMembershipLevel(ml);
+
+      const tiers = await listPublicTierConfigs(user.role === 'company' ? 'company' : 'technician');
+      const mapped =
+        tiers.map((t) => ({
+          id: String((t.slug as string) || '').toLowerCase(),
+          name: String((t.display_name as string) || (t.slug as string) || ''),
+        })) || [];
+      setTierOptions(
+        mapped.length > 0
+          ? mapped
+          : [
+              { id: 'basic', name: 'Basic' },
+              { id: 'pro', name: 'Pro' },
+              { id: 'premium', name: 'Premium' },
+            ]
+      );
+
+      if (user.role === 'company') {
+        setForm({
+          first_name: String(user.first_name || ''),
+          last_name: String(user.last_name || ''),
+          phone: String((profileObj.phone || user.phone || '') as string),
+          company_name: String(profileObj.company_name || ''),
+          industry: String(profileObj.industry || ''),
+          location: String(profileObj.location || ''),
+          state: String(profileObj.state || ''),
+          electrical_license_number: String(profileObj.electrical_license_number || ''),
+          bio: String(profileObj.bio || ''),
+        });
+      } else {
+        setForm({
+          first_name: String(user.first_name || ''),
+          last_name: String(user.last_name || ''),
+          phone: String((profileObj.phone || user.phone || '') as string),
+          trade_type: String(profileObj.trade_type || ''),
+          experience_years:
+            profileObj.experience_years == null ? '' : String(profileObj.experience_years),
+          availability: String(profileObj.availability || ''),
+          bio: String(profileObj.bio || ''),
+          location: String(profileObj.location || ''),
+          address: String(profileObj.address || ''),
+          city: String(profileObj.city || ''),
+          state: String(profileObj.state || 'Texas'),
+          zip_code: String(profileObj.zip_code || ''),
+          country: String(profileObj.country || 'United States'),
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load settings');
     } finally {
@@ -49,184 +114,198 @@ export default function SettingsScreen() {
     }
   }, [user]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
 
-  const onSaveAccount = async () => {
-    setSaving(true);
-    setError('');
-    try {
-      await updateMe({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        phone: phone.trim(),
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next: Record<string, boolean> = {};
+      sectionIds.forEach((id) => {
+        next[id] = prev[id] ?? (id === 'account' || id === 'profile');
       });
-      if (user?.role === 'company') {
-        await updateCompanyProfile(Number(profile.id), { phone: phone.trim() });
-      } else if (user?.role === 'technician') {
-        await updateTechnicianProfile(Number(profile.id), { phone: phone.trim() });
-      }
-      setNotice('Account settings updated.');
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save account settings');
-    } finally {
-      setSaving(false);
-    }
-  };
+      return next;
+    });
+  }, [sectionIds]);
 
-  const onUpdateMembership = async () => {
-    setSaving(true);
-    setError('');
-    setNotice('');
-    try {
-      const success = 'https://techflash.app/settings?membership=success';
-      const cancel = 'https://techflash.app/settings?membership=cancel';
-      const result = await openMembershipCheckout(membershipLevel, success, cancel);
-      if ((result?.checkout as Record<string, unknown> | undefined)?.url) {
-        setNotice('Opened hosted checkout in browser.');
-      } else {
-        setNotice('Membership updated.');
-      }
+  const onApplied = useCallback(
+    async (res: { user?: User } | null | undefined) => {
+      await applyUserFromMeResponse(res);
+      setNotice('Saved.');
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update membership');
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    [applyUserFromMeResponse, load]
+  );
 
-  const onOpenPayoutOnboarding = async () => {
-    setSaving(true);
-    setError('');
-    try {
-      const result = await createConnectAccountLink('https://techflash.app');
-      const url = String(result?.url || '');
-      if (!url) throw new Error('No onboarding URL returned');
-      await Linking.openURL(url);
-      setNotice('Opened payout onboarding.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not open payout onboarding');
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!user) return null;
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: colors.muted }}>Loading settings...</Text>
+        <ActivityIndicator color={colors.primaryOrange} size="large" />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
+    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+      <Text style={typography.title}>Settings</Text>
+
       {!!error && <Text style={styles.error}>{error}</Text>}
-      {!!notice && <Text style={styles.notice}>{notice}</Text>}
-
-      <View style={styles.card}>
-        <Text style={styles.title}>Account</Text>
-        <Field label="First name" value={firstName} onChangeText={setFirstName} />
-        <Field label="Last name" value={lastName} onChangeText={setLastName} />
-        <Field label="Phone" value={phone} onChangeText={setPhone} />
-        <Pressable style={styles.btn} onPress={onSaveAccount} disabled={saving}>
-          <Text style={styles.btnText}>{saving ? 'Saving...' : 'Save account'}</Text>
+      {!!notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      <View style={styles.expandRow}>
+        <Pressable
+          style={[styles.toggleAllBtn, styles.toggleAllPrimary]}
+          onPress={() => setExpanded(Object.fromEntries(sectionIds.map((id) => [id, true])))}
+        >
+          <Text style={styles.toggleAllPrimaryText}>Expand all</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.toggleAllBtn, styles.toggleAllGhost]}
+          onPress={() => setExpanded(Object.fromEntries(sectionIds.map((id) => [id, false])))}
+        >
+          <Text style={styles.toggleAllGhostText}>Collapse all</Text>
         </Pressable>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.title}>Membership</Text>
-        <Text style={styles.sub}>Current: {String(membership.membership_level || 'basic')}</Text>
-        <Text style={styles.sub}>
-          Monthly fee: {String(((membership.monthly_fee_cents as number | undefined) || 0) / 100)}
-        </Text>
-        <Field
-          label="Membership level"
-          value={membershipLevel}
-          onChangeText={setMembershipLevel}
-        />
-        <Pressable style={styles.btnGhost} onPress={onUpdateMembership} disabled={saving}>
-          <Text style={styles.btnGhostText}>Update membership (opens hosted checkout if paid)</Text>
-        </Pressable>
-      </View>
+      <SettingSection
+        title="Account"
+        expanded={!!expanded.account}
+        onToggle={() => setExpanded((prev) => ({ ...prev, account: !prev.account }))}
+      >
+        <SettingsAccountPanel user={user} onApplied={onApplied} notice={notice} />
+      </SettingSection>
 
-      {user?.role === 'technician' ? (
-        <View style={styles.card}>
-          <Text style={styles.title}>Payout onboarding</Text>
-          <Text style={styles.sub}>This opens Stripe Connect onboarding in your browser.</Text>
-          <Pressable style={styles.btnGhost} onPress={onOpenPayoutOnboarding} disabled={saving}>
-            <Text style={styles.btnGhostText}>Open payout onboarding</Text>
+      <SettingSection
+        title="Profile"
+        expanded={!!expanded.profile}
+        onToggle={() => setExpanded((prev) => ({ ...prev, profile: !prev.profile }))}
+      >
+        <SettingsProfilePanel user={user} profile={profile} form={form} setForm={setForm} onSaved={load} />
+      </SettingSection>
+
+      <SettingSection
+        title="Notifications"
+        expanded={!!expanded.notifications}
+        onToggle={() => setExpanded((prev) => ({ ...prev, notifications: !prev.notifications }))}
+      >
+        <SettingsNotificationsPanel user={user} onApplied={onApplied} />
+      </SettingSection>
+
+      <SettingSection
+        title="Payment"
+        expanded={!!expanded.payment}
+        onToggle={() => setExpanded((prev) => ({ ...prev, payment: !prev.payment }))}
+      >
+        {!isAdmin ? (
+          <SettingsPaymentPanel
+            user={user}
+            membership={membership}
+            membershipLevel={membershipLevel}
+            setMembershipLevel={setMembershipLevel}
+            tierOptions={tierOptions}
+            onRefresh={load}
+          />
+        ) : (
+          <View style={styles.hintBox}>
+            <Text style={styles.hintText}>Admin billing uses the website.</Text>
+          </View>
+        )}
+      </SettingSection>
+
+      {isAdmin ? (
+        <SettingSection
+          title="System Controls"
+          expanded={!!expanded.system_controls}
+          onToggle={() => setExpanded((prev) => ({ ...prev, system_controls: !prev.system_controls }))}
+        >
+          <Pressable style={styles.linkCard} onPress={() => navigation.navigate('AdminSystemControls')}>
+            <Text style={styles.linkTitle}>Open system controls</Text>
+            <Text style={styles.linkSub}>Pricing tiers, licensing, email QA</Text>
           </Pressable>
-        </View>
+        </SettingSection>
+      ) : null}
+
+      {isAdmin ? (
+        <SettingSection
+          title="Job Access"
+          expanded={!!expanded.job_access}
+          onToggle={() => setExpanded((prev) => ({ ...prev, job_access: !prev.job_access }))}
+        >
+          <Pressable style={styles.linkCard} onPress={() => navigation.navigate('AdminJobAccess')}>
+            <Text style={styles.linkTitle}>Open job access by tier</Text>
+            <Text style={styles.linkSub}>Technician tier visibility rules</Text>
+          </Pressable>
+        </SettingSection>
       ) : null}
     </ScrollView>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChangeText,
+function SettingSection({
+  title,
+  expanded,
+  onToggle,
+  children,
 }: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
 }) {
   return (
-    <>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor={colors.muted}
-        style={styles.input}
-      />
-    </>
+    <View style={styles.section}>
+      <Pressable style={styles.sectionHeader} onPress={onToggle}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={styles.sectionChevron}>{expanded ? 'Hide' : 'Show'}</Text>
+      </Pressable>
+      {expanded ? <View style={styles.sectionBody}>{children}</View> : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  content: { padding: 16, paddingBottom: 48 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  card: {
-    backgroundColor: colors.white,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-  },
-  title: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 8 },
-  sub: { color: colors.muted, marginBottom: 6 },
-  label: { marginTop: 8, marginBottom: 4, color: colors.muted, textTransform: 'uppercase', fontSize: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    backgroundColor: colors.white,
-    color: colors.text,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
-  btn: {
-    marginTop: 12,
-    borderRadius: 10,
-    backgroundColor: colors.primaryOrange,
-    paddingVertical: 11,
-    alignItems: 'center',
-  },
-  btnText: { color: colors.white, fontWeight: '700' },
-  btnGhost: {
-    marginTop: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  btnGhostText: { color: colors.text, fontWeight: '600', paddingHorizontal: 8, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   notice: { color: colors.primaryBlue, marginBottom: 8 },
+  expandRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  toggleAllBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  toggleAllPrimary: { backgroundColor: colors.primaryBlue },
+  toggleAllGhost: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white },
+  toggleAllPrimaryText: { color: colors.white, fontWeight: '700' },
+  toggleAllGhostText: { color: colors.text, fontWeight: '700' },
+  section: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  sectionChevron: { color: colors.primaryBlue, fontWeight: '700' },
+  sectionBody: { padding: 12 },
+  linkCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginBottom: 12,
+  },
+  linkTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+  linkSub: { color: colors.muted, marginTop: 4, fontSize: 14 },
+  hintBox: { padding: 16 },
+  hintText: { color: colors.muted },
 });

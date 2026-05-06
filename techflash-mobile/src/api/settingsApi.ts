@@ -1,10 +1,17 @@
 import { Linking } from 'react-native';
+import type { User } from '../types/user';
 import { apiRequest } from './client';
 
 export async function updateMe(payload: Record<string, unknown>) {
-  return apiRequest<Record<string, unknown>>('/users/me', {
+  return apiRequest<{ user?: User }>('/users/me', {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function createCardSetupIntent() {
+  return apiRequest<{ client_secret?: string }>('/settings/create_setup_intent', {
+    method: 'POST',
   });
 }
 

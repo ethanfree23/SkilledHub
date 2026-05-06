@@ -78,6 +78,7 @@ const computeEndFromPricing = (startStr, days, hoursPerDay) => {
 };
 
 const CreateJob = () => {
+  const DRAFT_KEY = 'web_create_job_draft_v1';
   const user = auth.getUser();
   const isAdmin = user?.role === 'admin';
   const defaultStart = getDefaultStart();
@@ -120,6 +121,93 @@ const CreateJob = () => {
   const [successModal, setSuccessModal] = useState(false);
   const [errorModal, setErrorModal] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      setTitle(String(draft.title || ''));
+      setDescription(String(draft.description || ''));
+      setSkillClass(String(draft.skillClass || ''));
+      setMinimumYearsExperience(String(draft.minimumYearsExperience || ''));
+      setNotes(String(draft.notes || ''));
+      setRequiredCertifications(
+        Array.isArray(draft.requiredCertifications) && draft.requiredCertifications.length > 0
+          ? draft.requiredCertifications
+          : ['']
+      );
+      setAddress(String(draft.address || ''));
+      setCity(String(draft.city || ''));
+      setState(String(draft.state || 'Texas'));
+      setZipCode(String(draft.zipCode || ''));
+      setCountry(String(draft.country || 'United States'));
+      setHourlyRate(String(draft.hourlyRate || ''));
+      setHoursPerDay(String(draft.hoursPerDay || '8'));
+      setDays(String(draft.days || ''));
+      setStatus(String(draft.status || 'open'));
+      setStartMode(String(draft.startMode || 'hard_start'));
+      setScheduledStartAt(String(draft.scheduledStartAt || toDatetimeLocal(defaultStart)));
+      setScheduledEndAt(String(draft.scheduledEndAt || computeEndFromPricing(toDatetimeLocal(defaultStart), 1, 8)));
+      setUseCustomGoLiveAt(Boolean(draft.useCustomGoLiveAt));
+      setGoLiveAt(String(draft.goLiveAt || toDatetimeLocal(new Date())));
+    } catch {
+      /* ignore bad draft */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({
+          title,
+          description,
+          skillClass,
+          minimumYearsExperience,
+          notes,
+          requiredCertifications,
+          address,
+          city,
+          state,
+          zipCode,
+          country,
+          hourlyRate,
+          hoursPerDay,
+          days,
+          status,
+          startMode,
+          scheduledStartAt,
+          scheduledEndAt,
+          useCustomGoLiveAt,
+          goLiveAt,
+        })
+      );
+    } catch {
+      /* storage full or blocked */
+    }
+  }, [
+    title,
+    description,
+    skillClass,
+    minimumYearsExperience,
+    notes,
+    requiredCertifications,
+    address,
+    city,
+    state,
+    zipCode,
+    country,
+    hourlyRate,
+    hoursPerDay,
+    days,
+    status,
+    startMode,
+    scheduledStartAt,
+    scheduledEndAt,
+    useCustomGoLiveAt,
+    goLiveAt,
+  ]);
 
   useEffect(() => {
     if (isAdmin) return;
@@ -224,6 +312,14 @@ const CreateJob = () => {
       setErrorModal('Please provide a state and either a city or street address.');
       return;
     }
+    if (startMode !== 'rolling_start' && scheduledStartAt && scheduledEndAt) {
+      const startMs = new Date(scheduledStartAt).getTime();
+      const endMs = new Date(scheduledEndAt).getTime();
+      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs < startMs) {
+        setErrorModal('End date/time cannot be before start date/time.');
+        return;
+      }
+    }
     setSaving(true);
     try {
       const years = minimumYearsExperience.trim() === '' ? null : parseInt(minimumYearsExperience, 10);
@@ -270,6 +366,7 @@ const CreateJob = () => {
         payload.days = d;
       }
       await jobsAPI.create(payload);
+      localStorage.removeItem(DRAFT_KEY);
       setSuccessModal(true);
     } catch (err) {
       setErrorModal(err.message || 'Failed to create job');
@@ -279,7 +376,7 @@ const CreateJob = () => {
   };
 
   return (
-    <div className="max-w-xl mx-auto mt-10 bg-white p-8 rounded shadow">
+    <div className="max-w-3xl mx-auto mt-8 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -287,7 +384,8 @@ const CreateJob = () => {
       >
         ← Back
       </button>
-      <h1 className="text-2xl font-bold mb-6">Create New Job</h1>
+      <h1 className="text-2xl font-bold mb-2">Create New Job</h1>
+      <p className="text-sm text-gray-500 mb-6">Matches web parity fields and posting behavior used in production.</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block font-medium mb-1">Title</label>

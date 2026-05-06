@@ -38,7 +38,7 @@ module Api
         user.password_set_actor = "user"
         if user.save
           user.clear_password_reset_token!
-          UserLoginEvent.create!(user_id: user.id)
+          UserLoginEvent.create!(user_id: user.id, via_masquerade: false)
           token = JWT.encode({ user_id: user.id }, Rails.application.secret_key_base, "HS256")
           render json: {
             message: 'Password updated',

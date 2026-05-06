@@ -534,13 +534,13 @@ const JobList = () => {
           </div>
         ) : (
           <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {currentJobs.filter(job => job && job.title).map((job, idx, arr) => (
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {currentJobs.filter(job => job && job.title).map((job) => (
               <div 
                 key={job.id} 
-                className={`h-full bg-white border-2 border-gray-300 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 flex flex-col${idx !== arr.length - 1 ? ' mb-8' : ''}`}
+                className="h-full bg-white border-2 border-gray-300 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 flex flex-col"
               >
-                <div className="space-y-4">
+                <div className="flex h-full flex-col space-y-4">
                   <div className="flex justify-between items-start gap-2">
                     <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
                       {job.title}
@@ -626,7 +626,7 @@ const JobList = () => {
                     </div>
                   </div>
                   
-                  <div className="flex flex-col space-y-2 pt-2">
+                  <div className="mt-auto flex flex-col space-y-2 pt-2">
                     <Link 
                       to={`/jobs/${job.id}`}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center border-2 border-blue-600 text-sm"

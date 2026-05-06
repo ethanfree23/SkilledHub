@@ -6,6 +6,7 @@ import { colors } from '../theme';
 import { listConversations, type Conversation } from '../api/conversationsApi';
 import type { AppStackParamList } from '../navigation/RootNavigator';
 import { EmptyState, ErrorState, LoadingState } from '../components/ScreenStates';
+import { Card } from '../components/ui/Card';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
 
@@ -55,12 +56,11 @@ export default function MessagesScreen() {
             item.submitter_email ||
             `${String(item.conversation_type || 'thread')} · ${String(item.inbox_category || 'general')}`;
           return (
-            <Pressable
-              style={styles.card}
-              onPress={() => navigation.navigate('Conversation', { conversationId: item.id })}
-            >
-              <Text style={styles.title}>{title}</Text>
-              <Text style={styles.sub}>{subtitle}</Text>
+            <Pressable onPress={() => navigation.navigate('Conversation', { conversationId: item.id })}>
+              <Card style={styles.cardWrap}>
+                <Text style={styles.title}>{title}</Text>
+                <Text style={styles.sub}>{subtitle}</Text>
+              </Card>
             </Pressable>
           );
         }}
@@ -72,14 +72,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   error: { color: colors.danger, marginHorizontal: 14, marginTop: 10 },
-  card: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
+  cardWrap: { marginBottom: 10, paddingVertical: 14 },
   title: { color: colors.text, fontSize: 16, fontWeight: '700' },
   sub: { color: colors.muted, marginTop: 4 },
 });

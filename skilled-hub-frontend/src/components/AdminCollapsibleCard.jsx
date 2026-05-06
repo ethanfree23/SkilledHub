@@ -1,5 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { FaChevronDown } from 'react-icons/fa';
+
+const noop = () => {};
+const defaultRegistry = { register: () => noop, expandAll: noop, collapseAll: noop };
+const CollapsibleSectionsContext = createContext(defaultRegistry);
+
+export function CollapsibleSectionsProvider({ children }) {
+  const settersRef = useRef(new Set());
+  const register = useCallback((setter) => {
+    settersRef.current.add(setter);
+    return () => settersRef.current.delete(setter);
+  }, []);
+  const expandAll = useCallback(() => {
+    settersRef.current.forEach((fn) => fn(true));
+  }, []);
+  const collapseAll = useCallback(() => {
+    settersRef.current.forEach((fn) => fn(false));
+  }, []);
+  const value = useMemo(
+    () => ({ register, expandAll, collapseAll }),
+    [register, expandAll, collapseAll]
+  );
+  return (
+    <CollapsibleSectionsContext.Provider value={value}>{children}</CollapsibleSectionsContext.Provider>
+  );
+}
+
+export function useCollapsibleSections() {
+  return useContext(CollapsibleSectionsContext);
+}
 
 /**
  * Admin detail page card with optional actions and a collapse control (top right).
@@ -12,6 +49,7 @@ export default function AdminCollapsibleCard({
   persistKey = null,
   children,
 }) {
+  const registry = useCollapsibleSections();
   const storageKey = useMemo(() => {
     if (persistKey) return `admin-collapsible:${persistKey}`;
     if (typeof window === 'undefined') return null;
@@ -19,6 +57,8 @@ export default function AdminCollapsibleCard({
     return `admin-collapsible:${pageKey}:${String(title || 'section').toLowerCase()}`;
   }, [persistKey, title]);
   const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => registry.register(setOpen), [registry, setOpen]);
 
   useEffect(() => {
     if (!storageKey || typeof window === 'undefined') return;
@@ -40,25 +80,35 @@ export default function AdminCollapsibleCard({
     }
   }, [open, storageKey]);
 
+  const toggle = () => setOpen((o) => !o);
+  const label = `${open ? 'Collapse' : 'Expand'} ${title || 'section'}`;
+
   return (
     <section className="bg-white rounded-2xl border border-gray-100 shadow p-6">
       <div className="flex items-start justify-between gap-3 mb-4">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          {description ? <p className="text-sm text-gray-500 mt-1">{description}</p> : null}
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          {actions}
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 border border-transparent hover:border-gray-200"
-            aria-expanded={open}
-            aria-label={open ? 'Collapse section' : 'Expand section'}
-          >
-            <FaChevronDown className={`w-5 h-5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          className="flex flex-1 min-w-0 items-start gap-3 text-left rounded-xl -mx-2 -my-2 px-2 py-2 hover:bg-gray-50"
+          aria-expanded={open}
+          aria-label={label}
+        >
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            {description ? <p className="text-sm text-gray-500 mt-1">{description}</p> : null}
+          </div>
+          <FaChevronDown
+            className={`w-5 h-5 shrink-0 mt-1 text-gray-500 transition-transform duration-200 ${
+              open ? 'rotate-180' : ''
+            }`}
+            aria-hidden
+          />
+        </button>
+        {actions ? (
+          <div className="flex items-center gap-1 shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+            {actions}
+          </div>
+        ) : null}
       </div>
       {open ? children : null}
     </section>

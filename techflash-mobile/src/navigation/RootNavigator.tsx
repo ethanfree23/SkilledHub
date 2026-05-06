@@ -3,6 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../auth/AuthContext';
 import { colors } from '../theme';
 import WelcomeScreen from '../screens/WelcomeScreen';
@@ -22,6 +23,8 @@ import CreateJobScreen from '../screens/CreateJobScreen';
 import EditJobScreen from '../screens/EditJobScreen';
 import ConversationScreen from '../screens/ConversationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AdminSystemControlsScreen from '../screens/AdminSystemControlsScreen';
+import AdminJobAccessScreen from '../screens/AdminJobAccessScreen';
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -33,7 +36,7 @@ export type MainTabParamList = {
   Dashboard: undefined;
   Jobs: undefined;
   Messages: undefined;
-  AdminUsers: undefined;
+  AdminUsers: { initialRole?: 'all' | 'company' | 'technician' } | undefined;
   AdminCrm: undefined;
   More: undefined;
 };
@@ -41,7 +44,12 @@ export type MainTabParamList = {
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainTabs = createBottomTabNavigator<MainTabParamList>();
 export type AppStackParamList = {
-  MainTabs: undefined;
+  MainTabs:
+    | {
+        screen?: keyof MainTabParamList;
+        params?: MainTabParamList[keyof MainTabParamList];
+      }
+    | undefined;
   AdminUserDetail: { userId: number };
   AdminCrmDetail: { crmLeadId?: number };
   AdminCreateUser: undefined;
@@ -50,6 +58,8 @@ export type AppStackParamList = {
   EditJob: { jobId: number };
   Conversation: { conversationId: number };
   Settings: undefined;
+  AdminSystemControls: undefined;
+  AdminJobAccess: undefined;
 };
 const AppStack = createNativeStackNavigator<AppStackParamList>();
 
@@ -80,17 +90,67 @@ function MainTabsNavigator() {
       <MainTabs.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={{ title: 'TechFlash' }}
+        options={{
+          title: 'TechFlash',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={size ?? 22} />
+          ),
+        }}
       />
-      <MainTabs.Screen name="Jobs" component={JobsScreen} options={{ title: 'Jobs' }} />
-      <MainTabs.Screen name="Messages" component={MessagesScreen} options={{ title: 'Messages' }} />
+      <MainTabs.Screen
+        name="Jobs"
+        component={JobsScreen}
+        options={{
+          title: 'Jobs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="briefcase-outline" color={color} size={size ?? 22} />
+          ),
+        }}
+      />
+      <MainTabs.Screen
+        name="Messages"
+        component={MessagesScreen}
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles-outline" color={color} size={size ?? 22} />
+          ),
+        }}
+      />
       {isAdmin ? (
         <>
-          <MainTabs.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
-          <MainTabs.Screen name="AdminCrm" component={AdminCrmScreen} options={{ title: 'CRM' }} />
+          <MainTabs.Screen
+            name="AdminUsers"
+            component={AdminUsersScreen}
+            options={{
+              title: 'Users',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="people-outline" color={color} size={size ?? 22} />
+              ),
+            }}
+          />
+          <MainTabs.Screen
+            name="AdminCrm"
+            component={AdminCrmScreen}
+            options={{
+              title: 'CRM',
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons name="clipboard-outline" color={color} size={size ?? 22} />
+              ),
+            }}
+          />
         </>
       ) : null}
-      <MainTabs.Screen name="More" component={MoreScreen} options={{ title: 'Account' }} />
+      <MainTabs.Screen
+        name="More"
+        component={MoreScreen}
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle-outline" color={color} size={size ?? 22} />
+          ),
+        }}
+      />
     </MainTabs.Navigator>
   );
 }
@@ -148,6 +208,16 @@ function AppStackNavigator() {
         name="Settings"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <AppStack.Screen
+        name="AdminSystemControls"
+        component={AdminSystemControlsScreen}
+        options={{ title: 'System controls' }}
+      />
+      <AppStack.Screen
+        name="AdminJobAccess"
+        component={AdminJobAccessScreen}
+        options={{ title: 'Job access' }}
       />
     </AppStack.Navigator>
   );

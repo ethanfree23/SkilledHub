@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,17 +9,19 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { listAdminUsers, type AdminRoleFilter, type AdminUserListItem } from '../api/adminApi';
-import type { AppStackParamList } from '../navigation/RootNavigator';
+import type { AppStackParamList, MainTabParamList } from '../navigation/RootNavigator';
 import { EmptyState, ErrorState, LoadingState } from '../components/ScreenStates';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
+type AdminUsersRoute = RouteProp<MainTabParamList, 'AdminUsers'>;
 
 export default function AdminUsersScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<AdminUsersRoute>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
@@ -46,6 +48,14 @@ export default function AdminUsersScreen() {
       setRefreshing(false);
     }
   }, [query, role]);
+
+  useEffect(() => {
+    const incoming = route.params?.initialRole;
+    if (incoming && incoming !== role) {
+      setRole(incoming);
+      setLoading(true);
+    }
+  }, [route.params?.initialRole, role]);
 
   useFocusEffect(
     useCallback(() => {

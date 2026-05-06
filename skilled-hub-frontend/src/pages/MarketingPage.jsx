@@ -137,7 +137,7 @@ const MarketingPage = () => {
           <div className="mt-5 rounded-2xl border border-orange-100 bg-white p-6">
             <ol className="space-y-3">
               {stepsByRole[roleView].map((stepText, index) => (
-                <li key={stepText} className="text-gray-700">
+                <li key={`${roleView}-step-${index}`} className="text-gray-700">
                   <span className="mr-2 font-semibold text-[#FE6711]">Step {index + 1}.</span>
                   {stepText}
                 </li>
@@ -157,8 +157,8 @@ const MarketingPage = () => {
               { icon: FaBolt, title: 'Fast matches', desc: 'Jobs get filled quickly. Technicians find work that fits.' },
               { icon: FaShieldAlt, title: 'Trusted platform', desc: 'Secure payments, ratings, and verified profiles.' },
               { icon: FaHandshake, title: 'Simple workflow', desc: 'From posting to payout-everything in one place.' },
-            ].map(({ icon: Icon, title, desc }, i) => (
-              <div key={i} className="text-center">
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="text-center">
                 <div className="inline-flex p-5 rounded-2xl bg-white/90 border-2 border-orange-100 shadow-lg mb-5">
                   <Icon className="w-10 h-10 text-[#FE6711]" />
                 </div>
