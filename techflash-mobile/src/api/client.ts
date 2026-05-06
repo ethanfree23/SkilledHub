@@ -3,6 +3,15 @@ import { API_BASE_URL } from '../config';
 
 const TOKEN_KEY = 'token';
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function getStoredToken(): Promise<string | null> {
   try {
     return await SecureStore.getItemAsync(TOKEN_KEY);
@@ -56,7 +65,7 @@ export async function apiRequest<T = unknown>(
         : null) ||
       raw?.slice(0, 200) ||
       `HTTP ${response.status}`;
-    throw new Error(msg);
+    throw new ApiError(msg, response.status);
   }
 
   if (!raw) return null;

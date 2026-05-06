@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors } from '../theme';
 import { listAdminUsers, type AdminRoleFilter, type AdminUserListItem } from '../api/adminApi';
 import type { AppStackParamList } from '../navigation/RootNavigator';
+import { EmptyState, ErrorState, LoadingState } from '../components/ScreenStates';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
 
@@ -88,17 +89,17 @@ export default function AdminUsersScreen() {
         ))}
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <ErrorState error={error} />
 
       {loading ? (
-        <View style={styles.centered}><ActivityIndicator color={colors.primaryOrange} size="large" /></View>
+        <LoadingState label="Loading users..." />
       ) : (
         <SectionList
           sections={groupedSections}
           keyExtractor={(item) => String(item.id)}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primaryOrange} />}
           contentContainerStyle={{ paddingBottom: 30 }}
-          ListEmptyComponent={<Text style={styles.empty}>No users found.</Text>}
+          ListEmptyComponent={<EmptyState label="No users found." />}
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionTitle}>{section.title}</Text>
           )}
@@ -160,8 +161,6 @@ const styles = StyleSheet.create({
   filterText: { color: colors.muted, textTransform: 'capitalize' },
   filterTextOn: { color: colors.primaryOrange, fontWeight: '700' },
   error: { color: colors.danger, marginBottom: 8 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  empty: { color: colors.muted, textAlign: 'center', marginTop: 40 },
   sectionTitle: {
     marginTop: 8,
     marginBottom: 6,

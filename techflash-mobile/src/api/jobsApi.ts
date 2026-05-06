@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { asArray, asRecord } from './normalize';
 
 /** Company dashboard — serialized jobs arrays */
 export interface CompanyDashboardJobs {
@@ -47,7 +48,11 @@ export async function getJobs(filters: Record<string, string | number | undefine
     Object.entries(filters).filter(([, v]) => v !== undefined && v !== '')
   );
   const params = new URLSearchParams(clean as Record<string, string>);
-  return apiRequest<Record<string, unknown>[]>(`/jobs${params.toString() ? `?${params}` : ''}`);
+  const data = await apiRequest<Record<string, unknown>[] | { jobs?: Record<string, unknown>[] }>(
+    `/jobs${params.toString() ? `?${params}` : ''}`
+  );
+  if (Array.isArray(data)) return asArray<Record<string, unknown>>(data);
+  return asArray<Record<string, unknown>>(asRecord(data).jobs);
 }
 
 export async function getJobById(id: number) {

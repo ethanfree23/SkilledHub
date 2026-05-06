@@ -1,9 +1,15 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/AuthContext';
 import { colors } from '../theme';
+import type { AppStackParamList } from '../navigation/RootNavigator';
+
+type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
 
 export default function MoreScreen() {
+  const navigation = useNavigation<Nav>();
   const { user, logout } = useAuth();
 
   return (
@@ -23,6 +29,12 @@ export default function MoreScreen() {
       <Text style={styles.hint}>
         This mobile app now includes core admin user and CRM tools. Remaining advanced workflows are being added in phased parity.
       </Text>
+      <Pressable
+        style={({ pressed }) => [styles.settings, pressed && { opacity: 0.9 }]}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <Text style={styles.settingsText}>Open settings</Text>
+      </Pressable>
       <Pressable style={({ pressed }) => [styles.logout, pressed && { opacity: 0.9 }]} onPress={() => logout()}>
         <Text style={styles.logoutText}>Log out</Text>
       </Pressable>
@@ -61,4 +73,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutText: { fontSize: 16, fontWeight: '700', color: colors.danger },
+  settings: {
+    marginTop: 22,
+    backgroundColor: colors.primaryOrange,
+    borderWidth: 1,
+    borderColor: colors.primaryOrange,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  settingsText: { fontSize: 16, fontWeight: '700', color: colors.white },
 });

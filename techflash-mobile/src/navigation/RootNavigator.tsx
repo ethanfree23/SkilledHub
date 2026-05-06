@@ -9,12 +9,19 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import JobsScreen from '../screens/JobsScreen';
+import MessagesScreen from '../screens/MessagesScreen';
 import MoreScreen from '../screens/MoreScreen';
 import AdminUsersScreen from '../screens/AdminUsersScreen';
 import AdminCrmScreen from '../screens/AdminCrmScreen';
 import AdminUserDetailScreen from '../screens/AdminUserDetailScreen';
 import AdminCrmDetailScreen from '../screens/AdminCrmDetailScreen';
 import AdminCreateUserScreen from '../screens/AdminCreateUserScreen';
+import JobDetailScreen from '../screens/JobDetailScreen';
+import CreateJobScreen from '../screens/CreateJobScreen';
+import EditJobScreen from '../screens/EditJobScreen';
+import ConversationScreen from '../screens/ConversationScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 export type AuthStackParamList = {
   Welcome: undefined;
@@ -24,6 +31,8 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Dashboard: undefined;
+  Jobs: undefined;
+  Messages: undefined;
   AdminUsers: undefined;
   AdminCrm: undefined;
   More: undefined;
@@ -36,6 +45,11 @@ export type AppStackParamList = {
   AdminUserDetail: { userId: number };
   AdminCrmDetail: { crmLeadId?: number };
   AdminCreateUser: undefined;
+  JobDetail: { jobId: number };
+  CreateJob: undefined;
+  EditJob: { jobId: number };
+  Conversation: { conversationId: number };
+  Settings: undefined;
 };
 const AppStack = createNativeStackNavigator<AppStackParamList>();
 
@@ -68,6 +82,8 @@ function MainTabsNavigator() {
         component={DashboardScreen}
         options={{ title: 'TechFlash' }}
       />
+      <MainTabs.Screen name="Jobs" component={JobsScreen} options={{ title: 'Jobs' }} />
+      <MainTabs.Screen name="Messages" component={MessagesScreen} options={{ title: 'Messages' }} />
       {isAdmin ? (
         <>
           <MainTabs.Screen name="AdminUsers" component={AdminUsersScreen} options={{ title: 'Users' }} />
@@ -107,6 +123,31 @@ function AppStackNavigator() {
         name="AdminCreateUser"
         component={AdminCreateUserScreen}
         options={{ title: 'Create user' }}
+      />
+      <AppStack.Screen
+        name="JobDetail"
+        component={JobDetailScreen}
+        options={{ title: 'Job detail' }}
+      />
+      <AppStack.Screen
+        name="CreateJob"
+        component={CreateJobScreen}
+        options={{ title: 'Create job' }}
+      />
+      <AppStack.Screen
+        name="EditJob"
+        component={EditJobScreen}
+        options={{ title: 'Edit job' }}
+      />
+      <AppStack.Screen
+        name="Conversation"
+        component={ConversationScreen}
+        options={{ title: 'Conversation' }}
+      />
+      <AppStack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
       />
     </AppStack.Navigator>
   );

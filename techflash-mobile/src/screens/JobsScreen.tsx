@@ -15,6 +15,7 @@ import { colors } from '../theme';
 import { getJobs } from '../api/jobsApi';
 import { useAuth } from '../auth/AuthContext';
 import type { AppStackParamList } from '../navigation/RootNavigator';
+import { EmptyState, ErrorState, LoadingState } from '../components/ScreenStates';
 
 type Nav = NativeStackNavigationProp<AppStackParamList, 'MainTabs'>;
 
@@ -75,9 +76,9 @@ export default function JobsScreen() {
         </Pressable>
       ) : null}
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      <ErrorState error={error} />
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={colors.primaryOrange} /></View>
+        <LoadingState label="Loading jobs..." />
       ) : (
         <FlatList
           data={rows}
@@ -93,7 +94,7 @@ export default function JobsScreen() {
             />
           }
           contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
-          ListEmptyComponent={<Text style={styles.empty}>No jobs found.</Text>}
+          ListEmptyComponent={<EmptyState label="No jobs found." />}
           renderItem={({ item }) => (
             <Pressable
               style={styles.card}
@@ -140,8 +141,6 @@ const styles = StyleSheet.create({
   },
   createBtnText: { color: colors.white, fontWeight: '700' },
   error: { marginTop: 8, marginHorizontal: 14, color: colors.danger },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  empty: { textAlign: 'center', marginTop: 30, color: colors.muted },
   card: {
     backgroundColor: colors.white,
     borderColor: colors.border,
