@@ -1,0 +1,64 @@
+import React from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useAuth } from '../auth/AuthContext';
+import { colors } from '../theme';
+
+export default function MoreScreen() {
+  const { user, logout } = useAuth();
+
+  return (
+    <ScrollView contentContainerStyle={styles.scroll} style={styles.flex}>
+      <View style={styles.card}>
+        <Text style={styles.label}>Signed in as</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={styles.role}>
+          Role: <Text style={styles.roleStrong}>{user?.role}</Text>
+        </Text>
+        {(user?.first_name || user?.last_name) && (
+          <Text style={styles.name}>
+            {user?.first_name} {user?.last_name}
+          </Text>
+        )}
+      </View>
+      <Text style={styles.hint}>
+        This mobile app now includes core admin user and CRM tools. Remaining advanced workflows are being added in phased parity.
+      </Text>
+      <Pressable style={({ pressed }) => [styles.logout, pressed && { opacity: 0.9 }]} onPress={() => logout()}>
+        <Text style={styles.logoutText}>Log out</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.bg },
+  scroll: { padding: 20, paddingBottom: 40 },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  label: { fontSize: 13, color: colors.muted, marginBottom: 4 },
+  email: { fontSize: 18, fontWeight: '700', color: colors.text },
+  role: { marginTop: 12, fontSize: 15, color: colors.muted },
+  roleStrong: { fontWeight: '700', color: colors.text, textTransform: 'capitalize' },
+  name: { marginTop: 8, fontSize: 16, color: colors.text },
+  hint: {
+    marginTop: 20,
+    fontSize: 14,
+    color: colors.muted,
+    lineHeight: 21,
+  },
+  logout: {
+    marginTop: 28,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  logoutText: { fontSize: 16, fontWeight: '700', color: colors.danger },
+});

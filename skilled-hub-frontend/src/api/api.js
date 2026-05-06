@@ -1,5 +1,12 @@
+import { Capacitor } from '@capacitor/core';
+
 // API helper functions for interacting with the Rails API
-const isProduction = typeof window !== 'undefined' && (window.location.hostname === 'techflash.app' || window.location.hostname === 'www.techflash.app');
+
+const isNativeApp = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+const isProduction =
+  isNativeApp ||
+  (typeof window !== 'undefined' &&
+    (window.location.hostname === 'techflash.app' || window.location.hostname === 'www.techflash.app'));
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || (isProduction ? 'https://skilledhub-production.up.railway.app/api/v1' : 'http://localhost:3000/api/v1');
 
 // Helper function to make API requests

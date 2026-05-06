@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TechFlash</string>
+    <string name="title_activity_main">TechFlash</string>
+    <string name="package_name">app.techflash.mobile</string>
+    <string name="custom_url_scheme">app.techflash.mobile</string>
+</resources>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { TECHFLASH_LOGO_NAV } from '../constants/branding';
 import { FaBolt, FaHandshake, FaShieldAlt } from 'react-icons/fa';
 import { marketingLeadsAPI } from '../api/api';
+import { InstallAppPrompt } from '../components/InstallAppPrompt';
 
 const MarketingPage = () => {
   const navigate = useNavigate();
@@ -79,6 +80,9 @@ const MarketingPage = () => {
               <span className="text-xl font-bold text-gray-800 tracking-tight">TechFlash</span>
             </Link>
             <div className="flex items-center gap-2">
+              <Link to="/download" className="px-4 py-2.5 text-sm font-semibold text-gray-700 hover:text-[#FE6711] transition rounded-full hover:bg-orange-50">
+                Get the app
+              </Link>
               <Link to="/login" className="px-4 py-2.5 text-sm font-semibold text-gray-700 hover:text-[#FE6711] transition rounded-full hover:bg-orange-50">Login</Link>
               <Link to="/login?tab=signup" className="px-5 py-2.5 text-sm font-semibold bg-[#FE6711] text-white rounded-full hover:bg-[#e55a0a] transition">Sign up</Link>
             </div>
@@ -100,6 +104,8 @@ const MarketingPage = () => {
           </p>
         </div>
       </section>
+
+      <InstallAppPrompt />
 
       <section className="px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto rounded-2xl border border-orange-100 bg-white/90 p-5 shadow-sm">

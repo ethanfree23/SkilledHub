@@ -25,3 +25,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Android APK hosted for sideload — deploy via CI/hosting; optional local copy (large binary)
+public/downloads/*.apk

@@ -58,21 +58,18 @@ export default function AppHeader({
                 Messages
               </NavLink>
               {showCrm && (
-                <>
-                  <NavLink page="users" to="/admin/users">
-                    Users
-                  </NavLink>
-                  <NavLink page="crm" to="/crm">
-                    CRM
-                  </NavLink>
-                </>
+                <NavLink page="users" to="/admin/users">
+                  Users
+                </NavLink>
               )}
               <NavLink page="settings" to="/settings">
                 Settings
               </NavLink>
-              <NavLink page="legal" to="/legal">
-                Legal
-              </NavLink>
+              {!isAdmin && (
+                <NavLink page="legal" to="/legal">
+                  Legal
+                </NavLink>
+              )}
             </>
           )}
           {navPreset === 'minimal' && (
@@ -95,6 +92,11 @@ export default function AppHeader({
             >
               Send Referral
             </button>
+          )}
+          {showCrm && (
+            <NavLink page="crm" to="/crm">
+              CRM
+            </NavLink>
           )}
           {profileAvatar && (
             <Link

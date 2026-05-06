@@ -1,0 +1,29 @@
+# Verifies Vite production and development-mode builds. Uses Node 20+ (see skilled-hub-frontend/package.json engines).
+name: skilled-hub-frontend
+
+on:
+  push:
+    paths:
+      - 'skilled-hub-frontend/**'
+      - '.github/workflows/skilled-hub-frontend.yml'
+  pull_request:
+    paths:
+      - 'skilled-hub-frontend/**'
+      - '.github/workflows/skilled-hub-frontend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skilled-hub-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: skilled-hub-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build:prod
+      - run: npm run build:dev

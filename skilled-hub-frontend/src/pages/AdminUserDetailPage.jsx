@@ -909,31 +909,6 @@ export default function AdminUserDetailPage({ user, onLogout }) {
               )}
             </AdminCollapsibleCard>
 
-            {(isCompany || isTech) && u?.id && (
-              <AdminCollapsibleCard
-                title="Danger zone"
-                description="Permanently delete this user account. If this user is the only login for a company, deleting them also removes that company profile and related company data."
-                defaultOpen={false}
-                persistKey={`admin-user-danger:${userId}`}
-              >
-                <div className="rounded-lg border border-red-200 bg-red-50/90 p-4">
-                  <p className="text-sm text-red-950 mb-3">
-                    This cannot be undone. Contact-only company logins can be removed without deleting the shared company.
-                    If other users are linked to the same company profile, remove or reassign them before deleting the
-                    primary owner.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={deleteBusy}
-                    onClick={deleteUserAccount}
-                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
-                  >
-                    {deleteBusy ? 'Deleting…' : 'Delete user account'}
-                  </button>
-                </div>
-              </AdminCollapsibleCard>
-            )}
-
             {isCompany && profile && (
               <AdminCollapsibleCard
                 title="Membership billing"
@@ -1542,6 +1517,31 @@ export default function AdminUserDetailPage({ user, onLogout }) {
                       ))}
                     </ul>
                   </div>
+                </div>
+              </AdminCollapsibleCard>
+            )}
+
+            {(isCompany || isTech) && u?.id && (
+              <AdminCollapsibleCard
+                title="Danger zone"
+                description="Permanently delete this user account. If this user is the only login for a company, deleting them also removes that company profile and related company data."
+                defaultOpen={false}
+                persistKey={`admin-user-danger:${userId}`}
+              >
+                <div className="rounded-lg border border-red-200 bg-red-50/90 p-4">
+                  <p className="text-sm text-red-950 mb-3">
+                    This cannot be undone. Contact-only company logins can be removed without deleting the shared company.
+                    If other users are linked to the same company profile, remove or reassign them before deleting the
+                    primary owner.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={deleteBusy}
+                    onClick={deleteUserAccount}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {deleteBusy ? 'Deleting…' : 'Delete user account'}
+                  </button>
                 </div>
               </AdminCollapsibleCard>
             )}

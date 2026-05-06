@@ -3,9 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "build:prod": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:crm-import": "node scripts/crmImport.test.mjs",
@@ -15,9 +20,14 @@
     "test:data": "node scripts/data.test.mjs",
     "test:api": "node scripts/api.test.mjs",
     "test:technician-map": "node scripts/technicianMap.test.mjs",
-    "test": "node scripts/runFrontendTests.mjs"
+    "test": "node scripts/runFrontendTests.mjs",
+    "build:capacitor": "vite build --mode capacitor",
+    "cap:sync": "npm run build:capacitor && npx cap sync",
+    "cap:android": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "axios": "^1.10.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -26,6 +36,7 @@
     "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
     "@eslint/js": "^9.25.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

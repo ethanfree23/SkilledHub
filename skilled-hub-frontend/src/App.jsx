@@ -22,6 +22,7 @@ import PaymentTermsPage from './pages/PaymentTermsPage';
 import DmcaIpClaimsPage from './pages/DmcaIpClaimsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import PublicJobSharePage from './pages/PublicJobSharePage';
+import DownloadAppPage from './pages/DownloadAppPage';
 import FeedbackWidget from './components/FeedbackWidget';
 import MasqueradeBanner from './components/MasqueradeBanner';
 import { auth } from './auth';
@@ -114,6 +115,8 @@ function App() {
           <Route path="/cookie-policy" element={<CookiePolicyPage />} />
           <Route path="/payment-terms" element={<PaymentTermsPage />} />
           <Route path="/dmca-ip-policy" element={<DmcaIpClaimsPage />} />
+
+          <Route path="/download" element={<DownloadAppPage />} />
 
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
