@@ -17,6 +17,13 @@ class MailAuditCatalog
       source: "Api::V1::PasswordResetsController#create"
     },
     {
+      key: "password_setup_verification_code",
+      name: "Password setup verification code",
+      trigger: "Technician starts first-time password setup",
+      status: "active",
+      source: "Api::V1::PasswordSetupController#start"
+    },
+    {
       key: "admin_account_setup",
       name: "Admin account setup",
       trigger: "Admin provisions a user or resends password setup email",

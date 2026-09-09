@@ -10,6 +10,7 @@ class EmailQaRunner
   TEMPLATE_DEFS = [
     Template.new(key: "welcome_email", name: "Welcome email", description: "Signup welcome message", active: true, audience: "company/technician", trigger: "User signs up", source: "Api::V1::UsersController#create"),
     Template.new(key: "password_reset_instructions", name: "Password reset instructions", description: "Forgot-password reset email", active: true, audience: "company/technician/admin", trigger: "User requests forgot-password reset", source: "Api::V1::PasswordResetsController#create"),
+    Template.new(key: "password_setup_verification_code", name: "Password setup verification code", description: "First-time password setup email code", active: true, audience: "technician", trigger: "Technician starts /create-password setup", source: "Api::V1::PasswordSetupController#start"),
     Template.new(key: "admin_account_setup", name: "Admin account setup", description: "Welcome aboard when admin creates a user", active: true, audience: "company/technician", trigger: "Admin provisions account or resends setup link", source: "AdminAccountProvisioner, Api::V1::Admin::UsersController#password_setup"),
     Template.new(key: "membership_checkout_thanks", name: "Membership signup thanks", description: "Post-checkout membership confirmation", active: true, audience: "company/technician", trigger: "Stripe checkout.session.completed for paid membership", source: "Api::V1::StripeWebhooksController#create"),
     Template.new(key: "membership_invoice_paid_notice", name: "Membership invoice paid", description: "Membership billing payment confirmation", active: true, audience: "company/technician", trigger: "Stripe invoice.paid for membership", source: "Api::V1::StripeWebhooksController#create"),
@@ -135,6 +136,8 @@ class EmailQaRunner
       UserMailer.welcome_email(@fixtures[:admin_user])
     when "password_reset_instructions"
       UserMailer.password_reset_instructions(@fixtures[:admin_user])
+    when "password_setup_verification_code"
+      UserMailer.password_setup_verification_code(@fixtures[:technician_user], "123456")
     when "admin_account_setup"
       technician = @fixtures[:technician_user]
       technician.generate_password_reset_token! unless technician.password_reset_token_active?

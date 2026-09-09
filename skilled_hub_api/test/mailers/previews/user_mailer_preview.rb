@@ -20,6 +20,11 @@ class UserMailerPreview < ActionMailer::Preview
     UserMailer.password_reset_instructions(user)
   end
 
+  def password_setup_verification_code
+    user = User.new(email: 'tech@example.com', role: :technician)
+    UserMailer.password_setup_verification_code(user, '123456')
+  end
+
   def membership_checkout_thanks
     user = User.new(email: 'company@example.com', role: :company)
     UserMailer.membership_checkout_thanks(user, membership_level: "pro")

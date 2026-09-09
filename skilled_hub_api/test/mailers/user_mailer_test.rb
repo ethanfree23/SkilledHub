@@ -36,6 +36,22 @@ class UserMailerTest < ActionMailer::TestCase
     assert_match(/account is ready/i, mail.subject)
   end
 
+  test "password setup verification code email includes code and omits profile details" do
+    user = @fixtures[:technician_user]
+    user.update!(first_name: "Secret", last_name: "Person", phone: "7135550000")
+    mail = UserMailer.password_setup_verification_code(user, "654321")
+
+    assert_equal "Your TechFlash verification code", mail.subject
+    text = mail.text_part.body.decoded
+    html = mail.html_part.body.decoded
+    assert_includes text, "654321"
+    assert_includes text, "10 minutes"
+    refute_includes text, "Secret"
+    refute_includes text, "7135550000"
+    assert_includes html, "654321"
+    refute_includes html, "Secret"
+  end
+
   test "category preferences gate non-critical emails but keep payment receipts" do
     company_user = @fixtures[:company_user]
     company_user.update!(
@@ -112,6 +128,7 @@ class UserMailerTest < ActionMailer::TestCase
     {
       welcome_email: UserMailer.welcome_email(@fixtures[:admin_user]),
       password_reset_instructions: UserMailer.password_reset_instructions(@fixtures[:admin_user]),
+      password_setup_verification_code: UserMailer.password_setup_verification_code(@fixtures[:technician_user], "123456"),
       admin_account_setup_email: UserMailer.admin_account_setup_email(@fixtures[:technician_user].tap do |u|
         u.generate_password_reset_token! unless u.password_reset_token_active?
       end),

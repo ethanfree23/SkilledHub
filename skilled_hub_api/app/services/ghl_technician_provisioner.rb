@@ -45,6 +45,9 @@ class GhlTechnicianProvisioner
 
   def assign_user_attributes!(user, created:)
     if created
+      # Unusable internal password. The technician never receives this value.
+      # First-time login is via /create-password after email verification.
+      # Do not use email, phone, ZIP, name, or any other predictable default.
       password = SecureRandom.urlsafe_base64(32)
       user.password = password
       user.password_confirmation = password

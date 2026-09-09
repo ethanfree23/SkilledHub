@@ -25,6 +25,14 @@ class UserMailer < ApplicationMailer
     mail(to: user.email, subject: 'Reset your TechFlash password')
   end
 
+  # First-time password setup OTP. Always send (do not gate on notification preferences).
+  def password_setup_verification_code(user, code)
+    @user = user
+    @code = code.to_s
+    @expires_minutes = 10
+    mail(to: user.email, subject: 'Your TechFlash verification code')
+  end
+
   def job_posted_email(job)
     @job = job
     @user = job.company_profile.user

@@ -65,6 +65,8 @@ module Api
         assert user.ghl_onboarded_at.present?
         assert user.password_digest.present?
         assert_equal "system", user.password_set_by
+        refute user.authenticate(user.email)
+        refute user.authenticate(user.phone.to_s)
         assert profile.present?
         assert_equal false, profile.background_verified
         assert_equal "77002", profile.zip_code

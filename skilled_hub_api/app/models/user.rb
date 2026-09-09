@@ -60,8 +60,30 @@ class User < ApplicationRecord
   has_many :app_notifications, dependent: :destroy
   has_many :sms_delivery_logs, dependent: :destroy
   has_many :ghl_webhook_events, dependent: :nullify
+  has_many :password_setup_challenges, dependent: :delete_all
   has_many :sent_referrals, class_name: "ReferralSubmission", foreign_key: :referrer_user_id, dependent: :destroy, inverse_of: :referrer_user
   has_many :received_referrals, class_name: "ReferralSubmission", foreign_key: :referred_user_id, dependent: :nullify, inverse_of: :referred_user
+
+  def first_time_password_setup_eligible?
+    technician? && password_set_by == "system"
+  end
+
+  def password_already_established?
+    password_digest.present? && password_set_by != "system"
+  end
+
+  def masked_email
+    raw = email.to_s.strip
+    local, domain = raw.split("@", 2)
+    return raw if local.blank? || domain.blank?
+
+    if local.length <= 1
+      "#{local}***@#{domain}"
+    else
+      "#{local[0]}***#{local[-1]}@#{domain}"
+    end
+    end
+  end
 
   def company_profile
     shared_company_profile || super

@@ -166,6 +166,24 @@ export const passwordResetsAPI = {
     }),
 };
 
+export const passwordSetupAPI = {
+  start: (email) =>
+    apiRequest('/auth/password_setup/start', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  verify: (challenge_id, code) =>
+    apiRequest('/auth/password_setup/verify', {
+      method: 'POST',
+      body: JSON.stringify({ challenge_id, code }),
+    }),
+  complete: (challenge_id, verification_token, password, password_confirmation) =>
+    apiRequest('/auth/password_setup/complete', {
+      method: 'POST',
+      body: JSON.stringify({ challenge_id, verification_token, password, password_confirmation }),
+    }),
+};
+
 export const marketingLeadsAPI = {
   create: ({ email, role_view: roleView, source = 'landing_page', honeypot = '' }) =>
     apiRequest('/marketing_leads', {

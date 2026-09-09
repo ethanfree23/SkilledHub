@@ -28,6 +28,7 @@ import CookiePolicyPage from './pages/CookiePolicyPage';
 import PaymentTermsPage from './pages/PaymentTermsPage';
 import DmcaIpClaimsPage from './pages/DmcaIpClaimsPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import CreatePasswordPage from './pages/CreatePasswordPage';
 import PublicJobSharePage from './pages/PublicJobSharePage';
 import ReferenceResponsePage from './pages/ReferenceResponsePage';
 import DownloadAppPage from './pages/DownloadAppPage';
@@ -194,6 +195,7 @@ function App() {
           <Route path="/why-techflash" element={<WhyTechFlashPage />} />
 
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/create-password" element={<CreatePasswordPage />} />
 
           {/* Public job share preview (no login) */}
           <Route path="/jobs/shared/:shareToken" element={<PublicJobSharePage />} />

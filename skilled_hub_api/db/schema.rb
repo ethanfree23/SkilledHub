@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_210000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_09_143000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -49,6 +49,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_210000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_app_notifications_on_user_id"
+  end
+
+  create_table "auth_rate_limits", force: :cascade do |t|
+    t.string "scope", null: false
+    t.string "bucket", null: false
+    t.integer "count", default: 0, null: false
+    t.datetime "window_starts_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["scope", "bucket", "window_starts_at"], name: "index_auth_rate_limits_on_scope_bucket_window"
   end
 
   create_table "background_checks", force: :cascade do |t|
@@ -598,6 +608,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_210000) do
     t.index ["sender_type", "sender_id"], name: "index_messages_on_sender"
   end
 
+  create_table "password_setup_challenges", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "public_id", null: false
+    t.string "code_digest", null: false
+    t.string "verification_token_digest"
+    t.datetime "expires_at", null: false
+    t.datetime "verified_at"
+    t.datetime "consumed_at"
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "last_sent_at"
+    t.string "request_ip"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["consumed_at"], name: "index_password_setup_challenges_on_consumed_at"
+    t.index ["expires_at"], name: "index_password_setup_challenges_on_expires_at"
+    t.index ["public_id"], name: "index_password_setup_challenges_on_public_id", unique: true
+    t.index ["user_id"], name: "index_password_setup_challenges_on_user_id"
+  end
+
   create_table "payments", force: :cascade do |t|
     t.integer "job_id", null: false
     t.integer "amount_cents", null: false
@@ -1020,6 +1049,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_210000) do
   add_foreign_key "job_term_change_audits", "users", column: "actor_user_id"
   add_foreign_key "jobs", "company_profiles"
   add_foreign_key "messages", "conversations"
+  add_foreign_key "password_setup_challenges", "users"
   add_foreign_key "payments", "jobs"
   add_foreign_key "ratings", "jobs"
   add_foreign_key "ratings", "users", column: "hidden_by_user_id"

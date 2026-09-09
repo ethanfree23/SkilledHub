@@ -14,6 +14,8 @@ class GhlTechnicianOnboardingServiceTest < ActiveSupport::TestCase
     user = User.find(result.body[:user_id])
     assert user.password_digest.present?
     assert_equal "system", user.password_set_by
+    refute user.authenticate(user.email)
+    refute user.authenticate(user.phone.to_s)
     assert_equal 0, ActionMailer::Base.deliveries.size
     refute result.body.key?(:token)
     refute result.body.key?(:password)
