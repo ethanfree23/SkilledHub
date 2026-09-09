@@ -63,7 +63,7 @@ export default function UsersEmptyState({ variant = 'default', onAction }) {
   const Icon = variant === 'error' ? FaRedo : cfg.icon;
 
   return (
-    <div className="rounded-xl border border-dashed border-slate-200/80 bg-white px-5 py-10 text-center shadow-sm">
+    <div className="flex-1 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200/80 bg-white px-5 py-10 text-center shadow-sm">
       <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-400">
         <Icon className="h-4 w-4" aria-hidden />
       </div>

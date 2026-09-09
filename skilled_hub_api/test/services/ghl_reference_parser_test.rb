@@ -57,4 +57,34 @@ class GhlReferenceParserTest < ActiveSupport::TestCase
     assert_equal [], GhlReferenceParser.parse(nil)
     assert_equal [], GhlReferenceParser.parse("   ")
   end
+
+  test "reads numbered structured reference fields and allows a single reference" do
+    refs = GhlReferenceParser.from_payload(
+      "reference_1_name" => "Sam Jones",
+      "reference_1_company" => "ABC Plumbing",
+      "reference_1_phone" => "7135551111",
+      "reference_1_email" => "sam@example.com",
+      "reference_2_name" => "",
+      "reference_2_phone" => "",
+      "tf_intake_references" => ""
+    )
+
+    assert_equal 1, refs.size
+    assert_equal "Sam Jones", refs[0][:full_name]
+    assert_equal "ABC Plumbing", refs[0][:company_name]
+    assert_equal "7135551111", refs[0][:phone]
+    assert_equal "sam@example.com", refs[0][:email]
+  end
+
+  test "accepts an email-only structured reference" do
+    refs = GhlReferenceParser.from_payload(
+      "reference_1_name" => "Riley Chen",
+      "reference_1_email" => "riley@example.com"
+    )
+
+    assert_equal 1, refs.size
+    assert_equal "Riley Chen", refs[0][:full_name]
+    assert_equal "riley@example.com", refs[0][:email]
+    assert_nil refs[0][:phone]
+  end
 end

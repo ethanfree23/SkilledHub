@@ -301,36 +301,40 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
   const selectedUsers = filteredRows.filter((r) => selectedIds.has(r.id));
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb]">
-      <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
+    <div className="min-h-screen flex flex-col bg-[#f8f9fb]">
+      <div className="shrink-0">
+        <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
+      </div>
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 sm:pb-14">
-        <UsersHeader
-          onCreateUser={() => setCreateModalOpen(true)}
-          onInviteUser={() => setInviteModalOpen(true)}
-          onExport={() => handleExport(selectedUsers.length ? selectedUsers : filteredRows)}
-          onRefresh={loadUsers}
-          onClearFilters={clearAllFilters}
-        />
+      <main className="flex-1 flex flex-col min-h-0 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-4">
+        <div className="shrink-0">
+          <UsersHeader
+            onCreateUser={() => setCreateModalOpen(true)}
+            onInviteUser={() => setInviteModalOpen(true)}
+            onExport={() => handleExport(selectedUsers.length ? selectedUsers : filteredRows)}
+            onRefresh={loadUsers}
+            onClearFilters={clearAllFilters}
+          />
 
-        <UsersKpiCards kpis={kpis} loading={loading && list.length === 0 && !loadError} onCardClick={handleKpiClick} />
+          <UsersKpiCards kpis={kpis} loading={loading && list.length === 0 && !loadError} onCardClick={handleKpiClick} />
 
-        <UsersSegmentedTabs activeTab={activeTab} tabCounts={tabCounts} onChange={(tab) => { setActiveTab(tab); setActiveViewId('all'); }} />
+          <UsersSegmentedTabs activeTab={activeTab} tabCounts={tabCounts} onChange={(tab) => { setActiveTab(tab); setActiveViewId('all'); }} />
 
-        <UsersSavedViews activeViewId={activeViewId} onSelectView={handleSelectView} />
+          <UsersSavedViews activeViewId={activeViewId} onSelectView={handleSelectView} />
 
-        <UsersFilters
-          searchQ={searchQ}
-          onSearchChange={setSearchQ}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onClear={clearAllFilters}
-          columns={columns}
-          onMoveColumn={moveColumn}
-          onToggleColumn={toggleColumnVisible}
-          draggingColumnKey={draggingColumnKey}
-          setDraggingColumnKey={setDraggingColumnKey}
-        />
+          <UsersFilters
+            searchQ={searchQ}
+            onSearchChange={setSearchQ}
+            filters={filters}
+            onFiltersChange={setFilters}
+            onClear={clearAllFilters}
+            columns={columns}
+            onMoveColumn={moveColumn}
+            onToggleColumn={toggleColumnVisible}
+            draggingColumnKey={draggingColumnKey}
+            setDraggingColumnKey={setDraggingColumnKey}
+          />
+        </div>
 
         <UsersTable
           rows={filteredRows}

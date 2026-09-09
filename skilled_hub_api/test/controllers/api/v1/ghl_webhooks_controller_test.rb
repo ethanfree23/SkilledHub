@@ -101,6 +101,164 @@ module Api
         assert_equal "75201", user.technician_profile.zip_code
       end
 
+      test "meta lead payload creates technician from structured fields without intake blobs" do
+        assert_difference -> { User.where(role: :technician).count }, 1 do
+          post_ghl(meta_lead_payload)
+        end
+
+        assert_response :accepted
+        user = User.find(JSON.parse(response.body)["user_id"])
+        assert_equal "lead@example.com", user.email
+        assert_equal "Jordan", user.first_name
+        assert_equal "Lee", user.last_name
+        assert_equal "77002", user.technician_profile.zip_code
+        assert_equal "system", user.password_set_by
+        refute user.authenticate(user.email)
+        assert_equal 0, user.verification_references_as_technician.count
+      end
+
+      test "progressive trade pay and one reference update the same technician" do
+        post_ghl(meta_lead_payload)
+        user_id = JSON.parse(response.body)["user_id"]
+        digest = User.find(user_id).password_digest
+
+        post_ghl(
+          identity_payload.merge(
+            idempotency_key: "contact-lead-trade",
+            event: "trade",
+            primary_trade: "HVAC Technician",
+            years_of_experience: "8 years",
+            technician_level: "Journeyman",
+            has_trade_credential: "Yes"
+          )
+        )
+
+        assert_response :accepted
+        body = JSON.parse(response.body)
+        assert_equal user_id, body["user_id"]
+        assert_equal false, body["created"]
+
+        user = User.find(user_id)
+        profile = user.technician_profile
+        assert_equal "HVAC Technician", profile.trade_type
+        assert_equal "journeyman", profile.skill_class
+        assert_equal 8, profile.experience_years
+        assert_equal "HVAC Technician", user.job_alert_preference.trade_label
+        assert_equal 1, profile.documents.where(doc_type: %w[license certificate cert]).count
+        assert_equal digest, user.password_digest
+
+        post_ghl(
+          identity_payload.merge(
+            idempotency_key: "contact-lead-pay",
+            event: "pay_travel",
+            minimum_hourly_rate: "$45",
+            travel_distance: "50 miles"
+          )
+        )
+
+        assert_response :accepted
+        pref = user.reload.job_alert_preference
+        assert_equal 4_500, pref.min_hourly_rate_cents
+        assert_equal 50, pref.max_distance_miles
+        assert_equal digest, user.password_digest
+
+        post_ghl(
+          identity_payload.merge(
+            idempotency_key: "contact-lead-refs",
+            event: "references",
+            reference_1_name: "Sam Jones",
+            reference_1_company: "ABC Plumbing",
+            reference_1_phone: "7135551111",
+            reference_1_email: "sam@example.com"
+          )
+        )
+
+        assert_response :accepted
+        refs = user.reload.verification_references_as_technician
+        assert_equal 1, refs.count
+        ref = refs.first
+        assert_equal "Sam Jones", ref.full_name
+        assert_equal "ABC Plumbing", ref.company_name
+        assert_equal "sam@example.com", ref.email
+        assert_equal 1, User.where(email: "lead@example.com").count
+        assert_equal digest, user.password_digest
+      end
+
+      test "deleted technician is recreated when the same idempotency key is replayed" do
+        post_ghl(meta_lead_payload)
+        user = User.find(JSON.parse(response.body)["user_id"])
+        user.destroy!
+
+        assert_difference -> { User.where(email: "lead@example.com").count }, 1 do
+          post_ghl(meta_lead_payload)
+        end
+
+        assert_response :accepted
+        body = JSON.parse(response.body)
+        assert_equal true, body["created"]
+        created = User.find(body["user_id"])
+        assert_equal "lead@example.com", created.email
+        assert_equal "system", created.password_set_by
+      end
+
+      test "create-password start works for a ghl-created technician" do
+        post_ghl(meta_lead_payload)
+        assert_response :accepted
+        email = "lead@example.com"
+
+        MailDelivery.stub(
+          :safe_deliver_result,
+          ->(&block) { { success: true, value: block.call, code: "ok" } }
+        ) do
+          PasswordSetupChallenge.stub(:generate_code, "123456") do
+            post "/api/v1/auth/password_setup/start", params: { email: email }, as: :json
+          end
+        end
+
+        assert_response :ok
+        body = JSON.parse(response.body)
+        assert_equal "code_sent", body["status"]
+        assert_equal 1, User.where(email: email).count
+      end
+
+      test "blank trade and pay values do not erase previously saved profile data" do
+        post_ghl(meta_lead_payload)
+        post_ghl(
+          identity_payload.merge(
+            idempotency_key: "contact-lead-trade",
+            primary_trade: "Plumber",
+            years_of_experience: "4",
+            technician_level: "Apprentice",
+            minimum_hourly_rate: "40",
+            travel_distance: "25"
+          )
+        )
+        user = User.find_by!(email: "lead@example.com")
+
+        post_ghl(
+          identity_payload.merge(
+            idempotency_key: "contact-lead-blank",
+            primary_trade: "",
+            years_of_experience: "",
+            technician_level: "",
+            has_trade_credential: "",
+            minimum_hourly_rate: "",
+            travel_distance: "",
+            zip_code: ""
+          )
+        )
+
+        assert_response :accepted
+        profile = user.reload.technician_profile
+        pref = user.job_alert_preference
+        assert_equal "Plumber", profile.trade_type
+        assert_equal "apprentice", profile.skill_class
+        assert_equal 4, profile.experience_years
+        assert_equal "77002", profile.zip_code
+        assert_equal 4_000, pref.min_hourly_rate_cents
+        assert_equal 25, pref.max_distance_miles
+      end
+
       test "same idempotency key does not create a duplicate user" do
         post_ghl(valid_payload)
         assert_response :accepted
@@ -268,6 +426,27 @@ module Api
           tf_intake_contact_info: "tech@example.com / 77002",
           tf_intake_references: "1. Sam Jones, 7135551111, ABC Plumbing, supervisor; 2. Mike Lee, 7135552222; 3. Chris Brown, 7135553333, coworker"
         }
+      end
+
+      def identity_payload
+        {
+          ghl_contact_id: "contact-lead",
+          ghl_location_id: "loc-lead",
+          ghl_conversation_id: "conv-lead",
+          phone: "+17135557777",
+          email: "lead@example.com",
+          first_name: "Jordan",
+          last_name: "Lee",
+          zip_code: "77002"
+        }
+      end
+
+      def meta_lead_payload
+        identity_payload.merge(
+          idempotency_key: "contact-lead-meta",
+          event: "meta_lead",
+          full_name: "Jordan Lee"
+        )
       end
 
       def create_technician!(email:, phone:)

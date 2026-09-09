@@ -240,18 +240,26 @@ export default function UsersTable({
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+      <div className="flex-1 min-h-[16rem] w-full rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
         <TableRowsSkeleton />
       </div>
     );
   }
 
   if (loadError) {
-    return <UsersEmptyState variant="error" onAction={onRetry} />;
+    return (
+      <div className="flex-1 min-h-[16rem] w-full flex flex-col">
+        <UsersEmptyState variant="error" onAction={onRetry} />
+      </div>
+    );
   }
 
   if (rows.length === 0) {
-    return <UsersEmptyState variant={emptyVariant} onAction={onEmptyAction} />;
+    return (
+      <div className="flex-1 min-h-[16rem] w-full flex flex-col">
+        <UsersEmptyState variant={emptyVariant} onAction={onEmptyAction} />
+      </div>
+    );
   }
 
   const rowActions = (row, compact = false) => (
@@ -283,12 +291,12 @@ export default function UsersTable({
         ))}
       </div>
 
-      <div className="hidden lg:block rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto max-h-[calc(100vh-18rem)] overflow-y-auto">
+      <div className="hidden lg:flex flex-1 min-h-[16rem] w-full flex-col rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
           <table className="min-w-full">
             <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/80">
               <tr>
-                <th className="w-9 px-2.5 py-2">
+                <th className="w-9 px-3 py-2.5">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -298,7 +306,7 @@ export default function UsersTable({
                   />
                 </th>
                 {visibleColumns.map((col) => (
-                  <th key={col.key} className={`px-2.5 py-2 text-left ${colHiddenClass(col.key)}`}>
+                  <th key={col.key} className={`px-3 py-2.5 text-left ${colHiddenClass(col.key)}`}>
                     <button
                       type="button"
                       onClick={() => onSort(col.key)}
@@ -311,7 +319,7 @@ export default function UsersTable({
                     </button>
                   </th>
                 ))}
-                <th className="w-16 px-2.5 py-2" aria-label="Actions" />
+                <th className="w-16 px-3 py-2.5" aria-label="Actions" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -321,7 +329,7 @@ export default function UsersTable({
                   onClick={() => onRowClick(row)}
                   className="group/row hover:bg-slate-50/90 cursor-pointer transition-colors"
                 >
-                  <td className="px-2.5 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIds.has(row.id)}
@@ -331,11 +339,11 @@ export default function UsersTable({
                     />
                   </td>
                   {visibleColumns.map((col) => (
-                    <td key={col.key} className={`px-2.5 py-2 align-middle ${colHiddenClass(col.key)}`}>
+                    <td key={col.key} className={`px-3 py-2.5 align-middle ${colHiddenClass(col.key)}`}>
                       {renderCell(col, row)}
                     </td>
                   ))}
-                  <td className="px-2 py-2 text-right align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2.5 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover/row:opacity-100 transition-opacity">
                       <Link
                         to={`/admin/users/${row.id}`}
@@ -352,7 +360,7 @@ export default function UsersTable({
             </tbody>
           </table>
         </div>
-        <div className="px-3 py-1.5 border-t border-slate-100 bg-slate-50/50 text-[10px] text-slate-400">
+        <div className="shrink-0 px-3 py-1.5 border-t border-slate-100 bg-slate-50/50 text-[10px] text-slate-400">
           {sortedRows.length} user{sortedRows.length === 1 ? '' : 's'}
         </div>
       </div>

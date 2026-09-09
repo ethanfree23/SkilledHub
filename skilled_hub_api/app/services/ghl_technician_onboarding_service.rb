@@ -24,9 +24,11 @@ class GhlTechnicianOnboardingService
     result = nil
     GhlWebhookEvent.transaction do
       event = GhlWebhookEvent.lock.find_or_initialize_by(idempotency_key: idempotency_key)
-      if event.processed_at.present?
+      if event.processed_at.present? && replay_user(event).present?
         result = replay_result(event)
       else
+        event.processed_at = nil
+        event.user_id = nil if replay_user(event).blank?
         result = process_event!(event)
       end
     end
@@ -51,14 +53,16 @@ class GhlTechnicianOnboardingService
 
     parsed = GhlIntakeParser.parse(
       email: @payload["email"],
-      contact_info: @payload["tf_intake_contact_info"]
+      contact_info: @payload["tf_intake_contact_info"],
+      zip_code: @payload["zip_code"],
+      postal_code: @payload["postal_code"],
+      zip: @payload["zip"]
     )
-    if parsed[:email].blank?
-      message = "email is required (send email or include it in tf_intake_contact_info)"
-      event.update!(processing_error: message)
-      return failure(:unprocessable_entity, message)
-    end
-
+    names = GhlIntakeParser.split_name(
+      full_name: @payload["full_name"],
+      first_name: @payload["first_name"],
+      last_name: @payload["last_name"]
+    )
     phone_normalized = GhlPhoneNormalizer.normalize(@payload["phone"])
     if phone_normalized.blank?
       message = "phone is invalid"
@@ -76,19 +80,35 @@ class GhlTechnicianOnboardingService
       return failure(:conflict, match.error)
     end
 
+    if parsed[:email].blank? && match.user.blank?
+      message = "email is required (send email or include it in tf_intake_contact_info)"
+      event.update!(processing_error: message)
+      return failure(:unprocessable_entity, message)
+    end
+
     outcome = GhlTechnicianProvisioner.upsert!(
       user: match.user,
       email: parsed[:email],
       phone: @payload["phone"],
-      first_name: @payload["first_name"],
-      last_name: @payload["last_name"],
+      first_name: names[:first_name],
+      last_name: names[:last_name],
       ghl_contact_id: @payload["ghl_contact_id"],
       ghl_location_id: @payload["ghl_location_id"],
       ghl_conversation_id: @payload["ghl_conversation_id"],
       zip_code: parsed[:zip_code],
+      trade_type: @payload["primary_trade"].presence || @payload["trade_type"],
+      experience_years: GhlIntakeParser.parse_years(
+        @payload["years_of_experience"].presence || @payload["experience_years"]
+      ),
+      skill_class: @payload["technician_level"].presence || @payload["skill_class"],
+      has_trade_credential: GhlIntakeParser.parse_boolean(@payload["has_trade_credential"]),
+      min_hourly_rate_cents: parse_hourly_rate_cents,
+      max_distance_miles: GhlIntakeParser.parse_miles(
+        @payload["travel_distance"].presence || @payload["max_distance_miles"]
+      ),
       tf_intake_contact_info: @payload["tf_intake_contact_info"],
       tf_intake_references: @payload["tf_intake_references"],
-      parsed_references: GhlReferenceParser.parse(@payload["tf_intake_references"])
+      parsed_references: GhlReferenceParser.from_payload(@payload)
     )
 
     event.update!(
@@ -111,9 +131,19 @@ class GhlTechnicianOnboardingService
     @payload["idempotency_key"].to_s.strip
   end
 
+  def parse_hourly_rate_cents
+    if @payload["min_hourly_rate_cents"].present?
+      GhlIntakeParser.parse_years(@payload["min_hourly_rate_cents"])
+    else
+      GhlIntakeParser.parse_money_cents(
+        @payload["minimum_hourly_rate"].presence || @payload["min_hourly_rate"]
+      )
+    end
+  end
+
   def prepare_event!(event)
     event.ghl_contact_id = @payload["ghl_contact_id"].to_s.strip
-    event.event_type = "technician_onboarding"
+    event.event_type = @payload["event"].to_s.strip.presence || "technician_onboarding"
     event.payload = @payload
     event.attempt_count = event.attempt_count.to_i + 1
     event.save!
@@ -124,18 +154,22 @@ class GhlTechnicianOnboardingService
     return if key.blank?
 
     event = GhlWebhookEvent.find_or_initialize_by(idempotency_key: key)
-    return if event.processed_at.present?
+    return if event.processed_at.present? && replay_user(event).present?
 
     event.ghl_contact_id = @payload["ghl_contact_id"].to_s.strip.presence || event.ghl_contact_id
-    event.event_type ||= "technician_onboarding"
+    event.event_type = @payload["event"].to_s.strip.presence || event.event_type || "technician_onboarding"
     event.payload = @payload
     event.processing_error = message
     event.attempt_count = event.attempt_count.to_i + 1 if event.new_record?
     event.save
   end
 
+  def replay_user(event)
+    event.user || User.find_by(id: event.user_id)
+  end
+
   def replay_result(event)
-    user = event.user || User.find_by(id: event.user_id)
+    user = replay_user(event)
     profile = user&.technician_profile
     Result.new(
       http_status: :ok,
