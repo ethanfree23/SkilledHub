@@ -82,7 +82,6 @@ class User < ApplicationRecord
     else
       "#{local[0]}***#{local[-1]}@#{domain}"
     end
-    end
   end
 
   def company_profile

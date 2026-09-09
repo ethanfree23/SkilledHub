@@ -92,7 +92,10 @@ export const publicApiRequest = async (endpoint, options = {}) => {
         errorData.error ||
         (Array.isArray(errorData.errors) ? errorData.errors.join(', ') : null) ||
         `HTTP error! status: ${response.status}`;
-      throw new Error(msg);
+      const enrichedError = new Error(msg);
+      enrichedError.status = response.status;
+      enrichedError.details = errorData;
+      throw enrichedError;
     }
 
     const raw = await response.text();
@@ -168,17 +171,17 @@ export const passwordResetsAPI = {
 
 export const passwordSetupAPI = {
   start: (email) =>
-    apiRequest('/auth/password_setup/start', {
+    publicApiRequest('/auth/password_setup/start', {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
   verify: (challenge_id, code) =>
-    apiRequest('/auth/password_setup/verify', {
+    publicApiRequest('/auth/password_setup/verify', {
       method: 'POST',
       body: JSON.stringify({ challenge_id, code }),
     }),
   complete: (challenge_id, verification_token, password, password_confirmation) =>
-    apiRequest('/auth/password_setup/complete', {
+    publicApiRequest('/auth/password_setup/complete', {
       method: 'POST',
       body: JSON.stringify({ challenge_id, verification_token, password, password_confirmation }),
     }),

@@ -14,6 +14,9 @@ Rails.application.routes.draw do
       post "auth/password_setup/start", to: "password_setup#start"
       post "auth/password_setup/verify", to: "password_setup#verify"
       post "auth/password_setup/complete", to: "password_setup#complete"
+      post "auth/password-setup/start", to: "password_setup#start"
+      post "auth/password-setup/verify", to: "password_setup#verify"
+      post "auth/password-setup/complete", to: "password_setup#complete"
       get "public/jobs/:share_token", to: "public_jobs#show", constraints: { share_token: %r{[^/]+} }
       post "marketing_leads", to: "marketing_leads#create"
       get "membership_tier_configs", to: "membership_tier_configs#index"
