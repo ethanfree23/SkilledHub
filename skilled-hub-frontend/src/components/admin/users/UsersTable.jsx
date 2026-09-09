@@ -17,7 +17,16 @@ const HIDDEN_LG = new Set(['location', 'last_login', 'joined']);
 
 function Muted({ children, title }) {
   return (
-    <span className="text-xs text-slate-400 truncate block max-w-[140px]" title={title || (typeof children === 'string' ? children : undefined)}>
+    <span className="text-xs text-slate-400 truncate block min-w-0" title={title || (typeof children === 'string' ? children : undefined)}>
+      {children}
+    </span>
+  );
+}
+
+function CellText({ children, title, className = 'text-xs text-slate-700' }) {
+  const tip = title || (typeof children === 'string' ? children : undefined);
+  return (
+    <span className={`block min-w-0 truncate ${className}`} title={tip}>
       {children}
     </span>
   );
@@ -36,14 +45,13 @@ function SortIndicator({ colKey, sortKey, sortDir }) {
 
 function UserCell({ row }) {
   return (
-    <div className="flex items-center gap-2.5 min-w-[200px] max-w-[260px]">
-      <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200/80 flex items-center justify-center text-[10px] font-bold text-slate-600">
+    <div className="flex items-center gap-2 min-w-0">
+      <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200/80 flex items-center justify-center text-[10px] font-bold text-slate-600">
         {row.initials}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-slate-900 truncate leading-tight">{row.displayName}</div>
+        <div className="text-xs font-medium text-slate-900 truncate leading-tight">{row.displayName}</div>
         <div className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">{row.email}</div>
-        <div className="text-[10px] text-slate-400 tabular-nums">#{row.id}</div>
       </div>
     </div>
   );
@@ -54,87 +62,101 @@ function renderCell(col, row) {
     case 'user':
       return <UserCell row={row} />;
     case 'type':
-      return <UserTypeBadge role={row.role} />;
-    case 'status':
-      return <UserStatusBadge status={row.accountStatus} />;
-    case 'verification':
-      return <UserVerificationBadge status={row.verificationStatus} />;
-    case 'company_trade':
       return (
-        <span className="text-xs text-slate-700 truncate block max-w-[150px]" title={row.companyTradeLabel}>
-          {row.companyTradeLabel}
-        </span>
+        <div className="min-w-0 overflow-hidden">
+          <UserTypeBadge role={row.role} />
+        </div>
       );
+    case 'status':
+      return (
+        <div className="min-w-0 overflow-hidden">
+          <UserStatusBadge status={row.accountStatus} />
+        </div>
+      );
+    case 'verification':
+      return (
+        <div className="min-w-0 overflow-hidden">
+          <UserVerificationBadge status={row.verificationStatus} />
+        </div>
+      );
+    case 'company_trade':
+      return <CellText title={row.companyTradeLabel}>{row.companyTradeLabel}</CellText>;
     case 'location':
       return row.locationLabel === 'Not provided' ? (
         <Muted title="Location not provided">Not provided</Muted>
       ) : (
-        <span className="text-xs text-slate-600 truncate block max-w-[130px]" title={row.locationLabel}>{row.locationLabel}</span>
+        <CellText className="text-xs text-slate-600" title={row.locationLabel}>{row.locationLabel}</CellText>
       );
     case 'subscription':
       return (
-        <div className="text-xs leading-tight">
-          <div className="text-slate-800 font-medium">{displayOrFallback(row.subscriptionTier, 'Free')}</div>
-          {row.subscriptionStatus && <div className="text-[10px] text-slate-400 mt-0.5">{row.subscriptionStatus}</div>}
-        </div>
+        <CellText
+          title={[displayOrFallback(row.subscriptionTier, 'Free'), row.subscriptionStatus].filter(Boolean).join(' · ')}
+        >
+          {displayOrFallback(row.subscriptionTier, 'Free')}
+        </CellText>
       );
     case 'membership_tier':
       return (
-        <span className="text-xs text-slate-700 whitespace-nowrap">
+        <CellText title={displayOrFallback(row.membershipTier, 'Free')}>
           {displayOrFallback(row.membershipTier, 'Free')}
-        </span>
+        </CellText>
       );
     case 'activity':
       return (
-        <div className="text-xs leading-tight">
-          <div className={row.activityLabel?.isEmpty ? 'text-slate-400' : 'text-slate-700'}>
-            {row.activityLabel?.logins || 'No activity yet'}
-          </div>
-          {row.activityLabel?.lastActive && (
-            <div className="text-[10px] text-slate-400 mt-0.5">{row.activityLabel.lastActive}</div>
-          )}
-        </div>
+        <CellText
+          className={`text-xs ${row.activityLabel?.isEmpty ? 'text-slate-400' : 'text-slate-700'}`}
+          title={[row.activityLabel?.logins, row.activityLabel?.lastActive].filter(Boolean).join(' · ') || 'No activity yet'}
+        >
+          {row.activityLabel?.logins || 'No activity yet'}
+        </CellText>
       );
     case 'jobs':
       if (row.jobsSummary) {
         if (row.role === 'technician') {
-          return (
-            <span className="text-[11px] text-slate-600 whitespace-nowrap">
-              {row.jobsSummary.accepted} acc · {row.jobsSummary.completed} done
-            </span>
-          );
+          const label = `${row.jobsSummary.accepted} acc · ${row.jobsSummary.completed} done`;
+          return <CellText className="text-[11px] text-slate-600" title={label}>{label}</CellText>;
         }
-        return (
-          <span className="text-[11px] text-slate-600 whitespace-nowrap">
-            {row.jobsSummary.posted} posted · {row.jobsSummary.filled} filled
-          </span>
-        );
+        const label = `${row.jobsSummary.posted} posted · ${row.jobsSummary.filled} filled`;
+        return <CellText className="text-[11px] text-slate-600" title={label}>{label}</CellText>;
       }
       return <Muted title="Open user drawer for job details">—</Muted>;
     case 'joined':
       return (
-        <span className="text-xs text-slate-600 tabular-nums whitespace-nowrap">
+        <CellText className="text-xs text-slate-600 tabular-nums">
           {row.created_at
             ? new Date(row.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
             : '—'}
-        </span>
+        </CellText>
       );
     case 'last_login':
       return (
-        <span className={`text-xs whitespace-nowrap ${row.lastLoginAt ? 'text-slate-600' : 'text-slate-400'}`}>
+        <CellText
+          className={`text-xs ${row.lastLoginAt ? 'text-slate-600' : 'text-slate-400'}`}
+          title={row.lastLoginDisplay || 'No activity yet'}
+        >
           {row.lastLoginDisplay || 'No activity yet'}
-        </span>
+        </CellText>
       );
     case 'risk':
-      return <UserRiskBadge level={row.riskLevel || 'Low'} />;
+      return (
+        <div className="min-w-0 overflow-hidden">
+          <UserRiskBadge level={row.riskLevel || 'Low'} />
+        </div>
+      );
     default:
       return <Muted>—</Muted>;
   }
 }
 
-function colHiddenClass(key) {
-  if (HIDDEN_LG.has(key)) return 'hidden xl:table-cell';
-  if (HIDDEN_MD.has(key)) return 'hidden lg:table-cell';
+function colHiddenClass(key, asCol = false) {
+  if (HIDDEN_LG.has(key)) return asCol ? 'hidden xl:table-column' : 'hidden xl:table-cell';
+  if (HIDDEN_MD.has(key)) return asCol ? 'hidden lg:table-column' : 'hidden lg:table-cell';
+  return '';
+}
+
+function colWidthClass(key) {
+  if (key === 'user') return 'w-[18%]';
+  if (key === 'joined' || key === 'risk' || key === 'jobs') return 'w-[5.5%]';
   return '';
 }
 
@@ -276,8 +298,8 @@ export default function UsersTable({
   );
 
   return (
-    <>
-      <div className="lg:hidden space-y-2">
+    <div className="flex-1 min-h-0 flex flex-col w-full">
+      <div className="lg:hidden space-y-2 overflow-y-auto">
         {sortedRows.map((row) => (
           <UserMobileCard
             key={row.id}
@@ -291,12 +313,19 @@ export default function UsersTable({
         ))}
       </div>
 
-      <div className="hidden lg:flex flex-1 min-h-[16rem] w-full flex-col rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-auto [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-transparent">
-          <table className="min-w-full">
+      <div className="hidden lg:flex flex-1 min-h-0 w-full flex-col rounded-lg border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <table className="w-full table-fixed">
+            <colgroup>
+              <col className="w-8" />
+              {visibleColumns.map((col) => (
+                <col key={col.key} className={`${colWidthClass(col.key)} ${colHiddenClass(col.key, true)}`} />
+              ))}
+              <col className="w-14" />
+            </colgroup>
             <thead className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/80">
               <tr>
-                <th className="w-9 px-3 py-2.5">
+                <th className="w-8 px-1.5 py-2">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -306,20 +335,20 @@ export default function UsersTable({
                   />
                 </th>
                 {visibleColumns.map((col) => (
-                  <th key={col.key} className={`px-3 py-2.5 text-left ${colHiddenClass(col.key)}`}>
+                  <th key={col.key} className={`px-1.5 py-2 text-left min-w-0 overflow-hidden ${colHiddenClass(col.key)}`}>
                     <button
                       type="button"
                       onClick={() => onSort(col.key)}
-                      className={`group inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap ${
+                      className={`group inline-flex max-w-full items-start gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-left leading-tight ${
                         sortKey === col.key ? 'text-tf-blue' : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      {col.label}
+                      <span className="min-w-0 break-words">{col.label}</span>
                       <SortIndicator colKey={col.key} sortKey={sortKey} sortDir={sortDir} />
                     </button>
                   </th>
                 ))}
-                <th className="w-16 px-3 py-2.5" aria-label="Actions" />
+                <th className="w-14 px-1.5 py-2" aria-label="Actions" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -329,7 +358,7 @@ export default function UsersTable({
                   onClick={() => onRowClick(row)}
                   className="group/row hover:bg-slate-50/90 cursor-pointer transition-colors"
                 >
-                  <td className="px-3 py-2.5 align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-1.5 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={selectedIds.has(row.id)}
@@ -339,15 +368,15 @@ export default function UsersTable({
                     />
                   </td>
                   {visibleColumns.map((col) => (
-                    <td key={col.key} className={`px-3 py-2.5 align-middle ${colHiddenClass(col.key)}`}>
+                    <td key={col.key} className={`px-1.5 py-2 align-middle min-w-0 overflow-hidden ${colHiddenClass(col.key)}`}>
                       {renderCell(col, row)}
                     </td>
                   ))}
-                  <td className="px-3 py-2.5 text-right align-middle" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-1 py-2 text-right align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover/row:opacity-100 transition-opacity">
                       <Link
                         to={`/admin/users/${row.id}`}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-tf-blue hover:bg-blue-50/50 transition-colors"
+                        className="p-1 rounded-md text-slate-400 hover:text-tf-blue hover:bg-blue-50/50 transition-colors"
                         title="View profile"
                       >
                         <FaChevronRight className="w-3 h-3" />
@@ -364,6 +393,6 @@ export default function UsersTable({
           {sortedRows.length} user{sortedRows.length === 1 ? '' : 's'}
         </div>
       </div>
-    </>
+    </div>
   );
 }

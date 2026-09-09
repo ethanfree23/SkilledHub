@@ -301,12 +301,12 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
   const selectedUsers = filteredRows.filter((r) => selectedIds.has(r.id));
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8f9fb]">
+    <div className="min-h-screen lg:h-screen flex flex-col bg-[#f8f9fb] lg:overflow-hidden">
       <div className="shrink-0">
         <AppHeader user={user} onLogout={onLogout} activePage="users" emailVariant="crm" />
       </div>
 
-      <main className="flex-1 flex flex-col min-h-0 w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-4">
+      <main className="flex-1 flex flex-col min-h-0 w-full px-4 sm:px-6 lg:px-8 pt-5 pb-24 lg:pb-3">
         <div className="shrink-0">
           <UsersHeader
             onCreateUser={() => setCreateModalOpen(true)}
@@ -336,6 +336,7 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
           />
         </div>
 
+        <div className="flex-1 min-h-0 flex flex-col">
         <UsersTable
           rows={filteredRows}
           columns={columns}
@@ -359,6 +360,7 @@ export default function AdminUsersPage({ user, onLogout, onUserUpdate }) {
           sortDir={sortDir}
           onSort={handleSort}
         />
+        </div>
       </main>
 
       <BulkActionBar
