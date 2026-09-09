@@ -402,6 +402,152 @@ module Api
         assert_match(/email is required/i, event.processing_error)
       end
 
+      test "profile_photo event downloads and attaches avatar for existing technician" do
+        post_ghl(meta_lead_payload)
+        user = User.find(JSON.parse(response.body)["user_id"])
+        digest = user.password_digest
+        profile = user.technician_profile
+        refute profile.avatar.attached?
+
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+        end
+
+        assert_response :accepted
+        body = JSON.parse(response.body)
+        assert_equal true, body["photo_updated"]
+        assert_equal user.id, body["user_id"]
+        assert_equal false, body["created"]
+        profile.reload
+        assert profile.avatar.attached?
+        assert_equal "image/png", profile.avatar.content_type
+        assert_equal digest, user.reload.password_digest
+        assert_equal "77002", profile.zip_code
+      end
+
+      test "profile_photo retry with the same idempotency key does not duplicate attachments" do
+        post_ghl(meta_lead_payload)
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+          assert_response :accepted
+          post_ghl(profile_photo_payload)
+        end
+
+        assert_response :ok
+        user = User.find_by!(email: "lead@example.com")
+        assert user.technician_profile.avatar.attached?
+        assert_equal 1, ActiveStorage::Attachment.where(record: user.technician_profile, name: "avatar").count
+      end
+
+      test "new profile_photo event replaces the previous avatar" do
+        post_ghl(meta_lead_payload)
+        stub_ghl_image_fetch(filename: "first.png") do
+          post_ghl(profile_photo_payload)
+        end
+        profile = User.find_by!(email: "lead@example.com").technician_profile
+        first_blob_id = profile.avatar.blob.id
+
+        stub_ghl_image_fetch(filename: "second.png") do
+          post_ghl(profile_photo_payload.merge(idempotency_key: "contact-lead-profile-photo-2"))
+        end
+
+        assert_response :accepted
+        profile.reload
+        assert profile.avatar.attached?
+        assert_equal "second.png", profile.avatar.filename.to_s
+        refute_equal first_blob_id, profile.avatar.blob.id
+        assert_equal 1, ActiveStorage::Attachment.where(record: profile, name: "avatar").count
+      end
+
+      test "blank profile photo does not erase an existing avatar" do
+        post_ghl(meta_lead_payload)
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+        end
+        profile = User.find_by!(email: "lead@example.com").technician_profile
+        assert profile.avatar.attached?
+
+        post_ghl(
+          profile_photo_payload.merge(
+            idempotency_key: "contact-lead-profile-photo-blank",
+            profile_photo_url: ""
+          )
+        )
+
+        assert_response :accepted
+        body = JSON.parse(response.body)
+        assert_equal false, body["photo_updated"]
+        assert profile.reload.avatar.attached?
+      end
+
+      test "non-image profile photo is rejected without damaging existing avatar" do
+        post_ghl(meta_lead_payload)
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+        end
+        profile = User.find_by!(email: "lead@example.com").technician_profile
+        blob_id = profile.avatar.blob.id
+
+        GhlRemoteImageFetcher.stub(
+          :fetch,
+          ->(*) { raise GhlRemoteImageFetcher::Error, "file is not an allowed image type" }
+        ) do
+          post_ghl(profile_photo_payload.merge(idempotency_key: "contact-lead-profile-photo-html"))
+        end
+
+        assert_response :unprocessable_entity
+        assert_equal blob_id, profile.reload.avatar.blob.id
+      end
+
+      test "oversized profile photo is rejected without damaging existing avatar" do
+        post_ghl(meta_lead_payload)
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+        end
+        profile = User.find_by!(email: "lead@example.com").technician_profile
+        blob_id = profile.avatar.blob.id
+
+        GhlRemoteImageFetcher.stub(
+          :fetch,
+          ->(*) { raise GhlRemoteImageFetcher::Error, "image is too large" }
+        ) do
+          post_ghl(profile_photo_payload.merge(idempotency_key: "contact-lead-profile-photo-huge"))
+        end
+
+        assert_response :unprocessable_entity
+        assert_equal blob_id, profile.reload.avatar.blob.id
+      end
+
+      test "expired GHL media URL fails without damaging existing avatar or password" do
+        post_ghl(meta_lead_payload)
+        user = User.find_by!(email: "lead@example.com")
+        digest = user.password_digest
+        stub_ghl_image_fetch do
+          post_ghl(profile_photo_payload)
+        end
+        blob_id = user.technician_profile.avatar.blob.id
+
+        GhlRemoteImageFetcher.stub(
+          :fetch,
+          ->(*) { raise GhlRemoteImageFetcher::Error, "could not download image (HTTP 403)" }
+        ) do
+          post_ghl(profile_photo_payload.merge(idempotency_key: "contact-lead-profile-photo-expired"))
+        end
+
+        assert_response :unprocessable_entity
+        assert_equal blob_id, user.technician_profile.reload.avatar.blob.id
+        assert_equal digest, user.reload.password_digest
+      end
+
+      test "profile_photo event does not create a technician when none exists" do
+        assert_no_difference -> { User.count } do
+          post_ghl(profile_photo_payload.merge(ghl_contact_id: "missing-tech", email: "missing-photo@example.com"))
+        end
+
+        assert_response :unprocessable_entity
+        assert_match(/technician not found/i, JSON.parse(response.body)["error"])
+      end
+
       private
 
       def post_ghl(payload, token: SECRET)
@@ -461,6 +607,29 @@ module Api
         )
         TechnicianProfile.create!(user: user, membership_level: "basic", phone: phone)
         user
+      end
+
+      def profile_photo_payload
+        identity_payload.merge(
+          idempotency_key: "contact-lead-profile-photo",
+          event: "profile_photo",
+          profile_photo_url: "https://services.msgsndr.com/mms/photo.png"
+        )
+      end
+
+      MINI_PNG = Base64.decode64(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+      ).b
+
+      def stub_ghl_image_fetch(filename: "photo.png")
+        GhlRemoteImageFetcher.stub(:fetch, lambda { |_url|
+          GhlRemoteImageFetcher::Result.new(
+            io: StringIO.new(MINI_PNG),
+            content_type: "image/png",
+            filename: filename,
+            bytesize: MINI_PNG.bytesize
+          )
+        }) { yield }
       end
     end
   end

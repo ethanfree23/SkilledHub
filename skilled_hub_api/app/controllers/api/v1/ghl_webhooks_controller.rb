@@ -15,7 +15,7 @@ module Api
       private
 
       def webhook_payload
-        params.permit(
+        permitted = params.permit(
           :ghl_contact_id,
           :ghl_location_id,
           :ghl_conversation_id,
@@ -43,6 +43,10 @@ module Api
           :max_distance_miles,
           :tf_intake_contact_info,
           :tf_intake_references,
+          :profile_photo_url,
+          :message_attachments,
+          :media_url,
+          :attachments,
           :reference_1_name,
           :reference_1_company,
           :reference_1_phone,
@@ -55,8 +59,12 @@ module Api
           :reference_3_company,
           :reference_3_phone,
           :reference_3_email,
-          references: %i[full_name name company_name company phone email relationship]
+          references: %i[full_name name company_name company phone email relationship],
+          attachments: %i[url type filename],
+          customData: [:attachments]
         ).to_h
+        permitted["attachments"] = params[:attachments] if params.key?(:attachments)
+        permitted
       end
     end
   end

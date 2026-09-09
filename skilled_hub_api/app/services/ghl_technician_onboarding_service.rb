@@ -33,7 +33,7 @@ class GhlTechnicianOnboardingService
       end
     end
     result
-  rescue GhlTechnicianProvisioner::Error => e
+  rescue GhlTechnicianProvisioner::Error, GhlRemoteImageFetcher::Error, GhlProfilePhotoAttacher::Error => e
     persist_unprocessed_event(e.message)
     failure(:unprocessable_entity, e.message)
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
@@ -80,6 +80,10 @@ class GhlTechnicianOnboardingService
       return failure(:conflict, match.error)
     end
 
+    if profile_photo_event?
+      return process_profile_photo!(event, match)
+    end
+
     if parsed[:email].blank? && match.user.blank?
       message = "email is required (send email or include it in tf_intake_contact_info)"
       event.update!(processing_error: message)
@@ -120,6 +124,50 @@ class GhlTechnicianOnboardingService
     Result.new(
       http_status: :accepted,
       body: success_body(outcome[:user], outcome[:profile], created: outcome[:created])
+    )
+  end
+
+  def profile_photo_event?
+    @payload["event"].to_s.strip == "profile_photo"
+  end
+
+  def process_profile_photo!(event, match)
+    if match.user.blank?
+      message = "Technician not found for this GoHighLevel contact"
+      event.update!(processing_error: message)
+      return failure(:unprocessable_entity, message)
+    end
+
+    user = match.user
+    unless user.technician?
+      message = "A #{user.role} account already exists for this email or phone"
+      event.update!(processing_error: message)
+      return failure(:conflict, message)
+    end
+
+    profile = user.technician_profile || user.create_technician_profile!
+    photo_url = GhlProfilePhotoUrlExtractor.first_url(@payload)
+
+    if photo_url.blank?
+      event.update!(user_id: user.id, processing_error: nil)
+      return Result.new(
+        http_status: :accepted,
+        body: success_body(user, profile, created: false).merge(photo_updated: false)
+      )
+    end
+
+    fetched = GhlRemoteImageFetcher.fetch(photo_url)
+    GhlProfilePhotoAttacher.attach!(profile, fetched)
+
+    event.update!(
+      processed_at: Time.current,
+      user_id: user.id,
+      processing_error: nil
+    )
+
+    Result.new(
+      http_status: :accepted,
+      body: success_body(user, profile.reload, created: false).merge(photo_updated: true)
     )
   end
 
@@ -171,9 +219,13 @@ class GhlTechnicianOnboardingService
   def replay_result(event)
     user = replay_user(event)
     profile = user&.technician_profile
+    body = success_body(user, profile, created: false)
+    if profile_photo_event? || event.event_type.to_s == "profile_photo"
+      body = body.merge(photo_updated: profile&.avatar&.attached? == true)
+    end
     Result.new(
       http_status: :ok,
-      body: success_body(user, profile, created: false)
+      body: body
     )
   end
 
